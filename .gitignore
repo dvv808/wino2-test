@@ -1,0 +1,9 @@
+node_modules
+dist
+.DS_Store
+*.local
+
+# Local editor settings and Figma reference screenshots
+.cursor
+.figma-ref
+.vercel
