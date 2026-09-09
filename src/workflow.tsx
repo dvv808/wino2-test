@@ -1,4 +1,13 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { hashToRoute, routeToHash } from "./routing";
 
 export type Model = "privat" | "partner" | "custom";
 export type OpenMenu = "partner" | "bank" | "textblock" | "docSigner" | "signer" | null;
@@ -101,7 +110,8 @@ export const APPROVAL_LABELS: Record<ApprovalStep, string> = {
 };
 
 function useWorkflowState() {
-  const [activeStep, setActiveStep] = useState<StepId>("tasks");
+  const [initialRoute] = useState(() => hashToRoute(window.location.hash));
+  const [activeStep, setActiveStep] = useState<StepId>(initialRoute.activeStep ?? "tasks");
   const [done, setDone] = useState<Partial<Record<StepId, boolean>>>({});
 
   const [model, setModel] = useState<Model>("privat");
@@ -143,7 +153,7 @@ function useWorkflowState() {
 
   const [pdfOpen, setPdfOpen] = useState(false);
 
-  const [view, setView] = useState<View>("workflow");
+  const [view, setView] = useState<View>(initialRoute.view);
   /** Who granted a step: yourself via the shortcut, or the Bestandsmanager. */
   const [grantedBy, setGrantedBy] = useState<Partial<Record<ApprovalStep, "self" | "manager">>>({});
   /** When each request was sent, shown in the Bestandsmanager's list. */
@@ -156,6 +166,29 @@ function useWorkflowState() {
   const [returnStep, setReturnStep] = useState<ApprovalStep | null>(null);
   /** The request currently open in the Bestandsmanager's review modal. */
   const [reviewStep, setReviewStep] = useState<ApprovalStep | null>(null);
+
+  /** The first write replaces the entry so the back button does not land on a bare URL. */
+  const hashWritten = useRef(false);
+  useEffect(() => {
+    const next = routeToHash({ view, activeStep });
+    if (window.location.hash === next) {
+      hashWritten.current = true;
+      return;
+    }
+    if (hashWritten.current) window.location.hash = next;
+    else window.history.replaceState(null, "", next);
+    hashWritten.current = true;
+  }, [view, activeStep]);
+
+  useEffect(() => {
+    function applyHash() {
+      const route = hashToRoute(window.location.hash);
+      setView(route.view);
+      if (route.activeStep) setActiveStep(route.activeStep);
+    }
+    window.addEventListener("hashchange", applyHash);
+    return () => window.removeEventListener("hashchange", applyHash);
+  }, []);
 
   const selectedPartner = partners.find((partner) => partner.id === partnerId) ?? null;
   const selectedBank = BANKS.find((bank) => bank.id === bankId) ?? BANKS[0];
