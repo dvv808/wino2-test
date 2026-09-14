@@ -1,5 +1,6 @@
 import { useState } from "react";
 import * as a from "./assets/index";
+import { AppsNav } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
 import { ConsentWarning } from "./ConsentWarning";
 import { PdfModal } from "./documents";
@@ -19,8 +20,6 @@ import {
   type ApprovalStep,
   type StepId,
 } from "./workflow";
-
-const APPS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
 
 const LAYOUT: Record<StepId, string> = {
   tasks: "page single",
@@ -171,7 +170,7 @@ function Footer() {
 function Screen() {
   const { activeStep, view } = useWorkflow();
 
-  if (view === "manager") return <ManagerView />;
+  if (view === "manager" || view === "freigabe") return <ManagerView />;
 
   return (
     <div className="app">
@@ -206,31 +205,7 @@ function Screen() {
           </div>
         </header>
 
-        <nav className="apps-nav">
-          <div className="app-pills">
-            {APPS.map((label) => (
-              <button type="button" className="app-pill" key={label}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="workflow-tab">
-            <img className="tab-ear left" src={a.appTabLeft} alt="" width={10} height={10} />
-            <button type="button" className="workflow-tab-body">
-              <span className="workflow-main">
-                <Icon src={a.workflow} size={24} />
-                <span className="workflow-copy">
-                  <small>Makl.ver. Kunde</small>
-                  <strong>Julia Atkinson</strong>
-                </span>
-              </span>
-              <span className="close-icon">
-                <img src={a.iconCloseDark} alt="" width={18} height={18} />
-              </span>
-            </button>
-            <img className="tab-ear flip" src={a.appTabRight} alt="" width={10} height={10} />
-          </div>
-        </nav>
+        <AppsNav kicker="Makl.ver. Kunde" name="Julia Atkinson" />
 
         <div className="content-shell">
           <Stepper />

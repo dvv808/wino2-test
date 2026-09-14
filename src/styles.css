@@ -3493,3 +3493,590 @@ input.text-field {
     gap: 24px;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Content nav: Workflow / Freigabe / Verlauf, under the app tabs
+   --------------------------------------------------------------------------- */
+
+.content-nav {
+  flex: none;
+  height: 56px;
+  background: var(--wino-bg-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 17px 0 25px;
+}
+
+.content-nav-items {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.content-nav-item {
+  height: 36px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--wino-bg-lighter);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 20px;
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.content-nav-item:hover,
+.content-nav-item.active {
+  background: var(--wino-white);
+}
+
+.content-nav-item.ghost {
+  background: transparent;
+}
+
+.content-nav-item.ghost:hover {
+  background: var(--wino-white);
+}
+
+.content-nav-badge {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: #d23552;
+  color: var(--wino-white);
+  font-size: 11px;
+  line-height: 17px;
+  letter-spacing: 0.44px;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+   Freigabe page
+   --------------------------------------------------------------------------- */
+
+.fg-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wino-bg-lighter);
+  padding: 10px 12px 0;
+}
+
+.fg-head {
+  flex: none;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 20px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(3deg, #ffffff 51.594%, var(--wino-bg-darker) 96.938%);
+}
+
+.fg-head-title {
+  flex: none;
+  width: 400px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.fg-head-badge {
+  display: flex;
+  margin-top: 2px;
+}
+
+.fg-head-title p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  letter-spacing: 0.17px;
+}
+
+.fg-head-title strong {
+  display: block;
+  font-weight: 500;
+}
+
+.fg-meta {
+  flex: 1;
+  min-width: 0;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.fg-meta-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 22px;
+}
+
+.fg-meta-rule {
+  flex: none;
+  width: 1px;
+  height: 72px;
+  background: var(--wino-bg-darker);
+}
+
+.fg-meta-label {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.fg-meta-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fg-meta-avatar {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--wino-bg-lighter);
+}
+
+.fg-meta-avatar .photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fg-meta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fg-meta-copy strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fg-meta-copy small {
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+}
+
+.fg-meta-types {
+  display: flex;
+  gap: 4px;
+}
+
+.fg-meta-types .type-tag {
+  min-width: 0;
+  line-height: 13px;
+}
+
+.fg-meta-stamp {
+  margin: 0;
+  font-size: 13px;
+  line-height: 17px;
+}
+
+.fg-head-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.btn-secondary.fg-verlauf-btn {
+  min-width: 121px;
+  height: 32px;
+  padding: 0 24px;
+  gap: 6px;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fg-head-search {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wino-white);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.fg-body {
+  border-radius: 0;
+}
+
+.fg-foot {
+  flex: none;
+  border-radius: 0 0 16px 16px;
+  background: var(--wino-bg-lighter);
+  margin: 0;
+}
+
+/* Document heading above the tabs */
+
+.fg-doc-title {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 27px;
+  line-height: 34px;
+  letter-spacing: 0.27px;
+}
+
+.fg-doc-title strong {
+  font-weight: 500;
+}
+
+.fg-doc-title span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Aufgaben / Kommentare / Verlauf / Zusammenfassung switcher */
+
+.fg-switch {
+  margin-top: 20px;
+  align-self: flex-start;
+  height: 33px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border: 1px solid var(--wino-bg-lighter);
+  border-radius: 16px;
+}
+
+.fg-switch-item {
+  height: 24px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--wino-white);
+  padding: 0 16px;
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.fg-switch-item:hover {
+  background: var(--wino-bg-lighter);
+}
+
+.fg-switch-item.active {
+  border-radius: 32px;
+  background: linear-gradient(180deg, #313537 0%, #444f56 100%);
+  color: var(--wino-white);
+}
+
+.fg-tab-body {
+  margin-top: 22px;
+  min-width: 0;
+}
+
+/* Aufgaben */
+
+.fg-counts {
+  display: flex;
+  align-items: flex-start;
+  gap: 26px;
+  margin-bottom: 14px;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+
+.fg-counts-label {
+  margin-right: auto;
+}
+
+.fg-count {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fg-count > span {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 17px;
+  letter-spacing: 0.13px;
+}
+
+.fg-count strong {
+  font-size: 21px;
+  line-height: 24px;
+  font-weight: 400;
+  letter-spacing: 0.21px;
+}
+
+.fg-tasks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fg-task {
+  min-height: 83px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 15px 24px 15px 13px;
+  border-radius: 16px;
+  background: linear-gradient(13deg, #ffffff 12.818%, var(--wino-bg-darker) 96.938%);
+}
+
+.fg-task-dot {
+  flex: none;
+  margin-top: 16px;
+}
+
+.fg-task p {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 15px;
+  line-height: 25px;
+  letter-spacing: 0.15px;
+}
+
+.fg-task strong {
+  font-weight: 500;
+}
+
+/* Kommentare */
+
+.fg-comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fg-comment {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #d3e7f1;
+}
+
+.fg-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.fg-comment-head > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.fg-comment-head strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fg-comment-head small {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--wino-black-light);
+}
+
+.fg-comment p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  letter-spacing: 0.13px;
+}
+
+/* Verlauf */
+
+.fg-verlauf {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.fg-entry {
+  position: relative;
+  padding-left: 24px;
+}
+
+.fg-entry::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 16px;
+  bottom: -18px;
+  width: 1px;
+  background: var(--wino-bg-darker);
+}
+
+.fg-entry:last-child::before {
+  display: none;
+}
+
+.fg-entry-mark {
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--wino-bg-darker);
+}
+
+.fg-entry.added .fg-entry-mark {
+  background: var(--wino-green-homeoffice);
+}
+
+.fg-entry.changed .fg-entry-mark {
+  background: var(--wino-signal-yellow);
+}
+
+.fg-entry.removed .fg-entry-mark {
+  background: #d23552;
+}
+
+.fg-entry.sent .fg-entry-mark {
+  background: var(--wino-black-medium);
+}
+
+.fg-entry-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.fg-entry-top strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.fg-entry-top small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.fg-entry-top time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.fg-entry-what {
+  margin: 5px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 19px;
+  letter-spacing: 0.13px;
+}
+
+.fg-chip {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--wino-bg-darker);
+  background: var(--wino-white);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.fg-chip.added {
+  border-color: var(--wino-green-homeoffice);
+  background: var(--wino-signal-greenlight);
+}
+
+.fg-chip.changed {
+  border-color: var(--wino-signal-yellow);
+  background: #fff6e3;
+}
+
+.fg-chip.removed {
+  border-color: #d23552;
+  background: #ffe9ee;
+}
+
+.fg-chip.sent {
+  border-color: #5b8db5;
+  background: #e7f1f8;
+}
+
+.fg-entry-diff {
+  margin: 3px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--wino-black-light);
+}
+
+.fg-entry-diff s {
+  text-decoration: line-through;
+}
+
+.fg-entry-diff em {
+  font-style: normal;
+}
+
+.fg-entry-diff b {
+  font-weight: 500;
+  color: var(--wino-black-dark);
+}
+
+/* Zusammenfassung reuses the workflow's cards */
+
+.fg-summary .summary {
+  width: 100%;
+  padding: 24px 20px 28px;
+}
+
+.fg-empty-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--wino-black-light);
+}
+
+.fg-empty-note.center {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 80px 0;
+}

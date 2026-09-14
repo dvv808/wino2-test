@@ -21,7 +21,14 @@ function ManagementAreaIcon() {
   );
 }
 
-export function BestandMainNav() {
+/** `partner` opens a second tab: the Bestandsmanager looking into someone's file. */
+export function BestandMainNav({
+  partner,
+  onClosePartner,
+}: {
+  partner?: string;
+  onClosePartner?: () => void;
+} = {}) {
   const { leaveManager } = useWorkflow();
 
   return (
@@ -51,6 +58,24 @@ export function BestandMainNav() {
           </span>
           <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
         </div>
+        {partner ? (
+          <div className="person-tab">
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body">
+              <Icon src={a.person} size={24} />
+              {partner}
+              <button
+                type="button"
+                className="close-icon"
+                aria-label={`${partner} schließen`}
+                onClick={onClosePartner}
+              >
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        ) : null}
       </div>
       <div className="main-nav-right">
         <button type="button" className="search-btn" aria-label="Suche">

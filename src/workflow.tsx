@@ -14,8 +14,11 @@ export type OpenMenu = "partner" | "bank" | "textblock" | "docSigner" | "signer"
 export type StepId = "tasks" | "comms" | "fee" | "terms" | "scope" | "docs" | "sign";
 export type Approval = "idle" | "requested" | "granted" | "rejected";
 export type SignMode = "upload" | "digital";
-/** The workflow and the Bestandsmanager are two separate workspaces. */
-export type View = "workflow" | "manager";
+/**
+ * The workflow and the Bestandsmanager are two separate workspaces. From the
+ * Bestandsmanager's list, a single request opens as its own page: "freigabe".
+ */
+export type View = "workflow" | "manager" | "freigabe";
 /** Only these two steps need a Freigabe from the Bestandsmanager. */
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
 export type RequestStamp = { date: string; time: string };
@@ -166,11 +169,13 @@ function useWorkflowState() {
   const [returnStep, setReturnStep] = useState<ApprovalStep | null>(null);
   /** The request currently open in the Bestandsmanager's review modal. */
   const [reviewStep, setReviewStep] = useState<ApprovalStep | null>(null);
+  /** The id of the request opened as a full Freigabe page. */
+  const [freigabeId, setFreigabeId] = useState<string | null>(initialRoute.freigabeId ?? null);
 
   /** The first write replaces the entry so the back button does not land on a bare URL. */
   const hashWritten = useRef(false);
   useEffect(() => {
-    const next = routeToHash({ view, activeStep });
+    const next = routeToHash({ view, activeStep, freigabeId: freigabeId ?? undefined });
     if (window.location.hash === next) {
       hashWritten.current = true;
       return;
@@ -178,13 +183,14 @@ function useWorkflowState() {
     if (hashWritten.current) window.location.hash = next;
     else window.history.replaceState(null, "", next);
     hashWritten.current = true;
-  }, [view, activeStep]);
+  }, [view, activeStep, freigabeId]);
 
   useEffect(() => {
     function applyHash() {
       const route = hashToRoute(window.location.hash);
       setView(route.view);
       if (route.activeStep) setActiveStep(route.activeStep);
+      setFreigabeId(route.freigabeId ?? null);
     }
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
@@ -283,7 +289,20 @@ function useWorkflowState() {
     if (target) setActiveStep(target);
     setReturnStep(null);
     setReviewStep(null);
+    setFreigabeId(null);
     setView("workflow");
+  }
+
+  /** Open one request from the Bestandsmanager's list as its own page. */
+  function openFreigabe(id: string) {
+    setFreigabeId(id);
+    setView("freigabe");
+  }
+
+  /** Back to the Bestandsmanager's list. */
+  function closeFreigabe() {
+    setFreigabeId(null);
+    setView("manager");
   }
 
   return {
@@ -374,6 +393,9 @@ function useWorkflowState() {
     setReviewStep,
     decideRequest,
     leaveManager,
+    freigabeId,
+    openFreigabe,
+    closeFreigabe,
   };
 }
 

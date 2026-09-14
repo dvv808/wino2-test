@@ -3,8 +3,8 @@ import * as a from "../assets/index";
 import { useWorkflow, type ApprovalStep } from "../workflow";
 import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrome";
 import { FreigabenPanel } from "./FreigabenPanel";
+import { FreigabePage } from "./FreigabePage";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
-import { ReviewModal } from "./ReviewModal";
 import { DEMO_REQUESTS, SCHRITT, type RequestRow, type RequestStatus } from "./requests";
 
 const LIVE_REQUESTER = {
@@ -20,13 +20,21 @@ const FALLBACK_NOTE = {
 };
 
 export function ManagerView() {
-  const { approvalOf, docSigner, requestedAt, requestNote, decisionNote, decideRequest } =
-    useWorkflow();
+  const {
+    approvalOf,
+    docSigner,
+    requestedAt,
+    requestNote,
+    decisionNote,
+    decideRequest,
+    freigabeId,
+    openFreigabe,
+    closeFreigabe,
+  } = useWorkflow();
   /** Decisions on the demo rows stay local to this screen. */
   const [demoDecisions, setDemoDecisions] = useState<
     Record<string, { status: RequestStatus; decided: string; comment: string }>
   >({});
-  const [reviewing, setReviewing] = useState<RequestRow | null>(null);
 
   const liveRows: RequestRow[] = (["docs", "sign"] as ApprovalStep[])
     .filter((step) => approvalOf(step) !== "idle")
@@ -60,6 +68,9 @@ export function ManagerView() {
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
   ];
 
+  /** A shared link can name a request that this session never created. */
+  const reviewing = rows.find((row) => row.id === freigabeId) ?? null;
+
   function decide(decision: "granted" | "rejected", note: string) {
     if (!reviewing) return;
     if (reviewing.step) {
@@ -75,7 +86,11 @@ export function ManagerView() {
         comment: note || FALLBACK_NOTE[decision],
       },
     }));
-    setReviewing(null);
+    closeFreigabe();
+  }
+
+  if (reviewing) {
+    return <FreigabePage row={reviewing} onClose={closeFreigabe} onDecide={decide} />;
   }
 
   return (
@@ -87,13 +102,9 @@ export function ManagerView() {
 
         <div className="content-shell bestand-body">
           <MitarbeiterSidebar />
-          <FreigabenPanel rows={rows} onStart={setReviewing} />
+          <FreigabenPanel rows={rows} onStart={(row) => openFreigabe(row.id)} />
         </div>
       </div>
-
-      {reviewing ? (
-        <ReviewModal row={reviewing} onClose={() => setReviewing(null)} onDecide={decide} />
-      ) : null}
     </div>
   );
 }
