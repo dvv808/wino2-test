@@ -3,6 +3,7 @@ import {
   ADVISOR,
   ADVISOR_TASKS,
   ApprovalTabsBar,
+  approvalTimeline,
   AufgabenList,
   buildComments,
   DocHeading,
@@ -10,47 +11,37 @@ import {
   VerlaufTab,
   ZusammenfassungTab,
   type ApprovalTab,
-  type Entry,
 } from "../approvalTabs";
 import { DocumentRail, PdfViewer } from "../documents";
 import { Notice, PersonSelect } from "../ui";
 import { useWorkflow } from "../workflow";
 
 export function DocsStep() {
-  const { docsApproval, docSigner, grantedBy, requestNote, decisionNote, requestedAt } =
-    useWorkflow();
+  const {
+    docsApproval,
+    docSigner,
+    grantedBy,
+    requestNote,
+    decisionNote,
+    requestedAt,
+    decidedAt,
+  } = useWorkflow();
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const tasks = ADVISOR_TASKS.docs;
   const comments = buildComments({
     note: requestNote.docs,
-    noteBy: ADVISOR.who,
+    notePerson: ADVISOR,
+    noteAt: requestedAt.docs,
     decision: decisionNote.docs,
-    rejected: docsApproval === "rejected",
+    decisionAt: decidedAt.docs,
   });
-
-  /* The advisor sees the same timeline, closed out with their own request. */
-  const timeline: Entry[] = [];
-  const sent = requestedAt.docs;
-  if (sent) {
-    timeline.push({
-      ...ADVISOR,
-      change: "sent",
-      field: "Freigabe angefordert",
-      to: requestNote.docs,
-      at: `${sent.date}, ${sent.time}`,
-    });
-  }
-  if (decisionNote.docs) {
-    timeline.push({
-      who: "Bestandsmanager",
-      role: "Bestandsmanagement",
-      change: "changed",
-      field: "Freigabe",
-      from: "offen",
-      to: docsApproval === "rejected" ? "abgelehnt" : "genehmigt",
-      at: sent ? `${sent.date}, ${sent.time}` : "",
-    });
-  }
+  const timeline = approvalTimeline({
+    sentAt: requestedAt.docs,
+    note: requestNote.docs,
+    decidedAt: decidedAt.docs,
+    decision:
+      docsApproval === "granted" || docsApproval === "rejected" ? docsApproval : null,
+  });
 
   return (
     <>

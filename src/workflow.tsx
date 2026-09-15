@@ -165,6 +165,8 @@ function useWorkflowState() {
   const [requestNote, setRequestNote] = useState<Partial<Record<ApprovalStep, string>>>({});
   /** The Bestandsmanager's note back to the advisor, captured when deciding. */
   const [decisionNote, setDecisionNote] = useState<Partial<Record<ApprovalStep, string>>>({});
+  /** When each request was decided, shown alongside the Bestandsmanager's note. */
+  const [decidedAt, setDecidedAt] = useState<Partial<Record<ApprovalStep, RequestStamp>>>({});
   /** The step to return to once the Bestandsmanager is done. */
   const [returnStep, setReturnStep] = useState<ApprovalStep | null>(null);
   /** The request currently open in the Bestandsmanager's review modal. */
@@ -259,6 +261,7 @@ function useWorkflowState() {
     setRequestedAt((current) => ({ ...current, [step]: stamp() }));
     setRequestNote((current) => ({ ...current, [step]: note }));
     setDecisionNote((current) => ({ ...current, [step]: undefined }));
+    setDecidedAt((current) => ({ ...current, [step]: undefined }));
     setReturnStep(step);
     setOpenMenu(null);
     setPdfOpen(false);
@@ -275,6 +278,7 @@ function useWorkflowState() {
   function decideRequest(step: ApprovalStep, decision: "granted" | "rejected", note = "") {
     setApprovalOf(step, decision);
     setDecisionNote((current) => ({ ...current, [step]: note }));
+    setDecidedAt((current) => ({ ...current, [step]: stamp() }));
     if (decision === "granted") {
       setGrantedBy((current) => ({ ...current, [step]: "manager" }));
       markDone(step);
@@ -385,6 +389,7 @@ function useWorkflowState() {
     requestedAt,
     requestNote,
     decisionNote,
+    decidedAt,
     openRequests,
     approvalOf,
     requestApproval,

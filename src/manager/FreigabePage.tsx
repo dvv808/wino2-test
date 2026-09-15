@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  ADVISOR,
   ApprovalTabsBar,
+  approvalTimeline,
   AufgabenList,
   buildComments,
   DocHeading,
@@ -10,7 +10,6 @@ import {
   VerlaufTab,
   ZusammenfassungTab,
   type ApprovalTab,
-  type Entry,
 } from "../approvalTabs";
 import * as a from "../assets/index";
 import { AppsNav, ContentNav, type ContentPane } from "../chrome";
@@ -194,7 +193,7 @@ export function FreigabePage({
   onClose: () => void;
   onDecide: (decision: "granted" | "rejected", note: string) => void;
 }) {
-  const { signMode, signature } = useWorkflow();
+  const { signMode, signature, decidedAt } = useWorkflow();
   const [pane, setPane] = useState<ContentPane>("freigabe");
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
@@ -202,36 +201,21 @@ export function FreigabePage({
   const decided = row.status !== "offen";
   const step = signed ? "sign" : "docs";
   const tasks = MANAGER_TASKS[step];
+  const sentAt = { date: row.date, time: row.time };
   const comments = buildComments({
     note: row.note,
-    noteBy: row.requester.name,
+    notePerson: row.requester,
+    noteAt: sentAt,
     decision: row.comment,
-    rejected: row.status === "abgelehnt",
+    decisionAt: decidedAt[step] ?? sentAt,
   });
-
-  /* The request and the decision close out the shared timeline. */
-  const timeline: Entry[] = [];
-  if (row.note || decided) {
-    timeline.push({
-      who: row.requester.name,
-      role: ADVISOR.role,
-      change: "sent",
-      field: "Freigabe angefordert",
-      to: row.note,
-      at: `${row.date}, ${row.time}`,
-    });
-  }
-  if (decided) {
-    timeline.push({
-      who: "Bestandsmanager",
-      role: "Bestandsmanagement",
-      change: "changed",
-      field: "Freigabe",
-      from: "offen",
-      to: row.status === "abgelehnt" ? "abgelehnt" : "genehmigt",
-      at: row.decided ?? `${row.date}, ${row.time}`,
-    });
-  }
+  const timeline = approvalTimeline({
+    requester: row.requester,
+    sentAt,
+    note: row.note,
+    decidedAt: decidedAt[step] ?? sentAt,
+    decision: decided ? (row.status === "abgelehnt" ? "rejected" : "granted") : null,
+  });
 
   return (
     <div className="app">

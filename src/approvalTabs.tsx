@@ -11,8 +11,6 @@ import { DOCUMENTS, useWorkflow, type ApprovalStep } from "./workflow";
  */
 export type ApprovalTab = "aufgaben" | "kommentare" | "verlauf" | "zusammenfassung";
 
-export const ADVISOR = { who: "Christine Auer", role: "Beratung & Service" };
-
 const MORE_LABEL = "Weitere Aktionen";
 
 /** Gap and side padding of the bar, needed to work out how many tabs fit. */
@@ -239,33 +237,85 @@ export const ADVISOR_TASKS: Record<ApprovalStep, Task[]> = {
 };
 
 /* -------------------------------------------------------------------------- */
+/* People                                                                     */
+/* -------------------------------------------------------------------------- */
+
+export type Stamp = { date: string; time: string };
+
+export type Person = { name: string; photo: string };
+
+/** Names run surname first, so "Auer Christine" shortens to AUCH. */
+export function codeFor(name: string) {
+  const [last = "", first = ""] = name.split(" ");
+  return `${last.slice(0, 2)}${first.slice(0, 2)}`.toUpperCase();
+}
+
+export const ADVISOR = {
+  name: "Auer Christine",
+  role: "Beratung & Service",
+  photo: a.empChristine,
+};
+
+export const MANAGER = {
+  name: "Adams Anna",
+  role: "Geschäftsleitung",
+  photo: a.reqAnna,
+};
+
+const SUPERVISOR = { name: "Dullon Lucy", role: "Leitung", photo: a.empLucy };
+
+export function PersonAvatar({
+  person,
+  size,
+  bordered = false,
+}: {
+  person: Person;
+  size: number;
+  bordered?: boolean;
+}) {
+  return (
+    <span
+      className={`pavatar${bordered ? " bordered" : ""}`}
+      style={{ width: size, height: size }}
+    >
+      <img className="pavatar-photo" src={person.photo} alt="" />
+      <img
+        className="pavatar-dot"
+        src={bordered ? a.dotOnlineWhite : a.dotOnline}
+        alt=""
+        width={bordered ? 8.2 : 8}
+        height={bordered ? 8.2 : 8}
+      />
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Kommentare                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export type Comment = { who: string; role: string; text: string };
+export type Comment = { person: Person; text: string; at?: Stamp };
 
 /** The advisor's note from the request plus the manager's note from the decision. */
 export function buildComments({
   note,
-  noteBy,
+  notePerson,
+  noteAt,
   decision,
-  rejected,
+  decisionAt,
 }: {
   note?: string;
-  noteBy: string;
+  notePerson: Person;
+  noteAt?: Stamp;
   decision?: string;
-  rejected: boolean;
+  decisionAt?: Stamp;
 }): Comment[] {
-  return [
-    note ? { who: noteBy, role: "Anfrage an den Bestandsmanager", text: note } : null,
-    decision
-      ? {
-          who: "Bestandsmanager",
-          role: rejected ? "Begründung der Ablehnung" : "Anmerkung zur Genehmigung",
-          text: decision,
-        }
-      : null,
-  ].filter((entry): entry is Comment => Boolean(entry));
+  /* Newest first, so the Bestandsmanager's reply sits on top. */
+  const thread: (Comment | null)[] = [
+    decision ? { person: MANAGER, text: decision, at: decisionAt } : null,
+    note ? { person: notePerson, text: note, at: noteAt } : null,
+  ];
+  return thread.filter((entry): entry is Comment => Boolean(entry));
 }
 
 export function KommentareTab({ comments }: { comments: Comment[] }) {
@@ -274,17 +324,27 @@ export function KommentareTab({ comments }: { comments: Comment[] }) {
   }
 
   return (
-    <ul className="acomments">
-      {comments.map((entry) => (
-        <li className="acomment" key={entry.who}>
-          <span className="acomment-head">
-            <Icon src={a.comment} size={18} />
-            <span>
-              <strong>{entry.who}</strong>
-              <small>{entry.role}</small>
-            </span>
-          </span>
-          <p>{entry.text}</p>
+    <ul className="komm">
+      {comments.map((entry, index) => (
+        <li className="komm-row" key={`${entry.person.name}-${index}`}>
+          <PersonAvatar person={entry.person} size={37} bordered />
+          <div className="komm-col">
+            <div className="komm-bubble">
+              <img className="komm-tail" src={a.bubbleTail} alt="" />
+              <div className="komm-head">
+                <strong>{entry.person.name}</strong>
+                <button type="button" className="komm-menu" aria-label="Weitere Aktionen">
+                  <Icon src={a.contextMenu} size={18} />
+                </button>
+              </div>
+              <p>{entry.text}</p>
+            </div>
+            {entry.at ? (
+              <time className="komm-time">
+                {entry.at.date}, um {entry.at.time}
+              </time>
+            ) : null}
+          </div>
         </li>
       ))}
     </ul>
@@ -297,112 +357,203 @@ export function KommentareTab({ comments }: { comments: Comment[] }) {
 
 export type Change = "added" | "changed" | "removed" | "sent";
 
-const CHANGE_LABEL: Record<Change, string> = {
-  added: "hinzugefügt",
-  changed: "geändert",
-  removed: "entfernt",
-  sent: "gesendet",
+const CHANGE: Record<Change, { label: string; icon: string }> = {
+  added: { label: "Hinzugefügt", icon: a.badgeAdd },
+  changed: { label: "Geändert", icon: a.badgeEdit },
+  removed: { label: "Gelöscht", icon: a.badgeClose },
+  sent: { label: "Gesendet", icon: a.badgeSent },
 };
 
 export type Entry = {
-  who: string;
-  role: string;
+  person: Person;
   change: Change;
   field: string;
   from?: string;
   to?: string;
-  at: string;
+  at: Stamp;
 };
 
 /** What the advisor did while filling the workflow in, oldest first. */
 export const VERLAUF: Entry[] = [
   {
-    ...ADVISOR,
+    person: ADVISOR,
     change: "added",
-    field: "Telefonnummer",
-    to: "+43 3810 393 112 3",
-    at: "12.03.2027, 09:14",
+    field: "Telefonnummer Mobil",
+    to: "+43 1711 313 22",
+    at: { date: "12.03.2027", time: "09:14" },
   },
   {
-    ...ADVISOR,
+    person: ADVISOR,
     change: "added",
     field: "E-Mail",
     to: "julia.atkinson@mail.at",
-    at: "12.03.2027, 09:16",
+    at: { date: "12.03.2027", time: "09:16" },
   },
   {
-    ...ADVISOR,
+    person: ADVISOR,
     change: "added",
     field: "Postadresse",
     to: "Mondseestrasse 32, A-5310 Mondsee",
-    at: "12.03.2027, 09:21",
+    at: { date: "12.03.2027", time: "09:21" },
   },
   {
-    ...ADVISOR,
+    person: ADVISOR,
     change: "added",
     field: "Honorar-Modell",
-    to: "Privat · EUR 120,00 / Jahr",
-    at: "12.03.2027, 10:02",
+    to: "Privat · EUR 120,00 pro Jahr, zahlbar in vier Teilbeträgen",
+    at: { date: "12.03.2027", time: "10:01" },
   },
   {
-    ...ADVISOR,
-    change: "changed",
-    field: "Zahlweise",
-    from: "Rechnung",
-    to: "Abbuchung",
-    at: "12.03.2027, 10:05",
+    person: ADVISOR,
+    change: "added",
+    field: "Individuelle Vereinbarungen",
+    to: "Es wird vereinbart, dass für die Dauer von zwölf Monaten ein Alleinvermittlungsauftrag besteht.",
+    at: { date: "12.03.2027", time: "10:01" },
   },
   {
-    ...ADVISOR,
+    person: ADVISOR,
     change: "added",
     field: "Bankverbindung",
     to: "Neon Bank · AT 2303 20002 0000 0002 0012",
-    at: "12.03.2027, 10:07",
+    at: { date: "12.03.2027", time: "10:07" },
   },
   {
-    ...ADVISOR,
-    change: "added",
-    field: "Individuelle Vereinbarungen",
-    to: "Alleinvermittlungsauftrag",
-    at: "12.03.2027, 11:40",
+    person: MANAGER,
+    change: "changed",
+    field: "Honorarbetrag",
+    from: "EUR 120,00",
+    to: "EUR 170,00",
+    at: { date: "12.03.2027", time: "13:01" },
   },
   {
-    ...ADVISOR,
+    person: SUPERVISOR,
     change: "removed",
-    field: "Kündigungsverzicht 12 Monate",
-    at: "12.03.2027, 11:44",
+    field: "Individuelle Vereinbarungen",
+    to: "Es wird vereinbart, dass für die Dauer von zwölf Monaten ein Kündigungsverzicht besteht.",
+    at: { date: "12.03.2027", time: "13:33" },
   },
 ];
 
-export function VerlaufTab({ extra = [] }: { extra?: Entry[] }) {
-  const entries = [...VERLAUF, ...extra];
+/**
+ * The request and the decision that close out the timeline. Both roles see the
+ * same two entries, they just source the stamps from different places.
+ */
+export function approvalTimeline({
+  requester = ADVISOR,
+  sentAt,
+  note,
+  decidedAt,
+  decision,
+}: {
+  requester?: Person;
+  sentAt?: Stamp;
+  note?: string;
+  decidedAt?: Stamp;
+  decision?: "granted" | "rejected" | null;
+}): Entry[] {
+  const entries: Entry[] = [];
+
+  if (sentAt) {
+    entries.push({
+      person: requester,
+      change: "sent",
+      field: "Freigabe angefordert",
+      to: note,
+      at: sentAt,
+    });
+  }
+
+  if (decision && decidedAt) {
+    entries.push({
+      person: MANAGER,
+      change: "changed",
+      field: "Freigabe",
+      from: "offen",
+      to: decision === "rejected" ? "abgelehnt" : "genehmigt",
+      at: decidedAt,
+    });
+  }
+
+  return entries;
+}
+
+function VerlaufRow({ entry }: { entry: Entry }) {
+  const [open, setOpen] = useState(false);
+  const { label, icon } = CHANGE[entry.change];
 
   return (
-    <ol className="averlauf">
-      {entries.map((entry, index) => (
-        <li className={`aentry ${entry.change}`} key={`${entry.field}-${index}`}>
-          <span className="aentry-mark" />
-          <div>
-            <span className="aentry-top">
-              <strong>{entry.who}</strong>
-              <small>{entry.role}</small>
-              <time>{entry.at}</time>
-            </span>
-            <p className="aentry-what">
-              <span className={`achip ${entry.change}`}>{CHANGE_LABEL[entry.change]}</span>
-              {entry.field}
-            </p>
-            {entry.from || entry.to ? (
-              <p className="aentry-diff">
-                {entry.from ? <s>{entry.from}</s> : null}
-                {entry.from && entry.to ? <em>→</em> : null}
-                {entry.to ? <b>{entry.to}</b> : null}
-              </p>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ol>
+    <li className="vl-row">
+      <div className="vl-when">
+        <button
+          type="button"
+          className="vl-marker"
+          aria-expanded={open}
+          aria-label={open ? "Eintrag zuklappen" : "Eintrag aufklappen"}
+          onClick={() => setOpen(!open)}
+        >
+          <Icon src={open ? a.verlaufOpen : a.verlaufClosed} size={18} />
+        </button>
+        <p className="vl-date">
+          {entry.at.date}
+          <br />
+          {entry.at.time}
+        </p>
+      </div>
+
+      <div className="vl-what">
+        <span className={`vl-badge ${entry.change}`}>
+          <Icon src={icon} size={10} />
+          {label}
+        </span>
+        <strong className="vl-field">{entry.field}</strong>
+        {entry.from ? (
+          <p className={`vl-value diff${open ? " open" : ""}`}>
+            <span>{entry.from}</span>
+            <Icon src={a.arrowRight} size={14} />
+            <span>{entry.to}</span>
+          </p>
+        ) : entry.to ? (
+          <p className={`vl-value${open ? " open" : ""}`}>
+            {entry.change === "removed" ? <s>{entry.to}</s> : entry.to}
+          </p>
+        ) : null}
+      </div>
+
+      <div className="vl-who">
+        <PersonAvatar person={entry.person} size={32} />
+        <small>{codeFor(entry.person.name)}</small>
+      </div>
+    </li>
+  );
+}
+
+export function VerlaufTab({ extra = [] }: { extra?: Entry[] }) {
+  /* Newest first, so the freshest change is the first thing read. */
+  const entries = [...VERLAUF, ...extra].reverse();
+
+  return (
+    <div className="vl">
+      <div className="vl-head">
+        <span>
+          Datum
+          <Icon src={a.colFilter} size={12} />
+        </span>
+        <span>
+          Typ
+          <Icon src={a.colFilter} size={12} />
+        </span>
+        <span>
+          Person
+          <Icon src={a.colFilter} size={12} />
+        </span>
+      </div>
+
+      <ol className="vl-rows">
+        {entries.map((entry, index) => (
+          <VerlaufRow entry={entry} key={`${entry.field}-${entry.at.time}-${index}`} />
+        ))}
+      </ol>
+    </div>
   );
 }
 

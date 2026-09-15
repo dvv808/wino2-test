@@ -9,6 +9,9 @@
   --wino-bg-light: #e2e7ec;
   --wino-bg-lighter: #ebf1f5;
   --wino-signal-greenlight: #e8ffe7;
+  --wino-signal-yellowlight: #fcf5e3;
+  --wino-signal-redlight: #ffe2e1;
+  --wino-blue-light: #d3e7f1;
   --wino-green-homeoffice: #348d2c;
   --wino-canvas: #d8e0e6;
   --font: "Fira Sans", "Helvetica Neue", sans-serif;
@@ -3868,192 +3871,262 @@ input.text-field {
   font-weight: 500;
 }
 
-/* Kommentare */
+/* Avatar with presence dot, shared by the Verlauf table and the Kommentare thread */
 
-.acomments {
+.pavatar {
+  position: relative;
+  flex: none;
+  display: block;
+}
+
+.pavatar-photo {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.pavatar.bordered .pavatar-photo {
+  box-sizing: border-box;
+  border: 1px solid var(--wino-blue-light);
+}
+
+.pavatar-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+}
+
+/* Kommentare: a chat thread of speech bubbles */
+
+.komm {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 28px;
 }
 
-.acomment {
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: #d3e7f1;
-}
-
-.acomment-head {
+.komm-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  gap: 14px;
 }
 
-.acomment-head > span {
+.komm-col {
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 
-.acomment-head strong {
+.komm-bubble {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 440px;
+  padding: 14px 20px 16px;
+  border-radius: 16px;
+  background: linear-gradient(246.31deg, #ffffff 32.32%, var(--wino-bg-darker) 87.44%);
+}
+
+/* The tail points back at the avatar from the top-left corner. */
+.komm-tail {
+  position: absolute;
+  left: -13px;
+  top: 4px;
+  width: 47px;
+  height: 26px;
+  transform: rotate(180deg);
+  z-index: -1;
+}
+
+.komm-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.komm-head strong {
   font-size: 13px;
   font-weight: 500;
-}
-
-.acomment-head small {
-  font-size: 11px;
-  line-height: 15px;
-  color: var(--wino-black-light);
-}
-
-.acomment p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 19px;
   letter-spacing: 0.13px;
 }
 
-/* Verlauf */
-
-.averlauf {
-  list-style: none;
-  margin: 0;
+.komm-menu {
+  flex: none;
+  display: flex;
+  border: 0;
+  background: transparent;
   padding: 0;
+  cursor: pointer;
+}
+
+.komm-bubble p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 23px;
+  letter-spacing: 0.13px;
+}
+
+.komm-time {
+  font-size: 11px;
+  line-height: 15px;
+  font-style: italic;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-light);
+}
+
+/* Verlauf: a table of changes with an expandable row per entry */
+
+.vl {
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
-.aentry {
-  position: relative;
-  padding-left: 24px;
+.vl-head,
+.vl-row {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr) 64px;
+  gap: 16px;
 }
 
-.aentry::before {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 16px;
-  bottom: -18px;
-  width: 1px;
-  background: var(--wino-bg-darker);
-}
-
-.aentry:last-child::before {
-  display: none;
-}
-
-.aentry-mark {
-  position: absolute;
-  left: 0;
-  top: 5px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--wino-bg-darker);
-}
-
-.aentry.added .aentry-mark {
-  background: var(--wino-green-homeoffice);
-}
-
-.aentry.changed .aentry-mark {
-  background: var(--wino-signal-yellow);
-}
-
-.aentry.removed .aentry-mark {
-  background: #d23552;
-}
-
-.aentry.sent .aentry-mark {
-  background: var(--wino-black-medium);
-}
-
-.aentry-top {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.aentry-top strong {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.aentry-top small {
-  font-size: 11px;
-  color: var(--wino-black-light);
-}
-
-.aentry-top time {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--wino-black-light);
-}
-
-.aentry-what {
-  margin: 5px 0 0;
+.vl-head span {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-size: 13px;
-  line-height: 19px;
   letter-spacing: 0.13px;
 }
 
-.achip {
-  flex: none;
-  padding: 1px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--wino-bg-darker);
-  background: var(--wino-white);
-  font-size: 11px;
-  line-height: 15px;
+.vl-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 }
 
-.achip.added {
-  border-color: var(--wino-green-homeoffice);
+.vl-when {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* The dashed connector runs from one marker down into the next row. */
+.vl-when::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 30px;
+  bottom: -38px;
+  border-left: 1px dashed var(--wino-bg-darker);
+}
+
+.vl-row:last-child .vl-when::before {
+  display: none;
+}
+
+.vl-marker {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(147.83deg, #ffffff 2.19%, var(--wino-bg-darker) 92.42%);
+  padding: 0;
+  cursor: pointer;
+}
+
+.vl-date {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: 0.13px;
+}
+
+.vl-what {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.vl-badge {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 16px;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+}
+
+.vl-badge.added {
   background: var(--wino-signal-greenlight);
 }
 
-.achip.changed {
-  border-color: var(--wino-signal-yellow);
-  background: #fff6e3;
+.vl-badge.changed {
+  background: var(--wino-signal-yellowlight);
 }
 
-.achip.removed {
-  border-color: #d23552;
-  background: #ffe9ee;
+.vl-badge.removed {
+  background: var(--wino-signal-redlight);
 }
 
-.achip.sent {
-  border-color: #5b8db5;
-  background: #e7f1f8;
+.vl-badge.sent {
+  background: var(--wino-blue-light);
 }
 
-.aentry-diff {
-  margin: 3px 0 0;
+.vl-field {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.13px;
+}
+
+.vl-value {
+  margin: 0;
+  max-width: 100%;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: 0.13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Expanding the row lets a long value wrap instead of truncating. */
+.vl-value.open {
+  white-space: normal;
+  overflow: visible;
+}
+
+.vl-value.diff {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+
+.vl-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.vl-who small {
   font-size: 13px;
-  line-height: 19px;
-  color: var(--wino-black-light);
-}
-
-.aentry-diff s {
-  text-decoration: line-through;
-}
-
-.aentry-diff em {
-  font-style: normal;
-}
-
-.aentry-diff b {
-  font-weight: 500;
-  color: var(--wino-black-dark);
+  letter-spacing: 0.13px;
 }
 
 /* Zusammenfassung reuses the workflow's cards */

@@ -3,6 +3,7 @@ import {
   ADVISOR,
   ADVISOR_TASKS,
   ApprovalTabsBar,
+  approvalTimeline,
   AufgabenList,
   buildComments,
   DocHeading,
@@ -10,7 +11,6 @@ import {
   VerlaufTab,
   ZusammenfassungTab,
   type ApprovalTab,
-  type Entry,
 } from "../approvalTabs";
 import * as a from "../assets/index";
 import { DocumentRail, SignedDocumentPanel } from "../documents";
@@ -109,7 +109,8 @@ function SignaturePad({ disabled }: { disabled: boolean }) {
 }
 
 export function SignStep() {
-  const { signApproval, grantedBy, requestNote, decisionNote, requestedAt } = useWorkflow();
+  const { signApproval, grantedBy, requestNote, decisionNote, requestedAt, decidedAt } =
+    useWorkflow();
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
 
   /** A rejected request unlocks the step again so the signature can be corrected. */
@@ -117,34 +118,18 @@ export function SignStep() {
   const tasks = ADVISOR_TASKS.sign;
   const comments = buildComments({
     note: requestNote.sign,
-    noteBy: ADVISOR.who,
+    notePerson: ADVISOR,
+    noteAt: requestedAt.sign,
     decision: decisionNote.sign,
-    rejected: signApproval === "rejected",
+    decisionAt: decidedAt.sign,
   });
-
-  /* The advisor sees the same timeline, closed out with their own request. */
-  const timeline: Entry[] = [];
-  const sent = requestedAt.sign;
-  if (sent) {
-    timeline.push({
-      ...ADVISOR,
-      change: "sent",
-      field: "Freigabe angefordert",
-      to: requestNote.sign,
-      at: `${sent.date}, ${sent.time}`,
-    });
-  }
-  if (decisionNote.sign) {
-    timeline.push({
-      who: "Bestandsmanager",
-      role: "Bestandsmanagement",
-      change: "changed",
-      field: "Freigabe",
-      from: "offen",
-      to: signApproval === "rejected" ? "abgelehnt" : "genehmigt",
-      at: sent ? `${sent.date}, ${sent.time}` : "",
-    });
-  }
+  const timeline = approvalTimeline({
+    sentAt: requestedAt.sign,
+    note: requestNote.sign,
+    decidedAt: decidedAt.sign,
+    decision:
+      signApproval === "granted" || signApproval === "rejected" ? signApproval : null,
+  });
 
   return (
     <>

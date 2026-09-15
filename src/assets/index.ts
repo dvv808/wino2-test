@@ -93,6 +93,19 @@ export { default as history } from "./icons/history.svg";
 export { default as filterLines } from "./icons/filter-lines.svg";
 export { default as dotSpecial } from "./icons/dot-special.svg";
 export { default as dotStandard } from "./icons/dot-standard.svg";
+
+/* Verlauf table and Kommentare thread */
+export { default as badgeAdd } from "./icons/badge-add.svg";
+export { default as badgeEdit } from "./icons/badge-edit.svg";
+export { default as badgeClose } from "./icons/badge-close.svg";
+export { default as badgeSent } from "./icons/badge-sent.svg";
+export { default as verlaufOpen } from "./icons/verlauf-open.svg";
+export { default as verlaufClosed } from "./icons/verlauf-closed.svg";
+export { default as arrowRight } from "./icons/arrow-right.svg";
+export { default as dotOnline } from "./icons/dot-online.svg";
+export { default as dotOnlineWhite } from "./icons/dot-online-white.svg";
+export { default as contextMenu } from "./icons/context-menu.svg";
+export { default as bubbleTail } from "./icons/bubble-tail.svg";
 export { default as download } from "./icons/download.svg";
 export { default as folder } from "./icons/folder.svg";
 export { default as notes } from "./icons/notes.svg";
