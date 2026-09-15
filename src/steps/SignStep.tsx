@@ -1,8 +1,21 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  ADVISOR,
+  ADVISOR_TASKS,
+  ApprovalTabsBar,
+  AufgabenList,
+  buildComments,
+  DocHeading,
+  KommentareTab,
+  VerlaufTab,
+  ZusammenfassungTab,
+  type ApprovalTab,
+  type Entry,
+} from "../approvalTabs";
 import * as a from "../assets/index";
 import { DocumentRail, SignedDocumentPanel } from "../documents";
 import { DateField, Icon, InfoBox, Notice, PersonSelect, Segmented } from "../ui";
-import { DOCUMENTS, useWorkflow } from "../workflow";
+import { useWorkflow } from "../workflow";
 
 const CONSENT = [
   "Der Kunde stimmt ausdrücklich zu, dass besondere Kategorien personenbezogener Daten (sensible Daten insb. Gesundheitsdaten) durch den Makler zum Zweck der Vertragserfüllung verarbeitet und – soweit erforderlich – an Versicherungsunternehmen sowie an weitere an der Vertragsabwicklung beteiligte Dritte übermittelt werden. Sofern zum Zwecke der Vertragserfüllung die Verarbeitung personenbezogener Daten oder sensible personenbezogener Daten weiterer Personen erforderlich ist, erklärt der Kunde, dass er die erforderlichen Einwilligungen der betroffenen Personen eingeholt hat.",
@@ -96,30 +109,42 @@ function SignaturePad({ disabled }: { disabled: boolean }) {
 }
 
 export function SignStep() {
-  const {
-    activeDoc,
-    docSigner,
-    signApproval,
-    signMode,
-    setSignMode,
-    signFile,
-    setSignFile,
-    setSignature,
-    consent,
-    setConsent,
-    signDay,
-    setSignDay,
-    signMonth,
-    setSignMonth,
-    signYear,
-    setSignYear,
-    grantedBy,
-    requestNote,
-    decisionNote,
-  } = useWorkflow();
+  const { signApproval, grantedBy, requestNote, decisionNote, requestedAt } = useWorkflow();
+  const [tab, setTab] = useState<ApprovalTab>("aufgaben");
 
   /** A rejected request unlocks the step again so the signature can be corrected. */
   const locked = signApproval === "requested" || signApproval === "granted";
+  const tasks = ADVISOR_TASKS.sign;
+  const comments = buildComments({
+    note: requestNote.sign,
+    noteBy: ADVISOR.who,
+    decision: decisionNote.sign,
+    rejected: signApproval === "rejected",
+  });
+
+  /* The advisor sees the same timeline, closed out with their own request. */
+  const timeline: Entry[] = [];
+  const sent = requestedAt.sign;
+  if (sent) {
+    timeline.push({
+      ...ADVISOR,
+      change: "sent",
+      field: "Freigabe angefordert",
+      to: requestNote.sign,
+      at: `${sent.date}, ${sent.time}`,
+    });
+  }
+  if (decisionNote.sign) {
+    timeline.push({
+      who: "Bestandsmanager",
+      role: "Bestandsmanagement",
+      change: "changed",
+      field: "Freigabe",
+      from: "offen",
+      to: signApproval === "rejected" ? "abgelehnt" : "genehmigt",
+      at: sent ? `${sent.date}, ${sent.time}` : "",
+    });
+  }
 
   return (
     <>
@@ -155,15 +180,54 @@ export function SignStep() {
           />
         )}
 
-        <h1 className="doc-title">
-          <Icon src={a.docList} size={16} />
-          Dokument unterzeichnet hochladen oder digital signieren
-        </h1>
-        <p className="doc-subtitle">{DOCUMENTS[activeDoc] ?? DOCUMENTS[0]}</p>
-        <p className="doc-lede">
-          Lade das unterzeichnete Dokument hoch oder nutze die digitale Unterschrift.
-        </p>
+        <DocHeading label="Signaturen" />
 
+        <ApprovalTabsBar
+          active={tab}
+          onSelect={setTab}
+          taskCount={tasks.length}
+          commentCount={comments.length}
+        />
+
+        <div className="atab-body">
+          {tab === "aufgaben" && (
+            <>
+              <AufgabenList items={tasks} />
+              <SignaturFields locked={locked} />
+            </>
+          )}
+          {tab === "kommentare" && <KommentareTab comments={comments} />}
+          {tab === "verlauf" && <VerlaufTab extra={timeline} />}
+          {tab === "zusammenfassung" && <ZusammenfassungTab />}
+        </div>
+      </section>
+
+      <SignedDocumentPanel />
+    </>
+  );
+}
+
+/** Upload or draw the signature. Locked once the Freigabe is out of the advisor's hands. */
+function SignaturFields({ locked }: { locked: boolean }) {
+  const {
+    docSigner,
+    signMode,
+    setSignMode,
+    signFile,
+    setSignFile,
+    setSignature,
+    consent,
+    setConsent,
+    signDay,
+    setSignDay,
+    signMonth,
+    setSignMonth,
+    signYear,
+    setSignYear,
+  } = useWorkflow();
+
+  return (
+    <>
         <Segmented
           className="sign-switch"
           value={signMode}
@@ -283,9 +347,6 @@ export function SignStep() {
             </div>
           </>
         )}
-      </section>
-
-      <SignedDocumentPanel />
     </>
   );
 }

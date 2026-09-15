@@ -205,7 +205,7 @@ function Screen() {
           </div>
         </header>
 
-        <AppsNav kicker="Makl.ver. Kunde" name="Julia Atkinson" />
+        <AppsNav kicker="Maklervereinbarung" name="Julia Atkinson" />
 
         <div className="content-shell">
           <Stepper />

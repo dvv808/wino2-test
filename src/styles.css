@@ -1614,23 +1614,6 @@ input.text-field {
   line-height: 34px;
 }
 
-.doc-subtitle {
-  margin: 2px 0 0 26px;
-  font-size: 25px;
-  font-weight: 500;
-  line-height: 34px;
-}
-
-.doc-copy {
-  margin-top: 20px;
-  font-size: 13px;
-  line-height: 20px;
-}
-
-.doc-copy p {
-  margin: 0 0 20px;
-}
-
 .doc-lede {
   margin: 14px 0 24px;
   font-size: 15px;
@@ -3734,7 +3717,7 @@ input.text-field {
 
 /* Document heading above the tabs */
 
-.fg-doc-title {
+.doc-heading {
   margin-top: 18px;
   display: flex;
   flex-direction: column;
@@ -3744,11 +3727,11 @@ input.text-field {
   letter-spacing: 0.27px;
 }
 
-.fg-doc-title strong {
+.doc-heading strong {
   font-weight: 500;
 }
 
-.fg-doc-title span {
+.doc-heading span {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3756,125 +3739,138 @@ input.text-field {
 
 /* Aufgaben / Kommentare / Verlauf / Zusammenfassung switcher */
 
-.fg-switch {
-  margin-top: 20px;
-  align-self: flex-start;
-  height: 33px;
+.atabs {
+  position: relative;
+  margin-top: 22px;
+  height: 45px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 0 12px;
-  border: 1px solid var(--wino-bg-lighter);
-  border-radius: 16px;
+  gap: 8px;
+  padding: 0 15px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(2.44deg, #ffffff 37.77%, #d6e0e6 110.16%);
+  flex: none;
 }
 
-.fg-switch-item {
-  height: 24px;
+/* An offscreen copy of the full row, so collapsed tabs can still be measured. */
+.atabs-ruler {
+  position: absolute;
+  top: 0;
+  left: 15px;
+  display: flex;
+  gap: 8px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.atab {
+  height: 33px;
   border: 0;
-  border-radius: 24px;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 24px;
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.atab-more {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Tabs that no longer fit collapse into this dropdown. */
+.atabs-menu {
+  position: relative;
+  margin-left: auto;
+}
+
+.atabs-list {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 100%;
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  border-radius: 12px;
   background: var(--wino-white);
+  box-shadow: 0 8px 24px rgba(49, 53, 55, 0.16);
+}
+
+.atabs-list button {
+  width: 100%;
+  height: 33px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   padding: 0 16px;
   font-family: var(--font);
   font-size: 13px;
   letter-spacing: 0.13px;
   color: var(--wino-black-dark);
+  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.fg-switch-item:hover {
+.atabs-list button:hover {
   background: var(--wino-bg-lighter);
 }
 
-.fg-switch-item.active {
-  border-radius: 32px;
-  background: linear-gradient(180deg, #313537 0%, #444f56 100%);
-  color: var(--wino-white);
+.atabs-list button.active {
+  background: linear-gradient(25.52deg, #ffffff 12.82%, var(--wino-bg-darker) 96.94%);
 }
 
-.fg-tab-body {
-  margin-top: 22px;
+.atab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.atab.active {
+  background: linear-gradient(25.52deg, #ffffff 12.82%, var(--wino-bg-darker) 96.94%);
+}
+
+.atab-body {
+  margin-top: 24px;
   min-width: 0;
+}
+
+.atab-body > .doc-lede:first-child {
+  margin-top: 0;
 }
 
 /* Aufgaben */
 
-.fg-counts {
-  display: flex;
-  align-items: flex-start;
-  gap: 26px;
-  margin-bottom: 14px;
-  font-size: 15px;
-  letter-spacing: 0.15px;
-}
-
-.fg-counts-label {
-  margin-right: auto;
-}
-
-.fg-count {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.fg-count > span {
-  display: flex;
-  flex-direction: column;
-  font-size: 13px;
-  line-height: 17px;
-  letter-spacing: 0.13px;
-}
-
-.fg-count strong {
-  font-size: 21px;
-  line-height: 24px;
-  font-weight: 400;
-  letter-spacing: 0.21px;
-}
-
-.fg-tasks {
-  list-style: none;
+.atasks {
   margin: 0;
-  padding: 0;
+  padding-left: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.fg-task {
-  min-height: 83px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 15px 24px 15px 13px;
-  border-radius: 16px;
-  background: linear-gradient(13deg, #ffffff 12.818%, var(--wino-bg-darker) 96.938%);
-}
-
-.fg-task-dot {
-  flex: none;
-  margin-top: 16px;
-}
-
-.fg-task p {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  gap: 18px;
   font-size: 15px;
   line-height: 25px;
   letter-spacing: 0.15px;
 }
 
-.fg-task strong {
+.atasks p {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.atasks strong {
   font-weight: 500;
 }
 
 /* Kommentare */
 
-.fg-comments {
+.acomments {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3883,36 +3879,36 @@ input.text-field {
   gap: 12px;
 }
 
-.fg-comment {
+.acomment {
   padding: 12px 16px;
   border-radius: 12px;
   background: #d3e7f1;
 }
 
-.fg-comment-head {
+.acomment-head {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
 }
 
-.fg-comment-head > span {
+.acomment-head > span {
   display: flex;
   flex-direction: column;
 }
 
-.fg-comment-head strong {
+.acomment-head strong {
   font-size: 13px;
   font-weight: 500;
 }
 
-.fg-comment-head small {
+.acomment-head small {
   font-size: 11px;
   line-height: 15px;
   color: var(--wino-black-light);
 }
 
-.fg-comment p {
+.acomment p {
   margin: 0;
   font-size: 13px;
   line-height: 19px;
@@ -3921,7 +3917,7 @@ input.text-field {
 
 /* Verlauf */
 
-.fg-verlauf {
+.averlauf {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -3930,12 +3926,12 @@ input.text-field {
   gap: 18px;
 }
 
-.fg-entry {
+.aentry {
   position: relative;
   padding-left: 24px;
 }
 
-.fg-entry::before {
+.aentry::before {
   content: "";
   position: absolute;
   left: 4px;
@@ -3945,11 +3941,11 @@ input.text-field {
   background: var(--wino-bg-darker);
 }
 
-.fg-entry:last-child::before {
+.aentry:last-child::before {
   display: none;
 }
 
-.fg-entry-mark {
+.aentry-mark {
   position: absolute;
   left: 0;
   top: 5px;
@@ -3959,45 +3955,45 @@ input.text-field {
   background: var(--wino-bg-darker);
 }
 
-.fg-entry.added .fg-entry-mark {
+.aentry.added .aentry-mark {
   background: var(--wino-green-homeoffice);
 }
 
-.fg-entry.changed .fg-entry-mark {
+.aentry.changed .aentry-mark {
   background: var(--wino-signal-yellow);
 }
 
-.fg-entry.removed .fg-entry-mark {
+.aentry.removed .aentry-mark {
   background: #d23552;
 }
 
-.fg-entry.sent .fg-entry-mark {
+.aentry.sent .aentry-mark {
   background: var(--wino-black-medium);
 }
 
-.fg-entry-top {
+.aentry-top {
   display: flex;
   align-items: baseline;
   gap: 8px;
 }
 
-.fg-entry-top strong {
+.aentry-top strong {
   font-size: 13px;
   font-weight: 500;
 }
 
-.fg-entry-top small {
+.aentry-top small {
   font-size: 11px;
   color: var(--wino-black-light);
 }
 
-.fg-entry-top time {
+.aentry-top time {
   margin-left: auto;
   font-size: 11px;
   color: var(--wino-black-light);
 }
 
-.fg-entry-what {
+.aentry-what {
   margin: 5px 0 0;
   display: flex;
   align-items: center;
@@ -4007,7 +4003,7 @@ input.text-field {
   letter-spacing: 0.13px;
 }
 
-.fg-chip {
+.achip {
   flex: none;
   padding: 1px 6px;
   border-radius: 4px;
@@ -4017,27 +4013,27 @@ input.text-field {
   line-height: 15px;
 }
 
-.fg-chip.added {
+.achip.added {
   border-color: var(--wino-green-homeoffice);
   background: var(--wino-signal-greenlight);
 }
 
-.fg-chip.changed {
+.achip.changed {
   border-color: var(--wino-signal-yellow);
   background: #fff6e3;
 }
 
-.fg-chip.removed {
+.achip.removed {
   border-color: #d23552;
   background: #ffe9ee;
 }
 
-.fg-chip.sent {
+.achip.sent {
   border-color: #5b8db5;
   background: #e7f1f8;
 }
 
-.fg-entry-diff {
+.aentry-diff {
   margin: 3px 0 0;
   display: flex;
   align-items: center;
@@ -4047,34 +4043,34 @@ input.text-field {
   color: var(--wino-black-light);
 }
 
-.fg-entry-diff s {
+.aentry-diff s {
   text-decoration: line-through;
 }
 
-.fg-entry-diff em {
+.aentry-diff em {
   font-style: normal;
 }
 
-.fg-entry-diff b {
+.aentry-diff b {
   font-weight: 500;
   color: var(--wino-black-dark);
 }
 
 /* Zusammenfassung reuses the workflow's cards */
 
-.fg-summary .summary {
+.asummary .summary {
   width: 100%;
   padding: 24px 20px 28px;
 }
 
-.fg-empty-note {
+.atab-empty {
   margin: 0;
   font-size: 13px;
   line-height: 19px;
   color: var(--wino-black-light);
 }
 
-.fg-empty-note.center {
+.atab-empty.center {
   flex: 1;
   display: grid;
   place-items: center;

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ADVISOR } from "../approvalTabs";
 import * as a from "../assets/index";
 import { useWorkflow, type ApprovalStep } from "../workflow";
 import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrome";
@@ -7,11 +8,7 @@ import { FreigabePage } from "./FreigabePage";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
 import { DEMO_REQUESTS, SCHRITT, type RequestRow, type RequestStatus } from "./requests";
 
-const LIVE_REQUESTER = {
-  name: "Christine Auer",
-  role: "Beratung & Service",
-  photo: a.empChristine,
-};
+const LIVE_REQUESTER = { name: ADVISOR.who, role: ADVISOR.role, photo: a.empChristine };
 
 /** Shown when a decision was made without typing anything into the prompt. */
 const FALLBACK_NOTE = {

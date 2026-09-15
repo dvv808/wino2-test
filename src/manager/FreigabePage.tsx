@@ -1,139 +1,28 @@
 import { useState } from "react";
+import {
+  ADVISOR,
+  ApprovalTabsBar,
+  AufgabenList,
+  buildComments,
+  DocHeading,
+  KommentareTab,
+  MANAGER_TASKS,
+  VerlaufTab,
+  ZusammenfassungTab,
+  type ApprovalTab,
+  type Entry,
+} from "../approvalTabs";
 import * as a from "../assets/index";
 import { AppsNav, ContentNav, type ContentPane } from "../chrome";
 import { CommentPrompt } from "../CommentPrompt";
 import { DocumentRail, PdfViewer } from "../documents";
-import { Summary } from "../Summary";
-import { Icon } from "../ui";
-import { DOCUMENTS, useWorkflow } from "../workflow";
+import { DateField, Icon, InfoBox, PersonSelect } from "../ui";
+import { useWorkflow } from "../workflow";
 import { BestandAreaNav, BestandMainNav } from "./BestandChrome";
 import { StatusPill } from "./FreigabenPanel";
 import { SCHRITT, type RequestRow } from "./requests";
 
-type Tab = "aufgaben" | "kommentare" | "verlauf" | "zusammenfassung";
-
-/** Findings the system raised while the advisor filled the workflow in. */
-const AUFGABEN: { kind: "spezial" | "standard"; title: string; text: string }[] = [
-  {
-    kind: "spezial",
-    title: "Besondere Bedingungen",
-    text: "Es wurden besondere Bedingungen eingefügt. Bitte überprüfen.",
-  },
-  {
-    kind: "spezial",
-    title: "Honorar: Zahlweise zu knapp",
-    text: "Bitte überprüfe die Zahlweise auf ihre Dauer.",
-  },
-  {
-    kind: "standard",
-    title: "Bankverbindung abweichend",
-    text: "Achtung die Bankverbindung ist nicht die des Partners.",
-  },
-  {
-    kind: "standard",
-    title: "Honorar-Modell: Mail",
-    text: "Achtung, die Mail ist nicht die des Partners.",
-  },
-  {
-    kind: "standard",
-    title: "Bankverbindung abweichend",
-    text: "Achtung die Bankverbindung ist nicht die des Partners.",
-  },
-  {
-    kind: "standard",
-    title: "Leistungsumfang unvollständig",
-    text: "Es wurde noch keine Sparte zur Betreuung ausgewählt.",
-  },
-];
-
-type Change = "added" | "changed" | "removed" | "sent";
-
-const CHANGE_LABEL: Record<Change, string> = {
-  added: "hinzugefügt",
-  changed: "geändert",
-  removed: "entfernt",
-  sent: "gesendet",
-};
-
-type Entry = {
-  who: string;
-  role: string;
-  change: Change;
-  field: string;
-  from?: string;
-  to?: string;
-  at: string;
-};
-
-/** What the advisor did in the workflow, newest last. */
-const VERLAUF: Entry[] = [
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "added",
-    field: "Telefonnummer",
-    to: "+43 3810 393 112 3",
-    at: "12.03.2027, 09:14",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "added",
-    field: "E-Mail",
-    to: "julia.atkinson@mail.at",
-    at: "12.03.2027, 09:16",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "added",
-    field: "Postadresse",
-    to: "Mondseestrasse 32, A-5310 Mondsee",
-    at: "12.03.2027, 09:21",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "added",
-    field: "Honorar-Modell",
-    to: "Privat · EUR 120,00 / Jahr",
-    at: "12.03.2027, 10:02",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "changed",
-    field: "Zahlweise",
-    from: "Rechnung",
-    to: "Abbuchung",
-    at: "12.03.2027, 10:05",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "added",
-    field: "Bankverbindung",
-    to: "Neon Bank · AT 2303 20002 0000 0002 0012",
-    at: "12.03.2027, 10:07",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "added",
-    field: "Individuelle Vereinbarungen",
-    to: "Alleinvermittlungsauftrag",
-    at: "12.03.2027, 11:40",
-  },
-  {
-    who: "Christine Auer",
-    role: "Beratung & Service",
-    change: "removed",
-    field: "Kündigungsverzicht 12 Monate",
-    at: "12.03.2027, 11:44",
-  },
-];
-
-function MetaStrip({ row }: { row: RequestRow }) {
+function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
   const { partner } = row;
 
   return (
@@ -193,6 +82,17 @@ function MetaStrip({ row }: { row: RequestRow }) {
         <span className="fg-meta-label">Status</span>
         <StatusPill status={row.status} />
       </div>
+
+      <span className="fg-meta-rule" />
+
+      <div className="fg-meta-cell">
+        <span className="fg-meta-label">Schritt</span>
+        <p className="fg-meta-stamp">
+          {signed ? "5 von 5" : "4 von 5"}
+          <br />
+          {signed ? "Signatur" : "Dokumentenfreigabe"}
+        </p>
+      </div>
     </div>
   );
 }
@@ -209,12 +109,6 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
             Der Bestandsmanager hat dieses Dokument freigegeben.
           </p>
         </div>
-        {row.comment ? (
-          <div className="rev-comment">
-            <strong>Kommentar Bestandsmanager</strong>
-            {row.comment}
-          </div>
-        ) : null}
       </div>
     );
   }
@@ -230,12 +124,6 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
             Achtung, die Freigabe wurde abgelehnt.
           </p>
         </div>
-        {row.comment ? (
-          <div className="rev-comment">
-            <strong>Kommentar Bestandsmanager</strong>
-            {row.comment}
-          </div>
-        ) : null}
       </div>
     );
   }
@@ -247,161 +135,53 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
         <p>
           <strong>Freigabe ausstehend</strong>
           <br />
-          Der Bestandsmanager muss dieses Dokument noch{" "}
-          {signed ? "freigeben" : "genehmigen"}.
+          Der Bestandsmanager muss diese{" "}
+          {signed ? "Signatur noch genehmigen" : "Dokument noch genehmigen"}.
         </p>
       </div>
     </div>
   );
 }
 
-function AufgabenTab() {
-  const spezial = AUFGABEN.filter((task) => task.kind === "spezial").length;
-  const standard = AUFGABEN.length - spezial;
+/** The advisor already signed; the manager only reads the result back. */
+function SignatureReviewFields() {
+  const { docSigner, signature, signDay, signMonth, signYear } = useWorkflow();
 
   return (
     <>
-      <div className="fg-counts">
-        <span className="fg-counts-label">Aufgaben</span>
-        <span className="fg-count">
-          <img src={a.dotSpecial} alt="" width={18} height={18} />
-          <span>
-            <strong>{spezial}</strong>
-            Spezial
-          </span>
-        </span>
-        <span className="fg-count">
-          <img src={a.dotStandard} alt="" width={18} height={18} />
-          <span>
-            <strong>{standard}</strong>
-            Standard Aufgaben
-          </span>
-        </span>
+      <div className="block">
+        <span className="field-label">Unterzeichnet von</span>
+        <PersonSelect name={docSigner} meta="Geschäftsführer Makler Winter" locked />
       </div>
 
-      <ul className="fg-tasks">
-        {AUFGABEN.map((task, index) => (
-          <li className="fg-task" key={`${task.title}-${index}`}>
-            <img
-              className="fg-task-dot"
-              src={task.kind === "spezial" ? a.dotSpecial : a.dotStandard}
-              alt=""
-              width={18}
-              height={18}
-            />
-            <p>
-              <strong>{task.title}</strong>
-              {task.text}
-            </p>
-          </li>
-        ))}
-      </ul>
+      <div className="block">
+        <span className="field-label">Unterzeichnet am</span>
+        <DateField
+          prefix="Am"
+          day={signDay}
+          month={signMonth}
+          year={signYear}
+          onDay={() => {}}
+          onMonth={() => {}}
+          onYear={() => {}}
+          disabled
+        />
+      </div>
+
+      <div className="block">
+        <div className="label-row">
+          <span className="field-label">Digital Unterschrift</span>
+          <span className="edit-link plain">Unterschrift löschen</span>
+        </div>
+        <InfoBox>
+          Mit dieser Unterschrift werden alle angeführten Dokumente unterzeichnet.
+        </InfoBox>
+        <div className="sign-pad readonly">
+          {signature ? <img src={signature} alt="Unterschrift" /> : null}
+          <span>Mit Finger, Stift oder Maus unterschreiben</span>
+        </div>
+      </div>
     </>
-  );
-}
-
-type Comment = { who: string; role: string; text: string };
-
-/** The advisor's note from the request and the manager's note from the decision. */
-function commentsFor(row: RequestRow): Comment[] {
-  return [
-    row.note
-      ? { who: row.requester.name, role: "Anfrage an den Bestandsmanager", text: row.note }
-      : null,
-    row.comment
-      ? {
-          who: "Bestandsmanager",
-          role:
-            row.status === "abgelehnt"
-              ? "Begründung der Ablehnung"
-              : "Anmerkung zur Genehmigung",
-          text: row.comment,
-        }
-      : null,
-  ].filter((entry): entry is Comment => Boolean(entry));
-}
-
-function KommentareTab({ row }: { row: RequestRow }) {
-  const comments = commentsFor(row);
-
-  if (!comments.length) {
-    return (
-      <p className="fg-empty-note">
-        Zu dieser Freigabe wurde noch kein Kommentar erfasst.
-      </p>
-    );
-  }
-
-  return (
-    <ul className="fg-comments">
-      {comments.map((entry) => (
-        <li className="fg-comment" key={entry.who}>
-          <span className="fg-comment-head">
-            <Icon src={a.comment} size={18} />
-            <span>
-              <strong>{entry.who}</strong>
-              <small>{entry.role}</small>
-            </span>
-          </span>
-          <p>{entry.text}</p>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function VerlaufTab({ row }: { row: RequestRow }) {
-  const entries: Entry[] = [...VERLAUF];
-
-  if (row.status !== "offen" || row.note) {
-    entries.push({
-      who: row.requester.name,
-      role: "Beratung & Service",
-      change: "sent",
-      field: "Freigabe angefordert",
-      to: row.note,
-      at: `${row.date}, ${row.time}`,
-    });
-  }
-
-  if (row.status !== "offen") {
-    entries.push({
-      who: "Bestandsmanager",
-      role: "Bestandsmanagement",
-      change: "changed",
-      field: "Freigabe",
-      from: "offen",
-      to: row.status === "abgelehnt" ? "abgelehnt" : "genehmigt",
-      at: row.decided ?? `${row.date}, ${row.time}`,
-    });
-  }
-
-  return (
-    <ol className="fg-verlauf">
-      {entries.map((entry, index) => (
-        <li className={`fg-entry ${entry.change}`} key={`${entry.field}-${index}`}>
-          <span className="fg-entry-mark" />
-          <div className="fg-entry-body">
-            <span className="fg-entry-top">
-              <strong>{entry.who}</strong>
-              <small>{entry.role}</small>
-              <time>{entry.at}</time>
-            </span>
-            <p className="fg-entry-what">
-              <span className={`fg-chip ${entry.change}`}>{CHANGE_LABEL[entry.change]}</span>
-              {entry.field}
-            </p>
-            {entry.from || entry.to ? (
-              <p className="fg-entry-diff">
-                {entry.from ? <s>{entry.from}</s> : null}
-                {entry.from && entry.to ? <em>→</em> : null}
-                {entry.to ? <b>{entry.to}</b> : null}
-              </p>
-            ) : null}
-          </div>
-        </li>
-      ))}
-    </ol>
   );
 }
 
@@ -414,19 +194,44 @@ export function FreigabePage({
   onClose: () => void;
   onDecide: (decision: "granted" | "rejected", note: string) => void;
 }) {
-  const { activeDoc, signMode, signature } = useWorkflow();
+  const { signMode, signature } = useWorkflow();
   const [pane, setPane] = useState<ContentPane>("freigabe");
-  const [tab, setTab] = useState<Tab>("aufgaben");
+  const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
   const signed = row.schritt === SCHRITT.sign;
   const decided = row.status !== "offen";
-  /* Only these two carry a count; Verlauf and Zusammenfassung stay plain. */
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: "aufgaben", label: "Aufgaben", count: AUFGABEN.length },
-    { id: "kommentare", label: "Kommentare", count: commentsFor(row).length },
-    { id: "verlauf", label: "Verlauf" },
-    { id: "zusammenfassung", label: "Zusammenfassung" },
-  ];
+  const step = signed ? "sign" : "docs";
+  const tasks = MANAGER_TASKS[step];
+  const comments = buildComments({
+    note: row.note,
+    noteBy: row.requester.name,
+    decision: row.comment,
+    rejected: row.status === "abgelehnt",
+  });
+
+  /* The request and the decision close out the shared timeline. */
+  const timeline: Entry[] = [];
+  if (row.note || decided) {
+    timeline.push({
+      who: row.requester.name,
+      role: ADVISOR.role,
+      change: "sent",
+      field: "Freigabe angefordert",
+      to: row.note,
+      at: `${row.date}, ${row.time}`,
+    });
+  }
+  if (decided) {
+    timeline.push({
+      who: "Bestandsmanager",
+      role: "Bestandsmanagement",
+      change: "changed",
+      field: "Freigabe",
+      from: "offen",
+      to: row.status === "abgelehnt" ? "abgelehnt" : "genehmigt",
+      at: row.decided ?? `${row.date}, ${row.time}`,
+    });
+  }
 
   return (
     <div className="app">
@@ -442,7 +247,7 @@ export function FreigabePage({
 
         {pane === "workflow" ? (
           <div className="fg-page">
-            <p className="fg-empty-note center">
+            <p className="atab-empty center">
               Der Workflow dieses Partners wird hier angezeigt.
             </p>
           </div>
@@ -461,7 +266,7 @@ export function FreigabePage({
                 </p>
               </div>
 
-              <MetaStrip row={row} />
+              <MetaStrip row={row} signed={signed} />
 
               <div className="fg-head-actions">
                 <button
@@ -479,43 +284,30 @@ export function FreigabePage({
             </header>
 
             <div className="review-main fg-body">
-              <DocumentRail title={signed ? "Signaturen" : "Dokumente"} />
+              <DocumentRail title={signed ? "Signaturen" : "Dokumentenfreigabe"} />
               <div className="review-card">
                 <section className="review-content">
                   <StatusBanner row={row} signed={signed} />
 
-                  <div className="fg-doc-title">
-                    <strong>{DOCUMENTS[activeDoc] ?? DOCUMENTS[0]}</strong>
-                    <span>
-                      <Icon src={a.shelveToggle} size={18} />
-                      {signed ? "Signaturfreigabe" : "Dokumentenfreigabe"}
-                    </span>
-                  </div>
+                  <DocHeading label={signed ? "Signaturfreigabe" : "Dokumentenfreigabe"} />
 
-                  <div className="fg-switch">
-                    {tabs.map((entry) => (
-                      <button
-                        type="button"
-                        key={entry.id}
-                        className={`fg-switch-item${tab === entry.id ? " active" : ""}`}
-                        onClick={() => setTab(entry.id)}
-                      >
-                        {entry.count === undefined
-                          ? entry.label
-                          : `${entry.label} (${entry.count})`}
-                      </button>
-                    ))}
-                  </div>
+                  <ApprovalTabsBar
+                    active={tab}
+                    onSelect={setTab}
+                    taskCount={tasks.length}
+                    commentCount={comments.length}
+                  />
 
-                  <div className="fg-tab-body">
-                    {tab === "aufgaben" && <AufgabenTab />}
-                    {tab === "kommentare" && <KommentareTab row={row} />}
-                    {tab === "verlauf" && <VerlaufTab row={row} />}
-                    {tab === "zusammenfassung" && (
-                      <div className="fg-summary">
-                        <Summary cards={["contact", "honorar", "terms"]} />
-                      </div>
+                  <div className="atab-body">
+                    {tab === "aufgaben" && (
+                      <>
+                        <AufgabenList items={tasks} />
+                        {signed ? <SignatureReviewFields /> : null}
+                      </>
                     )}
+                    {tab === "kommentare" && <KommentareTab comments={comments} />}
+                    {tab === "verlauf" && <VerlaufTab extra={timeline} />}
+                    {tab === "zusammenfassung" && <ZusammenfassungTab />}
                   </div>
                 </section>
 

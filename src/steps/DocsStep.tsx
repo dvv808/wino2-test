@@ -1,11 +1,56 @@
-import * as a from "../assets/index";
+import { useState } from "react";
+import {
+  ADVISOR,
+  ADVISOR_TASKS,
+  ApprovalTabsBar,
+  AufgabenList,
+  buildComments,
+  DocHeading,
+  KommentareTab,
+  VerlaufTab,
+  ZusammenfassungTab,
+  type ApprovalTab,
+  type Entry,
+} from "../approvalTabs";
 import { DocumentRail, PdfViewer } from "../documents";
-import { Icon, Notice, PersonSelect } from "../ui";
-import { DOCUMENTS, useWorkflow } from "../workflow";
+import { Notice, PersonSelect } from "../ui";
+import { useWorkflow } from "../workflow";
 
 export function DocsStep() {
-  const { docsApproval, docSigner, grantedBy, requestNote, decisionNote, activeDoc } =
+  const { docsApproval, docSigner, grantedBy, requestNote, decisionNote, requestedAt } =
     useWorkflow();
+  const [tab, setTab] = useState<ApprovalTab>("aufgaben");
+  const tasks = ADVISOR_TASKS.docs;
+  const comments = buildComments({
+    note: requestNote.docs,
+    noteBy: ADVISOR.who,
+    decision: decisionNote.docs,
+    rejected: docsApproval === "rejected",
+  });
+
+  /* The advisor sees the same timeline, closed out with their own request. */
+  const timeline: Entry[] = [];
+  const sent = requestedAt.docs;
+  if (sent) {
+    timeline.push({
+      ...ADVISOR,
+      change: "sent",
+      field: "Freigabe angefordert",
+      to: requestNote.docs,
+      at: `${sent.date}, ${sent.time}`,
+    });
+  }
+  if (decisionNote.docs) {
+    timeline.push({
+      who: "Bestandsmanager",
+      role: "Bestandsmanagement",
+      change: "changed",
+      field: "Freigabe",
+      from: "offen",
+      to: docsApproval === "rejected" ? "abgelehnt" : "genehmigt",
+      at: sent ? `${sent.date}, ${sent.time}` : "",
+    });
+  }
 
   return (
     <>
@@ -45,33 +90,36 @@ export function DocsStep() {
           </Notice>
         )}
 
-        <h1 className="doc-title">
-          <Icon src={a.docList} size={16} />
-          Dokumentenfreigabe
-        </h1>
-        <p className="doc-subtitle">{DOCUMENTS[activeDoc] ?? DOCUMENTS[0]}</p>
+        <DocHeading label="Dokumentenfreigabe" />
 
-        <div className="doc-copy">
-          <p>
-            Folgende Dokumente wurden erfolgreich erstellt und sind zur Freigabe sowie zur
-            Vervollständigung der Maklervereinbarung bereit.
-          </p>
-          <p>
-            Bitte gehe die Dokumente noch einmal durch und bestätige diese unten durch die
-            Freigabeanforderung.
-          </p>
-          <p>
-            Anschließend werden diese durch den Bestandsmanager geprüft und zur finalen Signatur
-            freigegeben.
-          </p>
+        <ApprovalTabsBar
+          active={tab}
+          onSelect={setTab}
+          taskCount={tasks.length}
+          commentCount={comments.length}
+        />
+
+        <div className="atab-body">
+          {tab === "aufgaben" && (
+            <>
+              <p className="doc-lede">
+                Folgende Dokumente wurden erfolgreich erstellt und sind zur Freigabe sowie zur
+                Vervollständigung der Maklervereinbarung bereit.
+              </p>
+              <AufgabenList items={tasks} />
+
+              {docsApproval === "granted" && (
+                <div className="block">
+                  <span className="field-label">Unterzeichnende Person definieren</span>
+                  <PersonSelect name={docSigner} meta="12.09.1988" />
+                </div>
+              )}
+            </>
+          )}
+          {tab === "kommentare" && <KommentareTab comments={comments} />}
+          {tab === "verlauf" && <VerlaufTab extra={timeline} />}
+          {tab === "zusammenfassung" && <ZusammenfassungTab />}
         </div>
-
-        {docsApproval === "granted" && (
-          <div className="block">
-            <span className="field-label">Unterzeichnende Person definieren</span>
-            <PersonSelect name={docSigner} meta="12.09.1988" />
-          </div>
-        )}
       </section>
 
       <section className="doc-viewer">
