@@ -887,6 +887,16 @@ input.text-field {
   background: linear-gradient(180deg, #313537 0%, #444f56 88%);
 }
 
+/* The compact pill used inside cards and threads. */
+.btn-xs {
+  min-width: 0;
+  height: 25px;
+  border-radius: 32px;
+  padding: 0 32px;
+  font-size: 11px;
+  letter-spacing: 0.11px;
+}
+
 .stack-icon {
   position: relative;
   flex-shrink: 0;
@@ -3915,6 +3925,8 @@ input.text-field {
 }
 
 .komm-col {
+  position: relative;
+  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -3922,16 +3934,17 @@ input.text-field {
   gap: 6px;
 }
 
+/* Every bubble is the same width and follows the column, rather than hugging its text. */
 .komm-bubble {
   position: relative;
   box-sizing: border-box;
-  max-width: 440px;
+  width: 100%;
   padding: 14px 20px 16px;
   border-radius: 16px;
   background: linear-gradient(246.31deg, #ffffff 32.32%, var(--wino-bg-darker) 87.44%);
 }
 
-/* The tail points back at the avatar from the top-left corner. */
+/* The tail points back at the avatar from the bubble's top-left corner. */
 .komm-tail {
   position: absolute;
   left: -13px;
@@ -3939,7 +3952,6 @@ input.text-field {
   width: 47px;
   height: 26px;
   transform: rotate(180deg);
-  z-index: -1;
 }
 
 .komm-head {
@@ -3978,6 +3990,48 @@ input.text-field {
   font-style: italic;
   letter-spacing: 0.11px;
   color: var(--wino-black-light);
+}
+
+/* The composer wears a faded version of the bubble. */
+.komm-bubble.compose {
+  min-height: 61px;
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  background: linear-gradient(
+    246.31deg,
+    rgba(255, 255, 255, 0.4) 32.32%,
+    rgba(186, 204, 213, 0.4) 87.44%
+  );
+}
+
+.komm-bubble.compose textarea {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 23px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+}
+
+.komm-bubble.compose textarea:focus {
+  outline: none;
+}
+
+.komm-bubble.compose textarea::placeholder {
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--wino-black-light);
+}
+
+.komm-actions {
+  display: flex;
+  gap: 12px;
 }
 
 /* Verlauf: a table of changes with an expandable row per entry */
@@ -4019,13 +4073,13 @@ input.text-field {
   gap: 14px;
 }
 
-/* The dashed connector runs from one marker down into the next row. */
+/* The dashed connector runs from one marker down to the next, centred on both. */
 .vl-when::before {
   content: "";
   position: absolute;
-  left: 11px;
+  left: 11.5px;
   top: 30px;
-  bottom: -38px;
+  bottom: -32px;
   border-left: 1px dashed var(--wino-bg-darker);
 }
 

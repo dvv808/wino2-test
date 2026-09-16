@@ -23,6 +23,16 @@ export type View = "workflow" | "manager" | "freigabe";
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
 export type RequestStamp = { date: string; time: string };
 
+/**
+ * A comment typed into the Kommentare thread. Held here rather than in the tab
+ * so the advisor and the Bestandsmanager read the same thread.
+ */
+export type PostedComment = {
+  person: { name: string; photo: string };
+  text: string;
+  at: RequestStamp;
+};
+
 function stamp(): RequestStamp {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -167,6 +177,8 @@ function useWorkflowState() {
   const [decisionNote, setDecisionNote] = useState<Partial<Record<ApprovalStep, string>>>({});
   /** When each request was decided, shown alongside the Bestandsmanager's note. */
   const [decidedAt, setDecidedAt] = useState<Partial<Record<ApprovalStep, RequestStamp>>>({});
+  /** Comments typed into the Kommentare thread, per step. */
+  const [comments, setComments] = useState<Partial<Record<ApprovalStep, PostedComment[]>>>({});
   /** The step to return to once the Bestandsmanager is done. */
   const [returnStep, setReturnStep] = useState<ApprovalStep | null>(null);
   /** The request currently open in the Bestandsmanager's review modal. */
@@ -273,6 +285,11 @@ function useWorkflowState() {
     setApprovalOf(step, "granted");
     setGrantedBy((current) => ({ ...current, [step]: "self" }));
     markDone(step);
+  }
+
+  function addComment(step: ApprovalStep, person: PostedComment["person"], text: string) {
+    const posted: PostedComment = { person, text, at: stamp() };
+    setComments((current) => ({ ...current, [step]: [...(current[step] ?? []), posted] }));
   }
 
   function decideRequest(step: ApprovalStep, decision: "granted" | "rejected", note = "") {
@@ -390,6 +407,8 @@ function useWorkflowState() {
     requestNote,
     decisionNote,
     decidedAt,
+    comments,
+    addComment,
     openRequests,
     approvalOf,
     requestApproval,

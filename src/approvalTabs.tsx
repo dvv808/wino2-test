@@ -273,6 +273,9 @@ export function PersonAvatar({
   size: number;
   bordered?: boolean;
 }) {
+  /* The dot keeps its proportion as the avatar shrinks. */
+  const dot = Math.round(size * 0.22 * 10) / 10;
+
   return (
     <span
       className={`pavatar${bordered ? " bordered" : ""}`}
@@ -283,8 +286,8 @@ export function PersonAvatar({
         className="pavatar-dot"
         src={bordered ? a.dotOnlineWhite : a.dotOnline}
         alt=""
-        width={bordered ? 8.2 : 8}
-        height={bordered ? 8.2 : 8}
+        width={dot}
+        height={dot}
       />
     </span>
   );
@@ -296,58 +299,145 @@ export function PersonAvatar({
 
 export type Comment = { person: Person; text: string; at?: Stamp };
 
-/** The advisor's note from the request plus the manager's note from the decision. */
+/** Sorts "12.03.2027" + "13:33" chronologically. */
+function sortKey(at?: Stamp) {
+  if (!at) return "";
+  const [day, month, year] = at.date.split(".");
+  return `${year}${month}${day}${at.time}`;
+}
+
+/**
+ * The note from the request, the note from the decision, and anything typed
+ * into the thread since, oldest first.
+ */
 export function buildComments({
   note,
   notePerson,
   noteAt,
   decision,
   decisionAt,
+  posted = [],
 }: {
   note?: string;
   notePerson: Person;
   noteAt?: Stamp;
   decision?: string;
   decisionAt?: Stamp;
+  posted?: Comment[];
 }): Comment[] {
-  /* Newest first, so the Bestandsmanager's reply sits on top. */
   const thread: (Comment | null)[] = [
-    decision ? { person: MANAGER, text: decision, at: decisionAt } : null,
     note ? { person: notePerson, text: note, at: noteAt } : null,
+    decision ? { person: MANAGER, text: decision, at: decisionAt } : null,
+    ...posted,
   ];
-  return thread.filter((entry): entry is Comment => Boolean(entry));
+
+  return thread
+    .filter((entry): entry is Comment => Boolean(entry))
+    .sort((left, right) => sortKey(left.at).localeCompare(sortKey(right.at)));
 }
 
-export function KommentareTab({ comments }: { comments: Comment[] }) {
-  if (!comments.length) {
-    return <p className="atab-empty">Zu dieser Freigabe wurde noch kein Kommentar erfasst.</p>;
+/** The composer at the foot of the thread. The buttons stay hidden until it is focused. */
+function CommentComposer({ author, onPost }: { author: Person; onPost: (text: string) => void }) {
+  const [draft, setDraft] = useState("");
+  const [active, setActive] = useState(false);
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+
+  function grow(box: HTMLTextAreaElement) {
+    box.style.height = "auto";
+    box.style.height = `${box.scrollHeight}px`;
+  }
+
+  function reset() {
+    setDraft("");
+    setActive(false);
+    if (boxRef.current) boxRef.current.style.height = "";
   }
 
   return (
-    <ul className="komm">
-      {comments.map((entry, index) => (
-        <li className="komm-row" key={`${entry.person.name}-${index}`}>
-          <PersonAvatar person={entry.person} size={37} bordered />
-          <div className="komm-col">
-            <div className="komm-bubble">
-              <img className="komm-tail" src={a.bubbleTail} alt="" />
-              <div className="komm-head">
-                <strong>{entry.person.name}</strong>
-                <button type="button" className="komm-menu" aria-label="Weitere Aktionen">
-                  <Icon src={a.contextMenu} size={18} />
-                </button>
-              </div>
-              <p>{entry.text}</p>
-            </div>
-            {entry.at ? (
-              <time className="komm-time">
-                {entry.at.date}, um {entry.at.time}
-              </time>
-            ) : null}
+    <li className="komm-row">
+      <PersonAvatar person={author} size={31} bordered />
+      <div className="komm-col">
+        <img className="komm-tail light" src={a.bubbleTailLight} alt="" />
+        <div className="komm-bubble compose">
+          <textarea
+            ref={boxRef}
+            rows={1}
+            value={draft}
+            placeholder="Kommentar hinzufügen..."
+            onFocus={() => setActive(true)}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              grow(event.target);
+            }}
+          />
+        </div>
+
+        {active ? (
+          <div className="komm-actions">
+            <button type="button" className="btn-secondary btn-xs" onClick={reset}>
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              className="btn-primary btn-xs"
+              disabled={!draft.trim()}
+              onClick={() => {
+                onPost(draft.trim());
+                reset();
+              }}
+            >
+              Speichern
+            </button>
           </div>
-        </li>
-      ))}
-    </ul>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+export function KommentareTab({
+  comments,
+  author,
+  onPost,
+}: {
+  comments: Comment[];
+  author: Person;
+  onPost: (text: string) => void;
+}) {
+  return (
+    <>
+      {comments.length ? null : (
+        <p className="atab-empty">Zu dieser Freigabe wurde noch kein Kommentar erfasst.</p>
+      )}
+
+      <ul className="komm">
+        {comments.map((entry, index) => (
+          <li className="komm-row" key={`${entry.person.name}-${index}`}>
+            <PersonAvatar person={entry.person} size={37} bordered />
+            <div className="komm-col">
+              {/* Sits before the bubble so the bubble paints over its inner half. */}
+              <img className="komm-tail" src={a.bubbleTail} alt="" />
+              <div className="komm-bubble">
+                <div className="komm-head">
+                  <strong>{entry.person.name}</strong>
+                  <button type="button" className="komm-menu" aria-label="Weitere Aktionen">
+                    <Icon src={a.contextMenu} size={18} />
+                  </button>
+                </div>
+                <p>{entry.text}</p>
+              </div>
+              {entry.at ? (
+                <time className="komm-time">
+                  {entry.at.date}, um {entry.at.time}
+                </time>
+              ) : null}
+            </div>
+          </li>
+        ))}
+
+        <CommentComposer author={author} onPost={onPost} />
+      </ul>
+    </>
   );
 }
 

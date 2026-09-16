@@ -109,8 +109,16 @@ function SignaturePad({ disabled }: { disabled: boolean }) {
 }
 
 export function SignStep() {
-  const { signApproval, grantedBy, requestNote, decisionNote, requestedAt, decidedAt } =
-    useWorkflow();
+  const {
+    signApproval,
+    grantedBy,
+    requestNote,
+    decisionNote,
+    requestedAt,
+    decidedAt,
+    comments: posted,
+    addComment,
+  } = useWorkflow();
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
 
   /** A rejected request unlocks the step again so the signature can be corrected. */
@@ -122,6 +130,7 @@ export function SignStep() {
     noteAt: requestedAt.sign,
     decision: decisionNote.sign,
     decisionAt: decidedAt.sign,
+    posted: posted.sign,
   });
   const timeline = approvalTimeline({
     sentAt: requestedAt.sign,
@@ -181,7 +190,13 @@ export function SignStep() {
               <SignaturFields locked={locked} />
             </>
           )}
-          {tab === "kommentare" && <KommentareTab comments={comments} />}
+          {tab === "kommentare" && (
+            <KommentareTab
+              comments={comments}
+              author={ADVISOR}
+              onPost={(text) => addComment("sign", ADVISOR, text)}
+            />
+          )}
           {tab === "verlauf" && <VerlaufTab extra={timeline} />}
           {tab === "zusammenfassung" && <ZusammenfassungTab />}
         </div>

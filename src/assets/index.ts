@@ -106,6 +106,7 @@ export { default as dotOnline } from "./icons/dot-online.svg";
 export { default as dotOnlineWhite } from "./icons/dot-online-white.svg";
 export { default as contextMenu } from "./icons/context-menu.svg";
 export { default as bubbleTail } from "./icons/bubble-tail.svg";
+export { default as bubbleTailLight } from "./icons/bubble-tail-light.svg";
 export { default as download } from "./icons/download.svg";
 export { default as folder } from "./icons/folder.svg";
 export { default as notes } from "./icons/notes.svg";

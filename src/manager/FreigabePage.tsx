@@ -6,6 +6,7 @@ import {
   buildComments,
   DocHeading,
   KommentareTab,
+  MANAGER,
   MANAGER_TASKS,
   VerlaufTab,
   ZusammenfassungTab,
@@ -193,7 +194,7 @@ export function FreigabePage({
   onClose: () => void;
   onDecide: (decision: "granted" | "rejected", note: string) => void;
 }) {
-  const { signMode, signature, decidedAt } = useWorkflow();
+  const { signMode, signature, decidedAt, comments: posted, addComment } = useWorkflow();
   const [pane, setPane] = useState<ContentPane>("freigabe");
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
@@ -208,6 +209,7 @@ export function FreigabePage({
     noteAt: sentAt,
     decision: row.comment,
     decisionAt: decidedAt[step] ?? sentAt,
+    posted: posted[step],
   });
   const timeline = approvalTimeline({
     requester: row.requester,
@@ -289,7 +291,13 @@ export function FreigabePage({
                         {signed ? <SignatureReviewFields /> : null}
                       </>
                     )}
-                    {tab === "kommentare" && <KommentareTab comments={comments} />}
+                    {tab === "kommentare" && (
+                      <KommentareTab
+                        comments={comments}
+                        author={MANAGER}
+                        onPost={(text) => addComment(step, MANAGER, text)}
+                      />
+                    )}
                     {tab === "verlauf" && <VerlaufTab extra={timeline} />}
                     {tab === "zusammenfassung" && <ZusammenfassungTab />}
                   </div>
