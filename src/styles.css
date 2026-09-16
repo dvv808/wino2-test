@@ -3944,11 +3944,15 @@ input.text-field {
   background: linear-gradient(246.31deg, #ffffff 32.32%, var(--wino-bg-darker) 87.44%);
 }
 
-/* The tail points back at the avatar from the bubble's top-left corner. */
+/*
+ * The tail points back at the avatar from the bubble's top-left corner. It is a
+ * sibling placed before the bubble, so the bubble paints over its inner half and
+ * only the sliver beside the rounded corner stays visible.
+ */
 .komm-tail {
   position: absolute;
   left: -13px;
-  top: 4px;
+  top: 10px;
   width: 47px;
   height: 26px;
   transform: rotate(180deg);
@@ -3992,17 +3996,16 @@ input.text-field {
   color: var(--wino-black-light);
 }
 
-/* The composer wears a faded version of the bubble. */
+/*
+ * The composer wears a faded version of the bubble. The fade is baked into the
+ * stops rather than set with opacity, so the tail behind it cannot show through.
+ */
 .komm-bubble.compose {
   min-height: 61px;
   display: flex;
   align-items: center;
   padding: 16px;
-  background: linear-gradient(
-    246.31deg,
-    rgba(255, 255, 255, 0.4) 32.32%,
-    rgba(186, 204, 213, 0.4) 87.44%
-  );
+  background: linear-gradient(246.31deg, #ffffff 32.32%, #e5ecef 87.44%);
 }
 
 .komm-bubble.compose textarea {
