@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as a from "./assets/index";
 import { Summary } from "./Summary";
-import { Icon } from "./ui";
+import { ContextMenu, Icon } from "./ui";
 import { DOCUMENTS, useWorkflow, type ApprovalStep } from "./workflow";
 
 /**
@@ -297,7 +297,12 @@ export function PersonAvatar({
 /* Kommentare                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export type Comment = { person: Person; text: string; at?: Stamp };
+/**
+ * `postedIndex` points back at the workflow's own comment list. Only entries
+ * that carry one were typed into the thread, so only those can be edited or
+ * deleted — the request and decision notes belong to the approval itself.
+ */
+export type Comment = { person: Person; text: string; at?: Stamp; postedIndex?: number };
 
 /** Sorts "12.03.2027" + "13:33" chronologically. */
 function sortKey(at?: Stamp) {
@@ -328,7 +333,7 @@ export function buildComments({
   const thread: (Comment | null)[] = [
     note ? { person: notePerson, text: note, at: noteAt } : null,
     decision ? { person: MANAGER, text: decision, at: decisionAt } : null,
-    ...posted,
+    ...posted.map((entry, index) => ({ ...entry, postedIndex: index })),
   ];
 
   return thread
@@ -336,21 +341,84 @@ export function buildComments({
     .sort((left, right) => sortKey(left.at).localeCompare(sortKey(right.at)));
 }
 
-/** The composer at the foot of the thread. The buttons stay hidden until it is focused. */
+/** Keeps the bubble exactly as tall as the text it holds. */
+function grow(box: HTMLTextAreaElement) {
+  box.style.height = "auto";
+  box.style.height = `${box.scrollHeight}px`;
+}
+
+/**
+ * A bubble the user can type into, used both for a new comment and for editing
+ * one that is already in the thread. Abbrechen and Speichern stay hidden until
+ * there is something to save.
+ */
+function DraftBox({
+  value,
+  placeholder,
+  open,
+  onOpen,
+  onChange,
+  onCancel,
+  onSave,
+}: {
+  value: string;
+  placeholder?: string;
+  open: boolean;
+  onOpen?: () => void;
+  onChange: (text: string) => void;
+  onCancel: () => void;
+  onSave: (text: string) => void;
+}) {
+  const boxRef = useRef<HTMLTextAreaElement | null>(null);
+
+  /* An edit starts with text already in it, so it needs sizing up front. */
+  useLayoutEffect(() => {
+    if (boxRef.current) grow(boxRef.current);
+  }, []);
+
+  return (
+    <>
+      <div className="komm-bubble compose">
+        <textarea
+          ref={boxRef}
+          rows={1}
+          value={value}
+          placeholder={placeholder}
+          onFocus={onOpen}
+          onChange={(event) => {
+            onChange(event.target.value);
+            grow(event.target);
+          }}
+        />
+      </div>
+
+      {open ? (
+        <div className="komm-actions">
+          <button type="button" className="btn-secondary btn-xs" onClick={onCancel}>
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            className="btn-primary btn-xs"
+            disabled={!value.trim()}
+            onClick={() => onSave(value.trim())}
+          >
+            Speichern
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** The composer at the foot of the thread. */
 function CommentComposer({ author, onPost }: { author: Person; onPost: (text: string) => void }) {
   const [draft, setDraft] = useState("");
   const [active, setActive] = useState(false);
-  const boxRef = useRef<HTMLTextAreaElement | null>(null);
-
-  function grow(box: HTMLTextAreaElement) {
-    box.style.height = "auto";
-    box.style.height = `${box.scrollHeight}px`;
-  }
 
   function reset() {
     setDraft("");
     setActive(false);
-    if (boxRef.current) boxRef.current.style.height = "";
   }
 
   return (
@@ -358,37 +426,74 @@ function CommentComposer({ author, onPost }: { author: Person; onPost: (text: st
       <PersonAvatar person={author} size={31} bordered />
       <div className="komm-col">
         <img className="komm-tail light" src={a.bubbleTailLight} alt="" />
-        <div className="komm-bubble compose">
-          <textarea
-            ref={boxRef}
-            rows={1}
+        <DraftBox
+          value={draft}
+          placeholder="Kommentar hinzufügen..."
+          open={active}
+          onOpen={() => setActive(true)}
+          onChange={setDraft}
+          onCancel={reset}
+          onSave={(text) => {
+            onPost(text);
+            reset();
+          }}
+        />
+      </div>
+    </li>
+  );
+}
+
+function CommentRow({
+  entry,
+  onEdit,
+  onRemove,
+}: {
+  entry: Comment;
+  onEdit?: (text: string) => void;
+  onRemove?: () => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const editable = entry.postedIndex !== undefined && onEdit && onRemove;
+
+  return (
+    <li className="komm-row">
+      <PersonAvatar person={entry.person} size={37} bordered />
+      <div className="komm-col">
+        {/* Sits before the bubble so the bubble paints over its inner half. */}
+        <img className="komm-tail" src={a.bubbleTail} alt="" />
+
+        {draft === null ? (
+          <div className="komm-bubble">
+            <div className="komm-head">
+              <strong>{entry.person.name}</strong>
+              {editable ? (
+                <ContextMenu
+                  items={[
+                    { label: "Editieren", icon: a.menuEdit, onSelect: () => setDraft(entry.text) },
+                    { label: "Löschen", icon: a.trash, danger: true, onSelect: onRemove },
+                  ]}
+                />
+              ) : null}
+            </div>
+            <p>{entry.text}</p>
+          </div>
+        ) : (
+          <DraftBox
             value={draft}
-            placeholder="Kommentar hinzufügen..."
-            onFocus={() => setActive(true)}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              grow(event.target);
+            open
+            onChange={setDraft}
+            onCancel={() => setDraft(null)}
+            onSave={(text) => {
+              onEdit?.(text);
+              setDraft(null);
             }}
           />
-        </div>
+        )}
 
-        {active ? (
-          <div className="komm-actions">
-            <button type="button" className="btn-secondary btn-xs" onClick={reset}>
-              Abbrechen
-            </button>
-            <button
-              type="button"
-              className="btn-primary btn-xs"
-              disabled={!draft.trim()}
-              onClick={() => {
-                onPost(draft.trim());
-                reset();
-              }}
-            >
-              Speichern
-            </button>
-          </div>
+        {entry.at ? (
+          <time className="komm-time">
+            {entry.at.date}, um {entry.at.time}
+          </time>
         ) : null}
       </div>
     </li>
@@ -399,10 +504,14 @@ export function KommentareTab({
   comments,
   author,
   onPost,
+  onEdit,
+  onRemove,
 }: {
   comments: Comment[];
   author: Person;
   onPost: (text: string) => void;
+  onEdit?: (index: number, text: string) => void;
+  onRemove?: (index: number) => void;
 }) {
   return (
     <>
@@ -411,29 +520,20 @@ export function KommentareTab({
       )}
 
       <ul className="komm">
-        {comments.map((entry, index) => (
-          <li className="komm-row" key={`${entry.person.name}-${index}`}>
-            <PersonAvatar person={entry.person} size={37} bordered />
-            <div className="komm-col">
-              {/* Sits before the bubble so the bubble paints over its inner half. */}
-              <img className="komm-tail" src={a.bubbleTail} alt="" />
-              <div className="komm-bubble">
-                <div className="komm-head">
-                  <strong>{entry.person.name}</strong>
-                  <button type="button" className="komm-menu" aria-label="Weitere Aktionen">
-                    <Icon src={a.contextMenu} size={18} />
-                  </button>
-                </div>
-                <p>{entry.text}</p>
-              </div>
-              {entry.at ? (
-                <time className="komm-time">
-                  {entry.at.date}, um {entry.at.time}
-                </time>
-              ) : null}
-            </div>
-          </li>
-        ))}
+        {comments.map((entry, index) => {
+          const posted = entry.postedIndex;
+
+          return (
+            <CommentRow
+              entry={entry}
+              key={`${entry.person.name}-${index}`}
+              onEdit={
+                posted === undefined || !onEdit ? undefined : (text) => onEdit(posted, text)
+              }
+              onRemove={posted === undefined || !onRemove ? undefined : () => onRemove(posted)}
+            />
+          );
+        })}
 
         <CommentComposer author={author} onPost={onPost} />
       </ul>

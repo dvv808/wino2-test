@@ -1,15 +1,23 @@
 import * as a from "./assets/index";
 import { Icon } from "./ui";
+import { useWorkflow } from "./workflow";
 
 const APPS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
 
 /** The app row plus the open workflow tab, shared by the advisor and the Bestandsmanager. */
 export function AppsNav({ kicker, name }: { kicker: string; name: string }) {
+  const { openPerson } = useWorkflow();
+
   return (
     <nav className="apps-nav">
       <div className="app-pills">
         {APPS.map((label) => (
-          <button type="button" className="app-pill" key={label}>
+          <button
+            type="button"
+            className="app-pill"
+            key={label}
+            onClick={label === "Person" ? openPerson : undefined}
+          >
             {label}
           </button>
         ))}

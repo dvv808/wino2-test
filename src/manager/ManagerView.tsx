@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ADVISOR } from "../approvalTabs";
 import { useWorkflow, type ApprovalStep } from "../workflow";
 import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrome";
+import { DeleteWarning } from "./DeleteWarning";
 import { FreigabenPanel } from "./FreigabenPanel";
 import { FreigabePage } from "./FreigabePage";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
@@ -22,6 +23,7 @@ export function ManagerView() {
     requestedAt,
     requestNote,
     decisionNote,
+    comments,
     decideRequest,
     freigabeId,
     openFreigabe,
@@ -31,38 +33,52 @@ export function ManagerView() {
   const [demoDecisions, setDemoDecisions] = useState<
     Record<string, { status: RequestStatus; decided: string; comment: string }>
   >({});
+  /** Workflows deleted from the list, and the one waiting on the warning prompt. */
+  const [deleted, setDeleted] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState<RequestRow | null>(null);
 
-  const liveRows: RequestRow[] = (["docs", "sign"] as ApprovalStep[])
-    .filter((step) => approvalOf(step) !== "idle")
-    .map((step) => {
-      const approval = approvalOf(step);
-      const sent = requestedAt[step];
-      return {
-        id: `live-${step}`,
-        partner: { name: docSigner, meta: "12.09.1988", kind: "person" },
-        types: ["Interessent"],
-        art: "Maklervereinb. Kunde",
-        schritt: SCHRITT[step],
-        requester: LIVE_REQUESTER,
-        date: sent ? sent.date : "–",
-        time: sent ? sent.time : "–",
-        status:
-          approval === "granted"
-            ? "abgeschlossen"
-            : approval === "rejected"
-              ? "abgelehnt"
-              : "offen",
-        decided: approval === "idle" ? undefined : sent && `${sent.date}, CHAN`,
-        comment: decisionNote[step] || undefined,
-        note: requestNote[step] || undefined,
-        step,
-      };
-    });
+  /**
+   * Both steps of the live Maklervereinbarung are listed from the start. The one
+   * the advisor has not asked for yet shows as still outstanding.
+   */
+  const liveRows: RequestRow[] = (["docs", "sign"] as ApprovalStep[]).map((step) => {
+    const approval = approvalOf(step);
+    const sent = requestedAt[step];
+    return {
+      id: `live-${step}`,
+      /* Both steps belong to the one Maklervereinbarung the advisor is filling in. */
+      group: "live",
+      partner: { name: docSigner, meta: "12.09.1988", kind: "person" },
+      types: ["Interessent"],
+      art: "Maklervereinbarung",
+      schritt: SCHRITT[step],
+      requester: LIVE_REQUESTER,
+      date: sent ? sent.date : "–",
+      time: sent ? sent.time : "–",
+      status:
+        approval === "granted"
+          ? "abgeschlossen"
+          : approval === "rejected"
+            ? "abgelehnt"
+            : "offen",
+      decided: approval === "idle" ? undefined : sent && `${sent.date}, CHAN`,
+      comment: decisionNote[step] || undefined,
+      note: requestNote[step] || undefined,
+      /* The same thread the Freigabe page shows: both notes plus anything typed since. */
+      commentCount:
+        (requestNote[step] ? 1 : 0) +
+        (decisionNote[step] ? 1 : 0) +
+        (comments[step]?.length ?? 0),
+      pending: approval === "idle",
+      step,
+    };
+  });
 
   const rows = [
-    ...liveRows,
+    /* The workflow only reaches this list once the advisor has asked for something. */
+    ...(liveRows.every((row) => row.pending) ? [] : liveRows),
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
-  ];
+  ].filter((row) => !deleted.includes(row.group));
 
   /** A shared link can name a request that this session never created. */
   const reviewing = rows.find((row) => row.id === freigabeId) ?? null;
@@ -98,9 +114,25 @@ export function ManagerView() {
 
         <div className="content-shell bestand-body">
           <MitarbeiterSidebar />
-          <FreigabenPanel rows={rows} onStart={(row) => openFreigabe(row.id)} />
+          <FreigabenPanel
+            rows={rows}
+            onStart={(row) => openFreigabe(row.id)}
+            onView={(row) => openFreigabe(row.id)}
+            onDelete={setDeleting}
+          />
         </div>
       </div>
+
+      {deleting ? (
+        <DeleteWarning
+          row={deleting}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => {
+            setDeleted((current) => [...current, deleting.group]);
+            setDeleting(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

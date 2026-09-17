@@ -12,6 +12,7 @@ import { SignStep } from "./steps/SignStep";
 import { TasksStep } from "./steps/TasksStep";
 import { TermsStep } from "./steps/TermsStep";
 import { ManagerView } from "./manager/ManagerView";
+import { PersonPage } from "./person/PersonPage";
 import { Icon } from "./ui";
 import {
   STEPS,
@@ -168,9 +169,10 @@ function Footer() {
 }
 
 function Screen() {
-  const { activeStep, view } = useWorkflow();
+  const { activeStep, view, openPerson } = useWorkflow();
 
   if (view === "manager" || view === "freigabe") return <ManagerView />;
+  if (view === "person") return <PersonPage />;
 
   return (
     <div className="app">
@@ -183,7 +185,7 @@ function Screen() {
             </button>
             <div className="person-tab">
               <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
-              <button type="button" className="person-tab-body">
+              <button type="button" className="person-tab-body" onClick={openPerson}>
                 <Icon src={a.person} size={24} />
                 Julia Atkinson
                 <span className="close-icon">

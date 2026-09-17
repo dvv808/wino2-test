@@ -27,6 +27,8 @@ export function DocsStep() {
     decidedAt,
     comments: posted,
     addComment,
+    editComment,
+    removeComment,
   } = useWorkflow();
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const tasks = ADVISOR_TASKS.docs;
@@ -115,6 +117,8 @@ export function DocsStep() {
               comments={comments}
               author={ADVISOR}
               onPost={(text) => addComment("docs", ADVISOR, text)}
+              onEdit={(index, text) => editComment("docs", index, text)}
+              onRemove={(index) => removeComment("docs", index)}
             />
           )}
           {tab === "verlauf" && <VerlaufTab extra={timeline} />}

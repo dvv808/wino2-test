@@ -2598,22 +2598,23 @@ input.text-field {
 /* Request table */
 .req-table {
   --col-partner: 314px;
-  --col-type: 188px;
+  --col-type: 141px;
   --col-art: 258px;
   --col-req: 201px;
   --col-date: 118px;
-  --col-status: 181px;
-  --col-comment: 258px;
+  --col-status: 243px;
+  --col-comment: 196px;
   margin-top: 18px;
-  min-width: 1518px;
+  min-width: 1482px;
 }
 
 .req-head,
-.req-row {
+.req-row,
+.req-sub {
   display: grid;
   grid-template-columns:
     var(--col-partner) var(--col-type) var(--col-art) var(--col-req) var(--col-date)
-    var(--col-status) var(--col-comment);
+    var(--col-comment) var(--col-status);
   column-gap: 2px;
 }
 
@@ -2636,6 +2637,10 @@ input.text-field {
 
 .req-th:last-child {
   border-radius: 0 8px 0 0;
+}
+
+.req-th.blank {
+  padding: 0;
 }
 
 .req-th-top {
@@ -2670,7 +2675,17 @@ input.text-field {
   border-color: var(--wino-black-light);
 }
 
-.req-row {
+/*
+ * A row is one Maklervereinbarung: the partner on top, and under it a sub-row
+ * per Freigabe it asks for. Each workflow is its own block, so the groups are
+ * set apart while the rows inside them stay a hairline apart.
+ */
+.req-group {
+  margin-bottom: 20px;
+}
+
+.req-row,
+.req-sub {
   row-gap: 0;
   margin-bottom: 1px;
 }
@@ -2686,12 +2701,111 @@ input.text-field {
   min-width: 0;
 }
 
-.req-row:last-child .cell:first-child {
-  border-radius: 0 0 0 8px;
+/* A collapsed workflow closes off the block itself. */
+.req-group.closed .cell:first-child {
+  border-radius: 0 0 0 12px;
 }
 
-.req-row:last-child .cell:last-child {
-  border-radius: 0 0 8px 0;
+.req-group.closed .cell:last-child {
+  border-radius: 0 0 12px 0;
+}
+
+/* The chevron that folds the Freigaben away. */
+.req-toggle {
+  flex: none;
+  display: flex;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin-right: 6px;
+  cursor: pointer;
+  transform: rotate(-90deg);
+}
+
+.req-toggle.open {
+  transform: none;
+}
+
+/*
+ * The sub-rows reach from the Art column rightwards. They are tinted rather
+ * than outlined, and the last one rounds off the bottom of the block.
+ */
+.req-sub .subcell {
+  min-height: 68px;
+  background: rgba(235, 241, 245, 0.8);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.req-sub .subcell:first-of-type {
+  grid-column: 3;
+}
+
+.req-sub.last {
+  margin-bottom: 0;
+}
+
+.req-sub.last .subcell:first-of-type {
+  border-radius: 0 0 0 12px;
+}
+
+.req-sub.last .subcell:last-of-type {
+  border-radius: 0 0 12px 0;
+}
+
+/*
+ * The elbow in the gutter left of the Art column. Every sub-row draws the leg
+ * down from the row above; the last one stops at its own middle so the line
+ * ends on the elbow instead of running past it.
+ */
+.req-link {
+  grid-column: 2;
+  justify-self: end;
+  position: relative;
+  width: 19px;
+}
+
+.req-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1px;
+  bottom: 0;
+  border-left: 1px solid var(--wino-violet-light);
+}
+
+.req-link.last::before {
+  bottom: 50%;
+}
+
+.req-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--wino-violet-light);
+}
+
+/* Sub-rows carry the step name over its place in the workflow. */
+.req-sub .art-cell small {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 21px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-light);
+}
+
+.req-sub .date-cell .muted {
+  color: var(--wino-black-light);
+}
+
+.req-sub .comment-cell {
+  font-size: 15px;
 }
 
 .cell-open {
@@ -2783,19 +2897,27 @@ input.text-field {
   margin: 0;
 }
 
-.art-cell p {
+.art-cell p,
+.art-cell strong {
   font-size: 15px;
   line-height: 21px;
   letter-spacing: 0.15px;
 }
 
+.art-cell strong {
+  font-weight: 500;
+}
+
 .date-cell {
+  justify-content: center;
   padding: 14px 30px;
 }
 
 .date-cell p {
+  margin: 0;
   font-size: 13px;
-  line-height: 16px;
+  line-height: 21px;
+  text-align: center;
 }
 
 .comment-cell {
@@ -2803,13 +2925,11 @@ input.text-field {
   line-height: 21px;
   letter-spacing: 0.15px;
   align-items: center;
+  gap: 12px;
 }
 
-.comment-cell > span {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+.comment-cell img {
+  flex: none;
 }
 
 /* Angefordert von */
@@ -2847,11 +2967,29 @@ input.text-field {
 
 /* Status */
 .status-cell {
+  position: relative;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 10px 16px;
+}
+
+/* The workflow's actions sit at the right edge of its status cell. */
+.status-cell .ctx {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.req-sub .status-cell {
+  gap: 5px;
+  padding: 10px 16px;
+}
+
+.req-sub .comment-cell {
+  gap: 10px;
 }
 
 .status-pill {
@@ -2882,6 +3020,12 @@ input.text-field {
 
 .status-pill.done {
   background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-darker) 100%);
+  border: 1px solid var(--wino-violet-light);
+}
+
+/* A single Freigabe that is through, as opposed to the whole workflow. */
+.status-pill.fertig {
+  background: linear-gradient(28.2deg, #ffffff 12.82%, #baccd5 96.94%);
   border: 1px solid var(--wino-violet-light);
 }
 
@@ -3391,9 +3535,9 @@ input.text-field {
   min-width: 130px;
 }
 
-/* Warning shown when the consent switch was never ticked */
+/* The shell shared by the confirmation warnings */
 
-.consent-modal {
+.wmodal {
   position: fixed;
   inset: 0;
   z-index: 70;
@@ -3403,14 +3547,14 @@ input.text-field {
   padding: 24px;
 }
 
-.consent-scrim {
+.wmodal-scrim {
   position: absolute;
   inset: 0;
   border: 0;
   background: rgba(20, 26, 30, 0.55);
 }
 
-.consent-modal-body {
+.wmodal-body {
   position: relative;
   width: min(586px, 100%);
   padding: 32px 24px 28px;
@@ -3420,7 +3564,7 @@ input.text-field {
   text-align: center;
 }
 
-.consent-modal-close {
+.wmodal-close {
   position: absolute;
   top: -16px;
   right: -16px;
@@ -3436,7 +3580,7 @@ input.text-field {
   justify-content: center;
 }
 
-.consent-modal-body h2 {
+.wmodal-body h2 {
   margin: 0 auto;
   max-width: 354px;
   font-size: 19px;
@@ -3445,7 +3589,7 @@ input.text-field {
   letter-spacing: 0.19px;
 }
 
-.consent-modal-body p {
+.wmodal-body p {
   margin: 18px 0 0;
   font-size: 15px;
   line-height: 22px;
@@ -3453,7 +3597,7 @@ input.text-field {
   text-align: left;
 }
 
-.consent-modal-foot {
+.wmodal-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3467,6 +3611,11 @@ input.text-field {
 
 .consent-continue {
   min-width: 296px;
+}
+
+/* The delete warning has two short labels, so its footer sits centred. */
+.wmodal-foot.centered {
+  justify-content: center;
 }
 
 @media (max-width: 1360px) {
@@ -3972,13 +4121,72 @@ input.text-field {
   letter-spacing: 0.13px;
 }
 
-.komm-menu {
+/* The three-dot menu shared by comment bubbles and table rows */
+
+.ctx {
+  position: relative;
   flex: none;
+  display: flex;
+}
+
+.ctx-btn {
   display: flex;
   border: 0;
   background: transparent;
   padding: 0;
   cursor: pointer;
+}
+
+/*
+ * The corner nearest the button stays square so the card reads as hanging off
+ * it. Figma drops it to the button's right; here the button sits at the panel
+ * edge, so it is mirrored.
+ */
+.ctx-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: -4px;
+  width: 210px;
+  box-sizing: border-box;
+  list-style: none;
+  margin: 0;
+  padding: 18px 10px;
+  border-radius: 6px 0 6px 6px;
+  background: var(--wino-white);
+  box-shadow: 0 3px 8.5px rgba(49, 53, 55, 0.15);
+}
+
+/* The hairline between the actions. */
+.ctx-pop li + li {
+  border-top: 1px solid var(--wino-bg-darker);
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.ctx-pop button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 6px 8px;
+  font-family: var(--font);
+  font-size: 15px;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ctx-pop button:hover {
+  background: var(--wino-bg-lighter);
+}
+
+.ctx-pop button.danger {
+  color: #d23552;
 }
 
 .komm-bubble p {
@@ -4205,4 +4413,621 @@ input.text-field {
   display: grid;
   place-items: center;
   padding: 80px 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Person / Profil: the Stammdaten page                               *
+ * ------------------------------------------------------------------ */
+
+.pp-body {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 24px 23px 23px;
+  background: var(--wino-canvas);
+}
+
+/* --- the areas of the file, left --- */
+
+.pp-side {
+  flex: none;
+  width: 264px;
+  padding-bottom: 16px;
+  border-radius: 16px;
+  background: var(--wino-white);
+}
+
+.pp-side-head {
+  height: 78px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border-radius: 16px 16px 0 0;
+  background: linear-gradient(19deg, #ffffff 51.594%, var(--wino-bg-darker) 96.938%);
+}
+
+.pp-side-avatar {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--wino-white);
+}
+
+.pp-side-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pp-side-title strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+}
+
+.pp-side-title small {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+}
+
+.pp-side-search {
+  width: 240px;
+  height: 36px;
+  margin: 12px auto;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 32px;
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+/* The three areas: Stammdaten is open, the other two are for later. */
+.pp-area {
+  width: 239px;
+  height: 40px;
+  margin: 0 auto 14px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 0;
+  border-radius: 24px;
+  font-size: 13px;
+  letter-spacing: 0.26px;
+  color: var(--wino-black-dark);
+  background: linear-gradient(14deg, rgba(255, 255, 255, 0.6) 46.088%, rgba(186, 204, 213, 0.6) 96.843%);
+}
+
+.pp-area:first-of-type {
+  margin-top: 12px;
+}
+
+.pp-area.open {
+  border: 1px solid var(--wino-black-light);
+  background: linear-gradient(14deg, #ffffff 12.818%, var(--wino-bg-darker) 96.938%);
+}
+
+.pp-area-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --- the tree of Stammdaten pages --- */
+
+.pp-tree {
+  position: relative;
+  margin: 0 0 14px 34px;
+  padding-left: 14px;
+  width: 217px;
+}
+
+/* One line down the gutter, ending at the last item's elbow. */
+.pp-tree::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -8px;
+  bottom: 15px;
+  border-left: 1px solid var(--wino-violet-light);
+}
+
+.pp-tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+
+.pp-tree-label {
+  align-self: stretch;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--wino-black-medium);
+  color: var(--wino-white);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: grid;
+  place-items: center;
+}
+
+.pp-tree-item {
+  position: relative;
+  height: 30px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 24px;
+  text-decoration: none;
+  font-size: 13px;
+  color: var(--wino-black-dark);
+  background: linear-gradient(14deg, rgba(255, 255, 255, 0.6) 46.088%, rgba(186, 204, 213, 0.5) 96.843%);
+}
+
+.pp-tree-item:hover {
+  background: linear-gradient(14deg, #ffffff 20%, var(--wino-bg-darker) 100%);
+}
+
+/* The elbow reaching out of the gutter line. */
+.pp-tree-item::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 10px;
+  border-top: 1px solid var(--wino-violet-light);
+}
+
+.pp-tree-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pp-tree-caret {
+  flex: none;
+  opacity: 0.7;
+}
+
+/* --- the record itself, right --- */
+
+.pp-main {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 40px;
+  border-radius: 16px;
+  background: var(--wino-white);
+}
+
+.pp-main-head {
+  justify-content: space-between;
+}
+
+.pp-main-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  letter-spacing: 0.17px;
+}
+
+/* --- the strip of context above the sections --- */
+
+.pp-strip {
+  display: grid;
+  grid-template-columns: 552px 360px;
+  justify-content: center;
+  align-items: start;
+  gap: 56px;
+  padding: 56px 0 36px;
+}
+
+.pp-id {
+  position: relative;
+  min-height: 281px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 16px;
+  background: linear-gradient(120deg, #e7edf0 0%, #f4f7f9 40%, #dde6ea 100%);
+  overflow: hidden;
+}
+
+.pp-id-avatar {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--wino-bg-lighter);
+}
+
+.pp-id-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pp-id-copy strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.17px;
+}
+
+.pp-id-born {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.13px;
+}
+
+.pp-id-address {
+  display: block;
+  margin-top: 14px;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.pp-id-nr {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  font-size: 15px;
+  color: var(--wino-black-light);
+}
+
+.pp-info {
+  padding: 12px 0 0;
+}
+
+.pp-info small {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--wino-black-medium);
+}
+
+.pp-info p {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+/* The Plausibilitäts-Check sits in the top right of the record. */
+.pp-plausi {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 16px 0 12px;
+  border-radius: 16px;
+  background: linear-gradient(200deg, #f4f7f9 0%, #e8eef1 100%);
+}
+
+.pp-plausi header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+
+.pp-plausi ul {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pp-plausi li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid rgba(198, 204, 218, 0.5);
+}
+
+.pp-plausi-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(14deg, #ffffff 12.818%, var(--wino-bg-darker) 96.938%);
+}
+
+.pp-plausi-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.pp-plausi-copy strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pp-plausi-copy small {
+  display: block;
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.pp-plausi a {
+  display: block;
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--wino-black-dark);
+}
+
+/* --- a section of the record --- */
+
+.pp-section {
+  padding: 0 24px;
+}
+
+.pp-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 0;
+  border-top: 1px solid var(--wino-bg-light);
+  font-size: 17px;
+  letter-spacing: 0.17px;
+}
+
+.pp-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 510px));
+  justify-content: center;
+  align-items: start;
+  gap: 20px;
+  padding-bottom: 44px;
+}
+
+.pp-card {
+  position: relative;
+  padding: 32px 27px;
+  border-radius: 12px 24px 12px 12px;
+  background: var(--wino-white);
+  box-shadow: 0 1px 3px rgba(49, 53, 55, 0.06), 0 8px 24px rgba(49, 53, 55, 0.05);
+}
+
+.pp-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+.pp-card-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 15px;
+}
+
+.pp-card-menu {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  display: flex;
+}
+
+.pp-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.pp-card.clamped .pp-card-body {
+  overflow: hidden;
+}
+
+/* Cut-off cards fade out over the last rows and offer the full record. */
+.pp-card.clamped::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 44px;
+  height: 96px;
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 78%);
+  pointer-events: none;
+}
+
+.pp-card-more {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  text-align: center;
+}
+
+.pp-card-more a,
+.pp-val.link,
+.pp-val.file {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  text-decoration: underline;
+}
+
+.pp-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pp-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.pp-label {
+  flex: none;
+  width: 200px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.pp-val {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  letter-spacing: 0.13px;
+}
+
+.pp-val.file img {
+  flex: none;
+}
+
+/* Austria: the flag is three bars, so there is no asset for it. */
+.pp-flag {
+  flex: none;
+  width: 18px;
+  height: 13px;
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+.pp-flag.at {
+  background: linear-gradient(
+    180deg,
+    #e42447 0 35%,
+    #ffffff 35% 65%,
+    #e42447 65% 100%
+  );
+}
+
+/* Rows that belong to one entry sit on a tinted block. */
+.pp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pp-caption {
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--wino-black-medium);
+}
+
+.pp-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(235, 241, 245, 0.4);
+}
+
+.pp-group-body .pp-row {
+  align-items: flex-start;
+}
+
+.pp-note {
+  min-height: 81px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(235, 241, 245, 0.4);
+}
+
+.pp-note small {
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--wino-black-medium);
+}
+
+.pp-note p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0.13px;
+}
+
+.pp-files {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* A company or club referenced from a row, with a jump into its own file. */
+.pp-entity {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pp-entity-copy strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.13px;
+}
+
+.pp-entity-copy small {
+  display: block;
+  font-size: 13px;
+  color: var(--wino-black-medium);
+}
+
+/* The partner's own tabs read as labels, not as management areas. */
+.area-nav.person .area-tab-body {
+  height: 34px;
+  padding: 0 18px;
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  border-radius: 8px 8px 0 0;
+}
+
+.area-nav.person {
+  align-items: center;
+  padding: 0 8px;
+}
+
+.area-nav.person .area-tab {
+  align-items: center;
+}
+
+.area-nav.person .area-tab:not(.active) .area-tab-body {
+  background: var(--wino-black-dark);
+  margin: 0 2px;
+  border-radius: 8px;
 }

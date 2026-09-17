@@ -18,7 +18,7 @@ export type SignMode = "upload" | "digital";
  * The workflow and the Bestandsmanager are two separate workspaces. From the
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
-export type View = "workflow" | "manager" | "freigabe";
+export type View = "workflow" | "manager" | "freigabe" | "person";
 /** Only these two steps need a Freigabe from the Bestandsmanager. */
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
 export type RequestStamp = { date: string; time: string };
@@ -292,6 +292,21 @@ function useWorkflowState() {
     setComments((current) => ({ ...current, [step]: [...(current[step] ?? []), posted] }));
   }
 
+  /** Rewrites one of the posted comments, keeping its author and timestamp. */
+  function editComment(step: ApprovalStep, index: number, text: string) {
+    setComments((current) => ({
+      ...current,
+      [step]: (current[step] ?? []).map((entry, at) => (at === index ? { ...entry, text } : entry)),
+    }));
+  }
+
+  function removeComment(step: ApprovalStep, index: number) {
+    setComments((current) => ({
+      ...current,
+      [step]: (current[step] ?? []).filter((_, at) => at !== index),
+    }));
+  }
+
   function decideRequest(step: ApprovalStep, decision: "granted" | "rejected", note = "") {
     setApprovalOf(step, decision);
     setDecisionNote((current) => ({ ...current, [step]: note }));
@@ -318,6 +333,11 @@ function useWorkflowState() {
   function openFreigabe(id: string) {
     setFreigabeId(id);
     setView("freigabe");
+  }
+
+  /** The partner's own file, opened from the Person tab. */
+  function openPerson() {
+    setView("person");
   }
 
   /** Back to the Bestandsmanager's list. */
@@ -409,6 +429,8 @@ function useWorkflowState() {
     decidedAt,
     comments,
     addComment,
+    editComment,
+    removeComment,
     openRequests,
     approvalOf,
     requestApproval,
@@ -420,6 +442,7 @@ function useWorkflowState() {
     freigabeId,
     openFreigabe,
     closeFreigabe,
+    openPerson,
   };
 }
 

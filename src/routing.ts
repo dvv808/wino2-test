@@ -7,6 +7,8 @@ import type { StepId, View } from "./workflow";
 const PERSON = "person/julia-atkinson";
 const WORKFLOW = "maklervereinbarung";
 const MANAGER = "bestandsmanager/freigaben";
+/** The profile page opens on Stammdaten; Riskmanagement and Maklermandat come later. */
+const PERSON_AREA = "stammdaten";
 
 const STEP_SLUGS: Record<StepId, string> = {
   tasks: "offene-aufgaben",
@@ -26,6 +28,7 @@ const STEP_BY_SLUG = new Map(
 export type Route = { view: View; activeStep?: StepId; freigabeId?: string };
 
 export function routeToHash({ view, activeStep, freigabeId }: Route): string {
+  if (view === "person") return `#/${PERSON}/${PERSON_AREA}`;
   if (view === "freigabe" && freigabeId) return `#/${MANAGER}/${freigabeId}`;
   if (view === "manager" || view === "freigabe") return `#/${MANAGER}`;
   const slug = STEP_SLUGS[activeStep ?? "tasks"];
@@ -38,6 +41,8 @@ export function hashToRoute(hash: string): Route {
     const id = parts[2];
     return id ? { view: "freigabe", freigabeId: id } : { view: "manager" };
   }
+  /** The profile page hangs off the person without a workflow segment. */
+  if (parts[0] === "person" && parts[2] !== WORKFLOW) return { view: "person" };
   const step = STEP_BY_SLUG.get(parts[parts.length - 1] ?? "");
   return { view: "workflow", activeStep: step ?? "tasks" };
 }

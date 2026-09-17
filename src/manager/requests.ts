@@ -4,8 +4,14 @@ import type { ApprovalStep } from "../workflow";
 export type RequestStatus = "offen" | "abgelehnt" | "abgeschlossen";
 export type PartnerType = "Mitarbeiter" | "Interessent" | "Kunde";
 
+/**
+ * One Freigabe. A Maklervereinbarung asks for two of them — the documents and
+ * then the signed document — and rows sharing a `group` are drawn as sub-rows
+ * of a single partner.
+ */
 export type RequestRow = {
   id: string;
+  group: string;
   partner: {
     name: string;
     meta?: string;
@@ -27,6 +33,13 @@ export type RequestRow = {
   comment?: string;
   /** The advisor's note, written when the request was sent. */
   note?: string;
+  /** How many comments the Freigabe carries, shown as a count in the table. */
+  commentCount?: number;
+  /**
+   * The advisor has not asked for this Freigabe yet. The sub-row still shows,
+   * so the workflow's remaining step stays visible, but it holds no data.
+   */
+  pending?: boolean;
   /** Set on rows that belong to the live workflow, which makes them actionable. */
   step?: ApprovalStep;
 };
@@ -36,76 +49,126 @@ export const SCHRITT: Record<ApprovalStep, string> = {
   sign: "Unterzeichntes Dok. freigeben",
 };
 
+/** What the sub-row calls the Freigabe, and where it sits in the workflow. */
+export const STEP_LABEL: Record<ApprovalStep, string> = {
+  docs: "Dokumentenfreigabe",
+  sign: "Unterzeichnetes Dokument",
+};
+
+export const STEP_POSITION: Record<ApprovalStep, string> = {
+  docs: "Schritt: 5/6",
+  sign: "Schritt: 6/6",
+};
+
+/** Demo rows carry no step of their own, so it is read back off the Schritt. */
+export function stepOf(row: RequestRow): ApprovalStep {
+  return row.step ?? (row.schritt === SCHRITT.sign ? "sign" : "docs");
+}
+
+const ASHLEY: RequestRow["partner"] = {
+  name: "Ashley Atkinson",
+  meta: "28.08.1981",
+  kind: "person",
+};
+
+const LUNIXO: RequestRow["partner"] = { name: "Lunixo AG", kind: "company", winter: true };
+
+const MARTINA: RequestRow["partner"] = {
+  name: "Martina Donkey",
+  meta: "22.01.1993",
+  kind: "person",
+};
+
+const ASHTON = { name: "Cooper Ashton", role: "KFZ Innendienst", photo: a.reqAshton };
+const DAVIS = { name: "Davis Julia", role: "KFZ Innendienst", photo: a.reqDavis };
+
 /** Requests from other advisors, so the Bestandsmanager's inbox is not empty. */
 export const DEMO_REQUESTS: RequestRow[] = [
   {
-    id: "bella",
-    partner: {
-      name: "Bella Marie Johnson",
-      meta: "22.11.1985",
-      kind: "person",
-      photo: a.partnerBella,
-    },
-    types: ["Mitarbeiter", "Interessent"],
-    art: "Maklervereinb. Kunde",
-    schritt: "Dokumente freigeben",
+    id: "ashley-docs",
+    group: "ashley",
+    partner: ASHLEY,
+    types: ["Interessent"],
+    art: "Maklervereinbarung",
+    schritt: SCHRITT.docs,
     requester: { name: "Adams Anna", role: "Geschäftsleitung", photo: a.reqAnna },
     date: "12.03.2027",
     time: "13:33",
     status: "offen",
+    commentCount: 2,
   },
   {
-    id: "fiona",
-    partner: { name: "Fiona Grace AG", kind: "company", winter: true },
+    id: "ashley-sign",
+    group: "ashley",
+    partner: ASHLEY,
     types: ["Interessent"],
-    art: "Maklervereinb. Kunde",
-    schritt: "Dokumente freigeben",
-    requester: { name: "Adams Sonja", role: "KFZ Innendienst", photo: a.reqSonja },
-    date: "13.03.2027",
-    time: "09:12",
+    art: "Maklervereinbarung",
+    schritt: SCHRITT.sign,
+    requester: { name: "Adams Anna", role: "Geschäftsleitung", photo: a.reqAnna },
+    date: "–",
+    time: "–",
     status: "offen",
+    pending: true,
   },
   {
-    id: "ashley",
-    partner: {
-      name: "Ashley Atikinson",
-      meta: "28.08.1981",
-      alias: "(vulgo Hommalechna)",
-      kind: "person",
-    },
+    id: "lunixo-docs",
+    group: "lunixo",
+    partner: LUNIXO,
     types: ["Interessent"],
-    art: "Maklervereinb. Kunde",
-    schritt: "Unterzeichntes Dok. freigeben",
-    requester: { name: "Bennett Mike", role: "KFZ Innendienst", photo: a.reqMike },
-    date: "13.03.2027",
-    time: "17:22",
-    status: "offen",
+    art: "Maklervereinbarung",
+    schritt: SCHRITT.docs,
+    requester: ASHTON,
+    date: "12.03.2027",
+    time: "11:12",
+    status: "abgeschlossen",
+    decided: "13.03.2027, CHAN",
+    commentCount: 2,
+    comment: "Passt so, freigegeben.",
   },
   {
-    id: "lunixo",
-    partner: { name: "Lunixo AG", kind: "company", winter: true },
+    id: "lunixo-sign",
+    group: "lunixo",
+    partner: LUNIXO,
     types: ["Interessent"],
-    art: "Maklervereinb. Kunde",
-    schritt: "Dokumente freigeben",
-    requester: { name: "Cooper Ashton", role: "KFZ Innendienst", photo: a.reqAshton },
-    date: "14.03.2027",
-    time: "10:53",
+    art: "Maklervereinbarung",
+    schritt: SCHRITT.sign,
+    requester: ASHTON,
+    date: "12.03.2027",
+    time: "13:33",
     status: "abgelehnt",
     decided: "13.03.2027, CHAN",
+    commentCount: 4,
     comment:
       "Es gibt noch Fehler in der Telefonnummer und Postadresse. Postadresse hat keine korrekte PLZ und bei der Nummer fehlt die letzte Zahl.",
   },
   {
-    id: "martina",
-    partner: { name: "Martina Donkey", meta: "22.01.1993", kind: "person" },
-    types: ["Interessent"],
-    art: "Maklervereinb. Kunde",
-    schritt: "Unterzeichntes Dok. freigeben",
-    requester: { name: "Davis Julia", role: "KFZ Innendienst", photo: a.reqDavis },
-    date: "11.03.2027",
-    time: "12:03",
+    id: "martina-docs",
+    group: "martina",
+    partner: MARTINA,
+    types: ["Kunde"],
+    art: "Maklervereinbarung",
+    schritt: SCHRITT.docs,
+    requester: DAVIS,
+    date: "12.03.2027",
+    time: "11:12",
     status: "abgeschlossen",
     decided: "13.03.2027, CHAN",
+    commentCount: 2,
+    comment: "Dokumente sind korrekt.",
+  },
+  {
+    id: "martina-sign",
+    group: "martina",
+    partner: MARTINA,
+    types: ["Kunde"],
+    art: "Maklervereinbarung",
+    schritt: SCHRITT.sign,
+    requester: DAVIS,
+    date: "12.03.2027",
+    time: "13:33",
+    status: "abgeschlossen",
+    decided: "13.03.2027, CHAN",
+    commentCount: 4,
     comment: "Alles Perfekt.",
   },
 ];

@@ -118,6 +118,8 @@ export function SignStep() {
     decidedAt,
     comments: posted,
     addComment,
+    editComment,
+    removeComment,
   } = useWorkflow();
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
 
@@ -195,6 +197,8 @@ export function SignStep() {
               comments={comments}
               author={ADVISOR}
               onPost={(text) => addComment("sign", ADVISOR, text)}
+              onEdit={(index, text) => editComment("sign", index, text)}
+              onRemove={(index) => removeComment("sign", index)}
             />
           )}
           {tab === "verlauf" && <VerlaufTab extra={timeline} />}

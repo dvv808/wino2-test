@@ -13,16 +13,16 @@ export function ConsentWarning({
 }) {
   return (
     <div
-      className="consent-modal"
+      className="wmodal"
       role="dialog"
       aria-label="Zustimmung zu sensiblen Daten nicht erteilt"
     >
-      <button type="button" className="consent-scrim" aria-label="Schließen" onClick={onBack} />
+      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onBack} />
 
-      <div className="consent-modal-body">
+      <div className="wmodal-body">
         <button
           type="button"
-          className="consent-modal-close"
+          className="wmodal-close"
           aria-label="Schließen"
           onClick={onBack}
         >
@@ -35,7 +35,7 @@ export function ConsentWarning({
           können (z. B. Personenversicherungen).
         </p>
 
-        <footer className="consent-modal-foot">
+        <footer className="wmodal-foot">
           <button type="button" className="btn-secondary consent-back" onClick={onBack}>
             Zurück
           </button>

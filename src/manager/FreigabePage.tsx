@@ -194,7 +194,15 @@ export function FreigabePage({
   onClose: () => void;
   onDecide: (decision: "granted" | "rejected", note: string) => void;
 }) {
-  const { signMode, signature, decidedAt, comments: posted, addComment } = useWorkflow();
+  const {
+    signMode,
+    signature,
+    decidedAt,
+    comments: posted,
+    addComment,
+    editComment,
+    removeComment,
+  } = useWorkflow();
   const [pane, setPane] = useState<ContentPane>("freigabe");
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
@@ -296,6 +304,8 @@ export function FreigabePage({
                         comments={comments}
                         author={MANAGER}
                         onPost={(text) => addComment(step, MANAGER, text)}
+                        onEdit={(index, text) => editComment(step, index, text)}
+                        onRemove={(index) => removeComment(step, index)}
                       />
                     )}
                     {tab === "verlauf" && <VerlaufTab extra={timeline} />}

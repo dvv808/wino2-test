@@ -1,5 +1,74 @@
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as a from "./assets/index";
+
+export type ContextItem = {
+  label: string;
+  icon: string;
+  danger?: boolean;
+  onSelect: () => void;
+};
+
+/**
+ * The three-dot button with its drop-down card, used on comment bubbles and on
+ * table rows. The corner nearest the button stays square so the card reads as
+ * hanging off it, the way the Figma frame draws it.
+ */
+export function ContextMenu({ items, label = "Weitere Aktionen" }: { items: ContextItem[]; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function away(event: MouseEvent) {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div className="ctx" ref={wrapRef}>
+      <button
+        type="button"
+        className="ctx-btn"
+        aria-label={label}
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        <Icon src={a.contextMenu} size={18} />
+      </button>
+
+      {open ? (
+        <ul className="ctx-pop">
+          {items.map((item) => (
+            <li key={item.label}>
+              <button
+                type="button"
+                className={item.danger ? "danger" : undefined}
+                onClick={() => {
+                  setOpen(false);
+                  item.onSelect();
+                }}
+              >
+                <Icon src={item.icon} size={17} />
+                {item.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 export function Icon({
   src,
