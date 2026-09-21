@@ -170,6 +170,47 @@ export function TarifLine({ tariff, ok }: { tariff: string; ok: boolean }) {
   );
 }
 
+/** Success toast. Undo is optional — a save confirmation does not need it. */
+export function Snackbar({
+  message,
+  onUndo,
+  onClose,
+}: {
+  message: string;
+  onUndo?: () => void;
+  onClose: () => void;
+}) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => closeRef.current(), 7000);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="snackbar" role="status">
+      <div className="snackbar-card">
+        <span className="snackbar-icon">
+          <img src={a.snackConfirm} alt="" width={36} height={36} />
+        </span>
+        <div className="snackbar-copy">
+          <p>{message}</p>
+          {onUndo ? (
+            <button type="button" className="snackbar-undo" onClick={onUndo}>
+              <img src={a.snackUndo} alt="" width={18} height={18} />
+              Rückgängig machen
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <button type="button" className="snackbar-close" aria-label="Schließen" onClick={onClose}>
+        <img src={a.iconCloseDark} alt="" width={10} height={10} />
+      </button>
+    </div>
+  );
+}
+
 export function Notice({
   tone,
   title,

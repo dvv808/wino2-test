@@ -1,14 +1,26 @@
-import type { StepId, View } from "./workflow";
+import { FILE_PARTNERS, PARTNER_BY_SLUG, type PartnerId } from "./person/partners";
+import type { StammdatenAreaId } from "./person/stammdaten";
+import { STAMMDATEN_AREAS } from "./person/stammdaten";
+import type { StepId, View, WorkflowPane } from "./workflow";
+
+/** Profil is the default person module; Workflows & To-Dos is the advisor inbox. */
+export type PersonModule = "profil" | "workflows";
 
 /**
  * URLs mirror the app's nesting: the open person tab, the open workflow tab, then the page.
- * The prototype only ever has one person and one workflow, so those two are fixed.
+ * Maklervereinbarung always hangs off Julia; Ashley only has a person file.
  */
-const PERSON = "person/julia-atkinson";
 const WORKFLOW = "maklervereinbarung";
 const MANAGER = "bestandsmanager/freigaben";
-/** The profile page opens on Stammdaten; Riskmanagement and Maklermandat come later. */
+/** The profile page opens on Stammdaten; Ashley's file opens on Maklermandat. */
 const PERSON_AREA = "stammdaten";
+const ASHLEY_AREA = "maklermandat";
+const PERSON_WORKFLOWS = "workflows-to-dos";
+const STAMMDATEN_WORKFLOW = "stammdaten-workflow";
+
+function personRoot(partnerId: PartnerId = "julia") {
+  return `person/${FILE_PARTNERS[partnerId].slug}`;
+}
 
 const STEP_SLUGS: Record<StepId, string> = {
   tasks: "offene-aufgaben",
@@ -20,19 +32,79 @@ const STEP_SLUGS: Record<StepId, string> = {
   sign: "signaturen",
 };
 
+const AREA_SLUGS: Record<StammdatenAreaId, string> = {
+  personendaten: "allgemeine-partnerdaten",
+  wirtschaftsdaten: "wirtschaftsdaten",
+  kontakte: "kontakte",
+  adressen: "adressen",
+  bankverbindungen: "bankverbindung",
+  systemdaten: "systemdaten",
+  verknuepfung: "verknuepfung",
+  externe: "externe-quellen",
+};
+
 const STEP_BY_SLUG = new Map(
   Object.entries(STEP_SLUGS).map(([id, slug]) => [slug, id as StepId]),
 );
 
-/** The Bestandsmanager has no step of its own, so activeStep is left alone there. */
-export type Route = { view: View; activeStep?: StepId; freigabeId?: string };
+const AREA_BY_SLUG = new Map(
+  Object.entries(AREA_SLUGS).map(([id, slug]) => [slug, id as StammdatenAreaId]),
+);
 
-export function routeToHash({ view, activeStep, freigabeId }: Route): string {
-  if (view === "person") return `#/${PERSON}/${PERSON_AREA}`;
+const PANE_SLUGS: Record<Exclude<WorkflowPane, "workflow">, string> = {
+  notizen: "notizen",
+  email: "e-mail",
+  dateien: "dateien",
+  verlauf: "verlauf",
+};
+
+const PANE_BY_SLUG = new Map(
+  Object.entries(PANE_SLUGS).map(([id, slug]) => [slug, id as Exclude<WorkflowPane, "workflow">]),
+);
+
+/** The Bestandsmanager has no step of its own, so activeStep is left alone there. */
+export type Route = {
+  view: View;
+  activeStep?: StepId;
+  freigabeId?: string;
+  stammdatenArea?: StammdatenAreaId;
+  stammdatenCardId?: string;
+  workflowPane?: WorkflowPane;
+  personModule?: PersonModule;
+  partnerId?: PartnerId;
+};
+
+function partnerOf(parts: string[]): PartnerId {
+  return PARTNER_BY_SLUG.get(parts[1] ?? "") ?? "julia";
+}
+
+export function routeToHash({
+  view,
+  activeStep,
+  freigabeId,
+  stammdatenArea,
+  stammdatenCardId,
+  workflowPane,
+  personModule,
+  partnerId = "julia",
+}: Route): string {
+  if (view === "stammdaten") {
+    const area = AREA_SLUGS[stammdatenArea ?? "personendaten"];
+    const card = stammdatenCardId ? `/${stammdatenCardId}` : "";
+    return `#/${personRoot("julia")}/${STAMMDATEN_WORKFLOW}/${area}${card}`;
+  }
+  if (view === "person") {
+    const root = personRoot(partnerId);
+    if (personModule === "workflows") return `#/${root}/${PERSON_WORKFLOWS}`;
+    if (partnerId === "ashley") return `#/${root}/${ASHLEY_AREA}`;
+    return `#/${root}/${PERSON_AREA}`;
+  }
   if (view === "freigabe" && freigabeId) return `#/${MANAGER}/${freigabeId}`;
   if (view === "manager" || view === "freigabe") return `#/${MANAGER}`;
+  const pane = workflowPane && workflowPane !== "workflow" ? PANE_SLUGS[workflowPane] : null;
+  if (pane) return `#/${personRoot("julia")}/${WORKFLOW}/${pane}`;
   const slug = STEP_SLUGS[activeStep ?? "tasks"];
-  return `#/${PERSON}/${WORKFLOW}/${slug}`;
+  return `#/${personRoot("julia")}/${WORKFLOW}/${slug}`;
 }
 
 export function hashToRoute(hash: string): Route {
@@ -41,8 +113,25 @@ export function hashToRoute(hash: string): Route {
     const id = parts[2];
     return id ? { view: "freigabe", freigabeId: id } : { view: "manager" };
   }
+  if (parts[0] === "person" && parts[2] === STAMMDATEN_WORKFLOW) {
+    const area = AREA_BY_SLUG.get(parts[3] ?? "") ?? STAMMDATEN_AREAS[0].id;
+    return {
+      view: "stammdaten",
+      partnerId: "julia",
+      stammdatenArea: area,
+      stammdatenCardId: parts[4],
+    };
+  }
+  if (parts[0] === "person" && parts[2] === PERSON_WORKFLOWS) {
+    return { view: "person", partnerId: partnerOf(parts), personModule: "workflows" };
+  }
   /** The profile page hangs off the person without a workflow segment. */
-  if (parts[0] === "person" && parts[2] !== WORKFLOW) return { view: "person" };
-  const step = STEP_BY_SLUG.get(parts[parts.length - 1] ?? "");
-  return { view: "workflow", activeStep: step ?? "tasks" };
+  if (parts[0] === "person" && parts[2] !== WORKFLOW) {
+    return { view: "person", partnerId: partnerOf(parts), personModule: "profil" };
+  }
+  const last = parts[parts.length - 1] ?? "";
+  const pane = PANE_BY_SLUG.get(last);
+  if (pane) return { view: "workflow", partnerId: "julia", workflowPane: pane };
+  const step = STEP_BY_SLUG.get(last);
+  return { view: "workflow", partnerId: "julia", activeStep: step ?? "tasks", workflowPane: "workflow" };
 }

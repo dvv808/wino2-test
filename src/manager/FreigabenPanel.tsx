@@ -4,6 +4,8 @@ import { ContextMenu, Icon } from "../ui";
 import {
   STEP_LABEL,
   STEP_POSITION,
+  groupRequestRows,
+  statusOfGroup,
   stepOf,
   type RequestRow,
   type RequestStatus,
@@ -35,7 +37,7 @@ const GLYPH_COLUMNS = new Set([
   "Status",
 ]);
 
-function StatCard({ label, value, icon }: { label: string; value: number; icon: string }) {
+export function StatCard({ label, value, icon }: { label: string; value: number; icon: string }) {
   return (
     <div className="stat-card">
       <div className="stat-copy">
@@ -302,33 +304,6 @@ function WorkflowRow({
   );
 }
 
-/** Splits the flat request list into one entry per Maklervereinbarung. */
-function groupRows(rows: RequestRow[]) {
-  const groups: RequestRow[][] = [];
-  const byKey = new Map<string, RequestRow[]>();
-
-  for (const row of rows) {
-    const existing = byKey.get(row.group);
-    if (existing) {
-      existing.push(row);
-      continue;
-    }
-
-    const group = [row];
-    groups.push(group);
-    byKey.set(row.group, group);
-  }
-
-  return groups;
-}
-
-/** A workflow counts as one entry in the stat cards, not one per Freigabe. */
-function statusOf(rows: RequestRow[]): RequestStatus {
-  if (rows.some((row) => row.status === "abgelehnt")) return "abgelehnt";
-  if (rows.every((row) => !row.pending && row.status === "abgeschlossen")) return "abgeschlossen";
-  return "offen";
-}
-
 export function FreigabenPanel({
   rows,
   onStart,
@@ -340,10 +315,10 @@ export function FreigabenPanel({
   onView: (row: RequestRow) => void;
   onDelete: (row: RequestRow) => void;
 }) {
-  const groups = groupRows(rows);
+  const groups = groupRequestRows(rows);
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const count = (status: RequestStatus) =>
-    groups.filter((group) => statusOf(group) === status).length;
+    groups.filter((group) => statusOfGroup(group) === status).length;
 
   function toggle(key: string) {
     setCollapsed((current) =>

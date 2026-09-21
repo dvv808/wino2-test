@@ -127,6 +127,16 @@ export { default as winmakler } from "./icons/winmakler.svg";
 export { default as riskTarget } from "./icons/risk-target.svg";
 export { default as plausiCheck } from "./icons/plausi-check.svg";
 export { default as paperclip } from "./icons/paperclip.svg";
+export { default as globe } from "./icons/globe.svg";
+export { default as flag } from "./icons/flag.svg";
+export { default as allianz } from "./icons/allianz.svg";
+export { default as donau } from "./icons/donau.svg";
+export { default as jpg } from "./icons/jpg.svg";
+export { default as snackConfirm } from "./icons/snack-confirm.svg";
+export { default as snackUndo } from "./icons/snack-undo.svg";
+export { default as transform } from "./icons/transform.svg";
+export { default as tick } from "./icons/tick.svg";
+export { default as confirmOutline } from "./icons/confirm-outline.svg";
 
 export { default as reqAnna } from "./images/req-anna.png";
 export { default as reqSonja } from "./images/req-sonja.png";

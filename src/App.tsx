@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as a from "./assets/index";
-import { AppsNav } from "./chrome";
+import { AppsNav, LogoButton, WorkflowNav } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
 import { ConsentWarning } from "./ConsentWarning";
 import { PdfModal } from "./documents";
@@ -13,6 +13,9 @@ import { TasksStep } from "./steps/TasksStep";
 import { TermsStep } from "./steps/TermsStep";
 import { ManagerView } from "./manager/ManagerView";
 import { PersonPage } from "./person/PersonPage";
+import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
+import { UnsavedChanges } from "./person/UnsavedChanges";
+import { VersionLayer } from "./person/VersionHistory";
 import { Icon } from "./ui";
 import {
   STEPS,
@@ -168,26 +171,70 @@ function Footer() {
   );
 }
 
-function Screen() {
-  const { activeStep, view, openPerson } = useWorkflow();
+function LeavePrompt() {
+  const {
+    leavePrompt,
+    stammdatenDirtyAreas,
+    cancelLeavePrompt,
+    openDirtyArea,
+    saveDraftAndLeave,
+    discardAndLeave,
+  } = useWorkflow();
+  if (!leavePrompt) return null;
+  return (
+    <UnsavedChanges
+      areas={stammdatenDirtyAreas()}
+      onCancel={cancelLeavePrompt}
+      onOpenArea={openDirtyArea}
+      onSaveDraft={saveDraftAndLeave}
+      onLeave={discardAndLeave}
+    />
+  );
+}
 
-  if (view === "manager" || view === "freigabe") return <ManagerView />;
-  if (view === "person") return <PersonPage />;
+function Screen() {
+  const { activeStep, view, openPerson, workflowPane, setWorkflowPane, personName, isHistorical } = useWorkflow();
+
+  if (view === "manager" || view === "freigabe") {
+    return (
+      <>
+        <ManagerView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
+  if (view === "person") {
+    return (
+      <>
+        <PersonPage />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
+  if (view === "stammdaten") {
+    return (
+      <>
+        <StammdatenWorkflow />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
 
   return (
-    <div className="app">
+    <>
+    <div className={isHistorical ? "app historical" : "app"}>
       <div className="shell">
         <header className="main-nav">
           <div className="main-nav-left">
-            <button type="button" className="logo-btn" aria-label="Wino">
-              <Icon src={a.logoGlow} size={52} className="glow" />
-              <Icon src={a.logoMark} size={34} className="mark" />
-            </button>
+            <LogoButton />
             <div className="person-tab">
               <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
               <button type="button" className="person-tab-body" onClick={openPerson}>
                 <Icon src={a.person} size={24} />
-                Julia Atkinson
+                {personName}
                 <span className="close-icon">
                   <img src={a.iconClose} alt="" width={18} height={18} />
                 </span>
@@ -207,26 +254,36 @@ function Screen() {
           </div>
         </header>
 
-        <AppsNav kicker="Maklervereinbarung" name="Julia Atkinson" />
+        <AppsNav />
+        <WorkflowNav active={workflowPane} onSelect={setWorkflowPane} />
 
         <div className="content-shell">
-          <Stepper />
+          {workflowPane === "workflow" ? (
+            <>
+              <Stepper />
 
-          <main className={LAYOUT[activeStep]}>
-            {activeStep === "tasks" && <TasksStep />}
-            {activeStep === "comms" && <CommsStep />}
-            {activeStep === "fee" && <HonorarStep />}
-            {activeStep === "terms" && <TermsStep />}
-            {activeStep === "scope" && <ScopeStep />}
-            {activeStep === "docs" && <DocsStep />}
-            {activeStep === "sign" && <SignStep />}
-          </main>
+              <main className={LAYOUT[activeStep]}>
+                {activeStep === "tasks" && <TasksStep />}
+                {activeStep === "comms" && <CommsStep />}
+                {activeStep === "fee" && <HonorarStep />}
+                {activeStep === "terms" && <TermsStep />}
+                {activeStep === "scope" && <ScopeStep />}
+                {activeStep === "docs" && <DocsStep />}
+                {activeStep === "sign" && <SignStep />}
+              </main>
 
-          <Footer />
+              <Footer />
+            </>
+          ) : (
+            <main className="page single wf-blank" />
+          )}
         </div>
       </div>
       <PdfModal />
     </div>
+    <VersionLayer />
+    <LeavePrompt />
+    </>
   );
 }
 

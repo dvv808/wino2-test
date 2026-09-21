@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { ADVISOR } from "../approvalTabs";
-import { useWorkflow, type ApprovalStep } from "../workflow";
+import { useWorkflow } from "../workflow";
 import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrome";
 import { DeleteWarning } from "./DeleteWarning";
 import { FreigabenPanel } from "./FreigabenPanel";
 import { FreigabePage } from "./FreigabePage";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
-import { DEMO_REQUESTS, SCHRITT, type RequestRow, type RequestStatus } from "./requests";
-
-const LIVE_REQUESTER = ADVISOR;
+import {
+  ADVISOR_REQUESTS,
+  DEMO_REQUESTS,
+  liveMaklerRows,
+  type RequestRow,
+  type RequestStatus,
+} from "./requests";
 
 /** Shown when a decision was made without typing anything into the prompt. */
 const FALLBACK_NOTE = {
@@ -37,47 +40,20 @@ export function ManagerView() {
   const [deleted, setDeleted] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<RequestRow | null>(null);
 
-  /**
-   * Both steps of the live Maklervereinbarung are listed from the start. The one
-   * the advisor has not asked for yet shows as still outstanding.
-   */
-  const liveRows: RequestRow[] = (["docs", "sign"] as ApprovalStep[]).map((step) => {
-    const approval = approvalOf(step);
-    const sent = requestedAt[step];
-    return {
-      id: `live-${step}`,
-      /* Both steps belong to the one Maklervereinbarung the advisor is filling in. */
-      group: "live",
-      partner: { name: docSigner, meta: "12.09.1988", kind: "person" },
-      types: ["Interessent"],
-      art: "Maklervereinbarung",
-      schritt: SCHRITT[step],
-      requester: LIVE_REQUESTER,
-      date: sent ? sent.date : "–",
-      time: sent ? sent.time : "–",
-      status:
-        approval === "granted"
-          ? "abgeschlossen"
-          : approval === "rejected"
-            ? "abgelehnt"
-            : "offen",
-      decided: approval === "idle" ? undefined : sent && `${sent.date}, CHAN`,
-      comment: decisionNote[step] || undefined,
-      note: requestNote[step] || undefined,
-      /* The same thread the Freigabe page shows: both notes plus anything typed since. */
-      commentCount:
-        (requestNote[step] ? 1 : 0) +
-        (decisionNote[step] ? 1 : 0) +
-        (comments[step]?.length ?? 0),
-      pending: approval === "idle",
-      step,
-    };
+  const liveRows = liveMaklerRows({
+    approvalOf,
+    docSigner,
+    requestedAt,
+    requestNote,
+    decisionNote,
+    comments,
   });
 
   const rows = [
     /* The workflow only reaches this list once the advisor has asked for something. */
     ...(liveRows.every((row) => row.pending) ? [] : liveRows),
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
+    ...ADVISOR_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
   ].filter((row) => !deleted.includes(row.group));
 
   /** A shared link can name a request that this session never created. */

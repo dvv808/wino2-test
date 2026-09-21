@@ -232,7 +232,7 @@ export function FreigabePage({
       <div className="shell">
         <BestandMainNav partner={row.partner.name} onClosePartner={onClose} />
         <BestandAreaNav />
-        <AppsNav kicker="Maklervereinbarung" name={row.partner.name} />
+        <AppsNav />
         <ContentNav
           active={pane}
           pending={row.status === "offen" ? 1 : undefined}

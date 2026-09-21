@@ -1,4 +1,5 @@
 import * as a from "../assets/index";
+import { LogoButton } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 
@@ -34,10 +35,7 @@ export function BestandMainNav({
   return (
     <header className="main-nav">
       <div className="main-nav-left">
-        <button type="button" className="logo-btn" aria-label="Wino">
-          <Icon src={a.logoGlow} size={52} className="glow" />
-          <Icon src={a.logoMark} size={34} className="mark" />
-        </button>
+        <LogoButton />
         <div className="person-tab">
           <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
           <span className="person-tab-body mgmt-tab">
