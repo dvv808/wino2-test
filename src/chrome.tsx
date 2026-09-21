@@ -34,7 +34,9 @@ export function LogoButton() {
     { id: "julia" as const, label: `${FILE_PARTNERS.julia.name} (${kindLabel("interessent")})` },
     {
       id: "ashley" as const,
-      label: `${FILE_PARTNERS.ashley.name} (${kindLabel(ashleyConverted ? "interessent" : "einfach")})`,
+      label: ashleyConverted
+        ? `${FILE_PARTNERS.ashley.name} (${kindLabel("interessent")})`
+        : `${FILE_PARTNERS.ashley.name} (Einfache Person)`,
     },
   ];
 
@@ -114,7 +116,7 @@ export function WorkflowDockTab({
 
 /** Every open workflow stays in the bar; only its own close control dismisses it. */
 export function WorkflowDock() {
-  const { view, maklerOpen, stammdatenOpen, openMakler, closeMakler, resumeStammdaten, closeStammdaten } =
+  const { view, maklerOpen, stammdatenOpen, openMakler, closeMakler, resumeStammdaten, closeStammdaten, personName } =
     useWorkflow();
 
   const tabs: {
@@ -151,12 +153,53 @@ export function WorkflowDock() {
         <WorkflowDockTab
           key={tab.id}
           kicker={tab.kicker}
-          name="Julia Atkinson"
+          name={personName}
           active={tab.active}
           onActivate={tab.active ? undefined : tab.onActivate}
           onClose={tab.onClose}
         />
       ))}
+    </div>
+  );
+}
+
+export function FileIdentity({
+  className = "pp-id",
+  forceInteressent = false,
+}: {
+  className?: string;
+  forceInteressent?: boolean;
+}) {
+  const { filePartnerId, personName, ashleyConverted } = useWorkflow();
+  const file = FILE_PARTNERS[filePartnerId];
+  const interessent = forceInteressent || filePartnerId === "julia" || ashleyConverted;
+  const blank = filePartnerId === "ashley";
+
+  return (
+    <div className={className}>
+      <span className={blank ? "pp-id-avatar mm-avatar" : "pp-id-avatar"}>
+        {blank ? (
+          <>
+            <img src={a.avatarBg} alt="" />
+            <img className="glyph" src={a.clientBlank} alt="" />
+          </>
+        ) : (
+          <img src={a.avatar} alt="" />
+        )}
+      </span>
+      <div className="pp-id-copy">
+        {interessent ? <span className="chip">Interessent</span> : null}
+        <strong>{personName}</strong>
+        {file.born ? <span className="pp-id-born">{file.born}</span> : null}
+        {file.address ? (
+          <span className="pp-id-address">
+            {file.address[0]}
+            <br />
+            {file.address[1]}
+          </span>
+        ) : null}
+      </div>
+      <span className="pp-id-nr">ID: {file.fileId}</span>
     </div>
   );
 }

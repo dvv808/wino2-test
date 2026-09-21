@@ -1,0 +1,18 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(-184 -16)">
+<g id="Group 634734">
+<g id="Group_2">
+<path id="Rectangle 7859" d="M185.5 22.5C185.5 21.9477 185.948 21.5 186.5 21.5H205.5C206.052 21.5 206.5 21.9477 206.5 22.5V34C206.5 34.5523 206.052 35 205.5 35H186.5C185.948 35 185.5 34.5523 185.5 34V22.5Z" stroke="#313537"/>
+<path id="Rectangle 7863" d="M198 24.5H203.5C203.776 24.5 204 24.7239 204 25V26.5C204 26.7761 203.776 27 203.5 27H198C197.724 27 197.5 26.7761 197.5 26.5V25C197.5 24.7239 197.724 24.5 198 24.5Z" stroke="#313537"/>
+<g id="Group 634733">
+<path id="Rectangle 7867" d="M197.5 32H201" stroke="#313537" stroke-linecap="round"/>
+<path id="Rectangle 7869" d="M197.5 29.5L204 29.5" stroke="#313537" stroke-linecap="round"/>
+</g>
+</g>
+<g id="Group 634732">
+<circle id="Ellipse 193" cx="191.25" cy="26.25" r="1.75" stroke="#313537"/>
+<path id="Ellipse 206" d="M195 32.25C195 30.5931 193.321 29.25 191.25 29.25C189.179 29.25 187.5 30.5931 187.5 32.25" stroke="#313537" stroke-linecap="round"/>
+</g>
+</g>
+</g>
+</svg>

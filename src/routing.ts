@@ -5,6 +5,7 @@ import type { StepId, View, WorkflowPane } from "./workflow";
 
 /** Profil is the default person module; Workflows & To-Dos is the advisor inbox. */
 export type PersonModule = "profil" | "workflows";
+export type PersonArea = "stammdaten" | "maklermandat";
 
 /**
  * URLs mirror the app's nesting: the open person tab, the open workflow tab, then the page.
@@ -71,6 +72,7 @@ export type Route = {
   stammdatenCardId?: string;
   workflowPane?: WorkflowPane;
   personModule?: PersonModule;
+  personArea?: PersonArea;
   partnerId?: PartnerId;
 };
 
@@ -86,17 +88,18 @@ export function routeToHash({
   stammdatenCardId,
   workflowPane,
   personModule,
+  personArea,
   partnerId = "julia",
 }: Route): string {
   if (view === "stammdaten") {
     const area = AREA_SLUGS[stammdatenArea ?? "personendaten"];
     const card = stammdatenCardId ? `/${stammdatenCardId}` : "";
-    return `#/${personRoot("julia")}/${STAMMDATEN_WORKFLOW}/${area}${card}`;
+    return `#/${personRoot(partnerId)}/${STAMMDATEN_WORKFLOW}/${area}${card}`;
   }
   if (view === "person") {
     const root = personRoot(partnerId);
     if (personModule === "workflows") return `#/${root}/${PERSON_WORKFLOWS}`;
-    if (partnerId === "ashley") return `#/${root}/${ASHLEY_AREA}`;
+    if (partnerId === "ashley" && personArea !== "stammdaten") return `#/${root}/${ASHLEY_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
   if (view === "freigabe" && freigabeId) return `#/${MANAGER}/${freigabeId}`;
@@ -117,9 +120,10 @@ export function hashToRoute(hash: string): Route {
     const area = AREA_BY_SLUG.get(parts[3] ?? "") ?? STAMMDATEN_AREAS[0].id;
     return {
       view: "stammdaten",
-      partnerId: "julia",
+      partnerId: partnerOf(parts),
       stammdatenArea: area,
       stammdatenCardId: parts[4],
+      personArea: "stammdaten",
     };
   }
   if (parts[0] === "person" && parts[2] === PERSON_WORKFLOWS) {
@@ -127,7 +131,12 @@ export function hashToRoute(hash: string): Route {
   }
   /** The profile page hangs off the person without a workflow segment. */
   if (parts[0] === "person" && parts[2] !== WORKFLOW) {
-    return { view: "person", partnerId: partnerOf(parts), personModule: "profil" };
+    return {
+      view: "person",
+      partnerId: partnerOf(parts),
+      personModule: "profil",
+      personArea: parts[2] === ASHLEY_AREA ? "maklermandat" : "stammdaten",
+    };
   }
   const last = parts[parts.length - 1] ?? "";
   const pane = PANE_BY_SLUG.get(last);

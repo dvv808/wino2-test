@@ -7,13 +7,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { hashToRoute, routeToHash, type PersonModule } from "./routing";
+import { hashToRoute, routeToHash, type PersonArea, type PersonModule } from "./routing";
 import { FILE_PARTNERS, type PartnerId } from "./person/partners";
 import {
   MULTI_CARD_AREAS,
   STAMMDATEN_AREAS,
   areaTitle,
   cardPayload,
+  cloneAshleySections,
   cloneSections,
   publishedSnapshot,
   sectionData,
@@ -29,6 +30,7 @@ import {
 } from "./person/stammdaten";
 import {
   INITIAL_VERSIONS,
+  ASHLEY_VERSIONS,
   EDITOR_ADVISOR,
   currentVersion,
   historyFromStammdatenSave,
@@ -155,6 +157,33 @@ export const APPROVAL_LABELS: Record<ApprovalStep, string> = {
   sign: "Signaturfreigabe",
 };
 
+type PartnerFile = {
+  sections: Section[];
+  versions: PersonVersion[];
+  viewingVersionId: string;
+  stammdatenBaseline: Section[] | null;
+  stammdatenPublished: Section[] | null;
+};
+
+function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
+  return {
+    julia: {
+      sections: cloneSections(),
+      versions: INITIAL_VERSIONS,
+      viewingVersionId: INITIAL_VERSIONS[INITIAL_VERSIONS.length - 1]?.id ?? INITIAL_VERSIONS[0].id,
+      stammdatenBaseline: null,
+      stammdatenPublished: null,
+    },
+    ashley: {
+      sections: cloneAshleySections(),
+      versions: ASHLEY_VERSIONS,
+      viewingVersionId: ASHLEY_VERSIONS[0].id,
+      stammdatenBaseline: null,
+      stammdatenPublished: null,
+    },
+  };
+}
+
 function useWorkflowState() {
   const [initialRoute] = useState(() => hashToRoute(window.location.hash));
   const [activeStep, setActiveStep] = useState<StepId>(initialRoute.activeStep ?? "tasks");
@@ -203,23 +232,26 @@ function useWorkflowState() {
   const [personModule, setPersonModule] = useState<PersonModule>(
     () => initialRoute.personModule ?? "profil",
   );
+  const [personArea, setPersonArea] = useState<PersonArea>(
+    () =>
+      initialRoute.personArea ??
+      (initialRoute.partnerId === "ashley" ? "maklermandat" : "stammdaten"),
+  );
   const [filePartnerId, setFilePartnerId] = useState<PartnerId>(() => initialRoute.partnerId ?? "julia");
   const [ashleyConverted, setAshleyConverted] = useState(false);
-  const [sections, setSections] = useState<Section[]>(() => cloneSections());
+  const [partnerFiles, setPartnerFiles] = useState<Record<PartnerId, PartnerFile>>(initialPartnerFiles);
+  const file = partnerFiles[filePartnerId];
+  const { sections, versions, viewingVersionId, stammdatenBaseline, stammdatenPublished } = file;
+  const sectionsRef = useRef(sections);
+  sectionsRef.current = sections;
   const [stammdatenArea, setStammdatenArea] = useState<StammdatenAreaId>(
     initialRoute.stammdatenArea ?? "personendaten",
   );
   const [stammdatenCardId, setStammdatenCardId] = useState<string | null>(
     initialRoute.stammdatenCardId ?? null,
   );
-  const [stammdatenBaseline, setStammdatenBaseline] = useState<Section[] | null>(null);
-  const [stammdatenPublished, setStammdatenPublished] = useState<Section[] | null>(null);
   const [leavePrompt, setLeavePrompt] = useState(false);
   const [leaveDest, setLeaveDest] = useState<"person" | "workflow" | "stay">("person");
-  const [versions, setVersions] = useState<PersonVersion[]>(INITIAL_VERSIONS);
-  const [viewingVersionId, setViewingVersionId] = useState(
-    () => INITIAL_VERSIONS[INITIAL_VERSIONS.length - 1]?.id ?? INITIAL_VERSIONS[0].id,
-  );
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
   const [versionSaveError, setVersionSaveError] = useState<string | null>(null);
   /** Who granted a step: yourself via the shortcut, or the Bestandsmanager. */
@@ -251,6 +283,77 @@ function useWorkflowState() {
       initialRoute.view === "freigabe",
   );
 
+  function setSections(update: Section[] | ((current: Section[]) => Section[])) {
+    setPartnerFiles((all) => {
+      const current = all[filePartnerId];
+      return {
+        ...all,
+        [filePartnerId]: {
+          ...current,
+          sections: typeof update === "function" ? update(current.sections) : update,
+        },
+      };
+    });
+  }
+
+  function setVersions(update: PersonVersion[] | ((current: PersonVersion[]) => PersonVersion[])) {
+    setPartnerFiles((all) => {
+      const current = all[filePartnerId];
+      return {
+        ...all,
+        [filePartnerId]: {
+          ...current,
+          versions: typeof update === "function" ? update(current.versions) : update,
+        },
+      };
+    });
+  }
+
+  function setViewingVersionId(update: string | ((current: string) => string)) {
+    setPartnerFiles((all) => {
+      const current = all[filePartnerId];
+      return {
+        ...all,
+        [filePartnerId]: {
+          ...current,
+          viewingVersionId: typeof update === "function" ? update(current.viewingVersionId) : update,
+        },
+      };
+    });
+  }
+
+  function setStammdatenBaseline(
+    update: Section[] | null | ((current: Section[] | null) => Section[] | null),
+  ) {
+    setPartnerFiles((all) => {
+      const current = all[filePartnerId];
+      return {
+        ...all,
+        [filePartnerId]: {
+          ...current,
+          stammdatenBaseline:
+            typeof update === "function" ? update(current.stammdatenBaseline) : update,
+        },
+      };
+    });
+  }
+
+  function setStammdatenPublished(
+    update: Section[] | null | ((current: Section[] | null) => Section[] | null),
+  ) {
+    setPartnerFiles((all) => {
+      const current = all[filePartnerId];
+      return {
+        ...all,
+        [filePartnerId]: {
+          ...current,
+          stammdatenPublished:
+            typeof update === "function" ? update(current.stammdatenPublished) : update,
+        },
+      };
+    });
+  }
+
   /** The first write replaces the entry so the back button does not land on a bare URL. */
   const hashWritten = useRef(false);
   useEffect(() => {
@@ -262,6 +365,7 @@ function useWorkflowState() {
       stammdatenCardId: stammdatenCardId ?? undefined,
       workflowPane,
       personModule,
+      personArea,
       partnerId: filePartnerId,
     });
     if (window.location.hash === next) {
@@ -271,7 +375,17 @@ function useWorkflowState() {
     if (hashWritten.current) window.location.hash = next;
     else window.history.replaceState(null, "", next);
     hashWritten.current = true;
-  }, [view, activeStep, freigabeId, stammdatenArea, stammdatenCardId, workflowPane, personModule, filePartnerId]);
+  }, [
+    view,
+    activeStep,
+    freigabeId,
+    stammdatenArea,
+    stammdatenCardId,
+    workflowPane,
+    personModule,
+    personArea,
+    filePartnerId,
+  ]);
 
   useEffect(() => {
     function applyHash() {
@@ -283,6 +397,7 @@ function useWorkflowState() {
       setStammdatenCardId(route.stammdatenCardId ?? null);
       setWorkflowPane(route.workflowPane ?? "workflow");
       if (route.view === "person") setPersonModule(route.personModule ?? "profil");
+      if (route.personArea) setPersonArea(route.personArea);
       if (route.partnerId) setFilePartnerId(route.partnerId);
       if (route.view === "workflow") setMaklerOpen(true);
     }
@@ -292,9 +407,10 @@ function useWorkflowState() {
 
   useEffect(() => {
     if (view !== "stammdaten") return;
-    setStammdatenBaseline((current) => current ?? structuredClone(sections));
-    setStammdatenPublished((current) => current ?? publishedSnapshot(sections));
-  }, [view, sections]);
+    const snapshot = sectionsRef.current;
+    setStammdatenBaseline((current) => current ?? structuredClone(snapshot));
+    setStammdatenPublished((current) => current ?? publishedSnapshot(snapshot));
+  }, [view, filePartnerId]);
 
   const selectedPartner = partners.find((partner) => partner.id === partnerId) ?? null;
   const selectedBank = BANKS.find((bank) => bank.id === bankId) ?? BANKS[0];
@@ -444,6 +560,14 @@ function useWorkflowState() {
   function openPartner(id: PartnerId) {
     setFilePartnerId(id);
     setPersonModule("profil");
+    setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
+    setVersionHistoryOpen(false);
+    setView("person");
+  }
+
+  function openPersonArea(area: PersonArea) {
+    setPersonArea(area);
+    setPersonModule("profil");
     setView("person");
   }
 
@@ -497,11 +621,20 @@ function useWorkflowState() {
 
   function rewriteSection(area: StammdatenAreaId, rewrite: (cards: Card[]) => Card[]) {
     const sectionId = sectionIdForArea(area);
-    setSections((current) =>
-      current.map((section) =>
-        section.id === sectionId ? { ...section, cards: rewrite(section.cards) } : section,
-      ),
-    );
+    setPartnerFiles((all) => {
+      const current = all[filePartnerId];
+      return {
+        ...all,
+        [filePartnerId]: {
+          ...current,
+          stammdatenBaseline: current.stammdatenBaseline ?? structuredClone(current.sections),
+          stammdatenPublished: current.stammdatenPublished ?? publishedSnapshot(current.sections),
+          sections: current.sections.map((section) =>
+            section.id === sectionId ? { ...section, cards: rewrite(section.cards) } : section,
+          ),
+        },
+      };
+    });
   }
 
   function patchStammdatenCard(area: StammdatenAreaId, card: Card) {
@@ -521,11 +654,12 @@ function useWorkflowState() {
     rewriteSection(area, (cards) => cards.map((entry) => (entry.id === next.id ? next : entry)));
   }
 
-  function addStammdatenCard() {
+  function addStammdatenCard(preset?: Card) {
     if (!MULTI_CARD_AREAS.includes(stammdatenArea)) return;
-    const id = `${stammdatenArea}-${Date.now()}`;
-    const card =
-      stammdatenArea === "kontakte"
+    const id = preset?.id ?? `${stammdatenArea}-${Date.now()}`;
+    const card = preset
+      ? { ...preset, id, draft: true }
+      : stammdatenArea === "kontakte"
         ? emptyContactCard(id)
         : stammdatenArea === "adressen"
           ? emptyAddressCard(id)
@@ -553,19 +687,16 @@ function useWorkflowState() {
   );
 
   function partnerCardOf(source: Section[]) {
-    return source.find((section) => section.id === "personendaten")?.cards.find((card) => card.id === "partner-julia");
+    return source.find((section) => section.id === "personendaten")?.cards.find((card) => !card.empty);
   }
 
   const livePartner = partnerCardOf(sections);
   const livePartnerName = livePartner
     ? `${partnerForm(livePartner).vorname} ${partnerForm(livePartner).nachname}`.trim()
     : "";
-  const shownName =
-    filePartnerId === "ashley"
-      ? FILE_PARTNERS.ashley.name
-      : isHistorical
-        ? personNameFromVersion(viewingVersion)
-        : livePartnerName || personNameFromVersion(liveVersion, "Julia Atkinson");
+  const shownName = isHistorical
+    ? personNameFromVersion(viewingVersion, FILE_PARTNERS[filePartnerId].name)
+    : livePartnerName || personNameFromVersion(liveVersion, FILE_PARTNERS[filePartnerId].name);
 
   function openVersionHistory() {
     setVersionHistoryOpen(true);
@@ -641,8 +772,8 @@ function useWorkflowState() {
       number,
       at,
       editor: EDITOR_ADVISOR,
-      vorname: form?.vorname || liveVersion?.vorname || "Julia",
-      nachname: form?.nachname || liveVersion?.nachname || "Atkinson",
+      vorname: form?.vorname || liveVersion?.vorname || FILE_PARTNERS[filePartnerId].name.split(" ")[0] || "Julia",
+      nachname: form?.nachname || liveVersion?.nachname || FILE_PARTNERS[filePartnerId].name.split(" ").at(-1) || "Atkinson",
       legalNachname:
         nameChanged && form && liveVersion
           ? {
@@ -671,6 +802,7 @@ function useWorkflowState() {
   }
 
   function hasUnpublishedStammdaten() {
+    if (sections.some((section) => section.cards.some((card) => card.draft))) return true;
     const published = stammdatenPublished ?? publishedSnapshot(sections);
     return JSON.stringify(sectionData(sections)) !== JSON.stringify(sectionData(published));
   }
@@ -724,6 +856,7 @@ function useWorkflowState() {
   }
 
   function saveDraftAndLeave() {
+    saveStammdaten(false);
     finishLeave(true);
   }
 
@@ -849,6 +982,8 @@ function useWorkflowState() {
     convertAshley,
     personModule,
     openPersonModule,
+    personArea,
+    openPersonArea,
     maklerOpen,
     openMakler,
     closeMakler,
@@ -868,7 +1003,7 @@ function useWorkflowState() {
     openHistoryChange,
     viewCurrentVersion,
     versionSaveError,
-    publishedNachname: liveVersion?.nachname ?? "Atkinson",
+    publishedNachname: liveVersion?.nachname ?? FILE_PARTNERS[filePartnerId].name.split(" ").at(-1) ?? "Atkinson",
     stammdatenArea,
     stammdatenCardId,
     openStammdaten,

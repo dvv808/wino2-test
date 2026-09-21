@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { Icon, IdCardIcon } from "../ui";
-import { VerlaufCaption } from "../chrome";
+import { FileIdentity, VerlaufCaption } from "../chrome";
 import { useWorkflow } from "../workflow";
-import { ASHLEY } from "./partners";
+import { FILE_PARTNERS } from "./partners";
 
 const MANDATE_SECTIONS = [
   {
@@ -69,50 +69,6 @@ function Halo({ size = 130, icon = 54 }: { size?: number; icon?: number }) {
   );
 }
 
-function Avatar() {
-  return (
-    <span className="pp-id-avatar mm-avatar">
-      <img src={a.avatarBg} alt="" />
-      <img className="glyph" src={a.clientBlank} alt="" />
-    </span>
-  );
-}
-
-function IdentityCard({ kind }: { kind: "einfach" | "interessent" }) {
-  return (
-    <div className="pp-id mm-id">
-      <Avatar />
-      <div className="pp-id-copy">
-        <span className="chip">{kind === "einfach" ? "Einfache Person" : "Interessent"}</span>
-        <strong>{ASHLEY.name}</strong>
-        <span className="pp-id-born">{ASHLEY.born}</span>
-        <span className="pp-id-address">
-          {ASHLEY.address[0]}
-          <br />
-          {ASHLEY.address[1]}
-        </span>
-        <div className="mm-contacts">
-          {ASHLEY.contacts.map((contact) => (
-            <div className="mm-contact" key={contact.caption}>
-              <span className="mm-contact-icon">
-                <Icon src={contact.kind === "mail" ? a.mail : a.phone} size={18} />
-              </span>
-              <span>
-                <small>{contact.caption}</small>
-                <strong>{contact.value}</strong>
-              </span>
-            </div>
-          ))}
-        </div>
-        <button type="button" className="mm-more">
-          +{ASHLEY.moreContacts} weitere Kontakte
-        </button>
-      </div>
-      <span className="pp-id-nr">ID: {ASHLEY.fileId}</span>
-    </div>
-  );
-}
-
 function ConvertCard({ onStart }: { onStart: () => void }) {
   return (
     <div className="mm-convert">
@@ -122,9 +78,9 @@ function ConvertCard({ onStart }: { onStart: () => void }) {
       </header>
       <Halo />
       <strong>
-        Einfache Person zu
+        Zu Interessenten
         <br />
-        Interessenten umwandeln
+        umwandeln
       </strong>
       <p>Als Interessent stehen weitere Funktionen und Möglichkeiten zur Verfügung.</p>
       <button type="button" className="btn-secondary mm-start" onClick={onStart}>
@@ -187,7 +143,7 @@ function EmptyArt({ icon, title, children }: { icon: string; title: string; chil
 }
 
 function Sidebar({ converted }: { converted: boolean }) {
-  const { personName } = useWorkflow();
+  const { personName, openPersonArea } = useWorkflow();
   return (
     <aside className="pp-side">
       <header className="pp-side-head">
@@ -205,7 +161,7 @@ function Sidebar({ converted }: { converted: boolean }) {
         Suchen...
       </div>
 
-      <button type="button" className="pp-area">
+      <button type="button" className="pp-area" onClick={() => openPersonArea("stammdaten")}>
         <span className="pp-area-label">
           <Icon src={a.stammdaten} size={18} />
           Stammdaten
@@ -261,11 +217,11 @@ function Sidebar({ converted }: { converted: boolean }) {
 
 function Overlay({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
-    <div className="umw-modal" role="dialog" aria-label="Umwandlung: Einfache Person zu Interessenten">
+    <div className="umw-modal" role="dialog" aria-label="Umwandlung zu Interessenten">
       <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onCancel} />
       <div className="umw-body">
         <header className="review-titlebar">
-          <span className="review-titlebar-label">Umwandlung: Einfache Person zu Interessenten</span>
+          <span className="review-titlebar-label">Umwandlung zu Interessenten</span>
           <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onCancel}>
             <Icon src={a.iconCloseDark} size={12} />
           </button>
@@ -274,30 +230,13 @@ function Overlay({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () 
         <div className="umw-content">
           <Halo size={96} icon={40} />
           <h2>
-            Umwandlung: Einfache Person
+            Umwandlung
             <br />
             zu Interessenten
           </h2>
 
           <div className="umw-panel">
-            <div className="pp-id mm-id compact umw-id">
-              <Avatar />
-              <div className="pp-id-copy">
-                <span className="mm-kinds">
-                  <span className="chip faded">Einfache Person</span>
-                  <Icon src={a.arrowRight} size={14} />
-                  <span className="chip">Interessent</span>
-                </span>
-                <strong>{ASHLEY.name}</strong>
-                <span className="pp-id-born">{ASHLEY.born}</span>
-                <span className="pp-id-address">
-                  {ASHLEY.address[0]}
-                  <br />
-                  {ASHLEY.address[1]}
-                </span>
-              </div>
-              <span className="pp-id-nr">ID: {ASHLEY.fileId}</span>
-            </div>
+            <FileIdentity className="pp-id mm-id compact umw-id" forceInteressent />
 
             <p>Als Interessent bekommt diese Person Zugang zu weiteren Funktionen:</p>
             <ul className="umw-features">
@@ -324,10 +263,11 @@ function Overlay({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () 
   );
 }
 
-/** Ashley Johnson's file: Einfache Person until the conversion, then Interessent. */
+/** Ashley Johnson's file until conversion, then Interessent. */
 export function MaklermandatPage() {
   const { ashleyConverted, convertAshley, openVersionHistory } = useWorkflow();
   const [overlay, setOverlay] = useState(false);
+  const info = FILE_PARTNERS.ashley.info;
 
   return (
     <>
@@ -352,11 +292,13 @@ export function MaklermandatPage() {
 
           <div className="pp-strip">
             <div className="pp-strip-main">
-              {ashleyConverted ? <IdentityCard kind="interessent" /> : <IdentityCard kind="einfach" />}
-              <div className="pp-info">
-                <small>Info</small>
-                <p>{ASHLEY.info}</p>
-              </div>
+              <FileIdentity className="pp-id mm-id" />
+              {info ? (
+                <div className="pp-info">
+                  <small>Info</small>
+                  <p>{info}</p>
+                </div>
+              ) : null}
             </div>
             {ashleyConverted ? <OverviewCard /> : <ConvertCard onStart={() => setOverlay(true)} />}
           </div>

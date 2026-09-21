@@ -2223,8 +2223,7 @@ input.text-field {
 }
 
 .module-pill .icon img {
-  filter: brightness(0) saturate(100%) invert(17%) sepia(9%) saturate(524%) hue-rotate(147deg)
-    brightness(96%) contrast(89%);
+  display: block;
 }
 
 .module-pill.active {
@@ -2747,6 +2746,11 @@ input.text-field {
 .req-row {
   position: relative;
   z-index: 1;
+}
+
+.pp-body.workflows .req-row,
+.pp-body.workflows .req-sub {
+  cursor: pointer;
 }
 
 .req-row:has([aria-expanded="true"]) {
@@ -4662,7 +4666,7 @@ input.text-field {
   color: var(--wino-black-light);
 }
 
-/* The three areas: Stammdaten is open, the other two are for later. */
+/* File areas: same 90° header gradient; the open one gets a dark stroke. */
 .pp-area {
   width: 239px;
   height: 40px;
@@ -4671,12 +4675,12 @@ input.text-field {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: 24px;
   font-size: 13px;
   letter-spacing: 0.26px;
   color: var(--wino-black-dark);
-  background: linear-gradient(14deg, rgba(255, 255, 255, 0.6) 46.088%, rgba(186, 204, 213, 0.6) 96.843%);
+  background: linear-gradient(90deg, #e5ebef 0%, #baccd5 100%);
 }
 
 .pp-area:first-of-type {
@@ -4684,8 +4688,7 @@ input.text-field {
 }
 
 .pp-area.open {
-  border: 1px solid var(--wino-black-light);
-  background: linear-gradient(14deg, #ffffff 12.818%, var(--wino-bg-darker) 96.938%);
+  border-color: var(--wino-black-light);
 }
 
 .pp-area-label {
@@ -4749,11 +4752,11 @@ input.text-field {
   text-decoration: none;
   font-size: 13px;
   color: var(--wino-black-dark);
-  background: linear-gradient(14deg, rgba(255, 255, 255, 0.6) 46.088%, rgba(186, 204, 213, 0.5) 96.843%);
+  background: linear-gradient(90deg, #e5ebef 0%, #baccd5 100%);
 }
 
 .pp-tree-item:hover {
-  background: linear-gradient(14deg, #ffffff 20%, var(--wino-bg-darker) 100%);
+  background: linear-gradient(90deg, #f2f5f7 0%, #c5d4dc 100%);
 }
 
 /* The elbow reaching out of the gutter line. */
@@ -4775,7 +4778,6 @@ input.text-field {
 
 .pp-tree-caret {
   flex: none;
-  opacity: 0.7;
 }
 
 /* --- the record itself, right --- */
@@ -5559,6 +5561,10 @@ input.text-field {
   color: white;
 }
 
+.sw-stepper .step-num.active .sw-step-icon img {
+  filter: brightness(0) invert(1);
+}
+
 .sw-stepper .step-num > img {
   pointer-events: none;
 }
@@ -5574,6 +5580,7 @@ input.text-field {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  background: var(--wino-white);
 }
 
 .sw-strip {
@@ -5583,6 +5590,7 @@ input.text-field {
   column-gap: 24px;
   padding: 16px 32px 0;
   height: fit-content;
+  background: var(--wino-white);
 }
 
 .sw-id {
@@ -5621,6 +5629,7 @@ input.text-field {
   gap: 40px;
   align-items: start;
   padding: 24px 48px 8px;
+  background: var(--wino-white);
 }
 
 .sw-blank {
@@ -5634,6 +5643,7 @@ input.text-field {
   flex-direction: column;
   gap: 18px;
   padding: 32px 28px;
+  border: 1px solid #e2e7ec;
   border-radius: 24px;
   background: var(--wino-white);
 }
@@ -5908,6 +5918,7 @@ input.text-field {
 .sw-cards {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 20px;
 }
 
@@ -6626,6 +6637,13 @@ body.historical-version .shell {
   padding: 22px 20px 24px;
   border-radius: 16px;
   background: linear-gradient(200deg, #f7fafb 0%, #e8eef2 100%);
+}
+
+.mm-convert {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
 
 .mm-convert header,

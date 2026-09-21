@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as a from "../assets/index";
-import { AppsNav, LogoButton } from "../chrome";
+import { AppsNav, FileIdentity, LogoButton } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
@@ -55,25 +55,7 @@ import {
 } from "./stammdaten";
 
 function Identity() {
-  const { personName } = useWorkflow();
-  return (
-    <div className="sw-id">
-      <span className="pp-id-avatar">
-        <img src={a.avatar} alt="" />
-      </span>
-      <div className="pp-id-copy">
-        <span className="chip">Interessent</span>
-        <strong>{personName}</strong>
-        <span className="pp-id-born">12.09.1988</span>
-        <span className="pp-id-address">
-          Mondseestrasse 32
-          <br />
-          A-5310 Mondsee
-        </span>
-      </div>
-      <span className="pp-id-nr">ID: 2813</span>
-    </div>
-  );
+  return <FileIdentity className="sw-id" />;
 }
 
 function Stepper() {
@@ -188,19 +170,31 @@ export function StammdatenWorkflow() {
   function updateContact(form: ContactForm) {
     if (isHistorical) return;
     setContact(form);
-    if (selected) patchStammdatenCard(stammdatenArea, applyContact(selected, form, true));
+    if (selected) {
+      patchStammdatenCard(stammdatenArea, applyContact(selected, form, true));
+      return;
+    }
+    addStammdatenCard(applyContact({ id: `kontakte-${Date.now()}` }, form, true));
   }
 
   function updateAddress(form: AddressForm) {
     if (isHistorical) return;
     setAddress(form);
-    if (selected) patchStammdatenCard(stammdatenArea, applyAddress(selected, form, true));
+    if (selected) {
+      patchStammdatenCard(stammdatenArea, applyAddress(selected, form, true));
+      return;
+    }
+    addStammdatenCard(applyAddress({ id: `adressen-${Date.now()}`, icon: a.flag }, form, true));
   }
 
   function updateBank(form: BankForm) {
     if (isHistorical) return;
     setBank(form);
-    if (selected) patchStammdatenCard(stammdatenArea, applyBank(selected, form, true));
+    if (selected) {
+      patchStammdatenCard(stammdatenArea, applyBank(selected, form, true));
+      return;
+    }
+    addStammdatenCard(applyBank({ id: `bankverbindungen-${Date.now()}` }, form, true));
   }
 
   function updateWirtschaft(form: WirtschaftForm) {
@@ -371,7 +365,7 @@ export function StammdatenWorkflow() {
                       <Icon src={a.infoFull} size={18} />
                     </span>
                     {canAdd ? (
-                      <button type="button" className="btn-primary sw-plus" onClick={addStammdatenCard}>
+                      <button type="button" className="btn-primary sw-plus" onClick={() => addStammdatenCard()}>
                         {plusLabel(stammdatenArea)}
                       </button>
                     ) : null}

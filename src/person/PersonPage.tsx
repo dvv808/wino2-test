@@ -2,12 +2,14 @@ import { useState } from "react";
 import * as a from "../assets/index";
 import { Icon, IdCardIcon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { LogoButton, VerlaufCaption, WorkflowDock } from "../chrome";
+import { LogoButton, FileIdentity, VerlaufCaption, WorkflowDock } from "../chrome";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { WorkflowsPage } from "./WorkflowsPage";
+import { FILE_PARTNERS } from "./partners";
 import {
+  ASHLEY_PLAUSI,
   NAV_GROUPS,
   PLAUSI,
   areaForSection,
@@ -21,12 +23,19 @@ const AREAS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"]
 
 /** The module row under it. Profil and Workflows & To-Dos are wired. */
 const MODULES = [
-  { label: "Dashboard", icon: a.category },
-  { label: "Profil", icon: a.idCard, module: "profil" as const },
-  { label: "Kommunikation", icon: a.comment },
-  { label: "Workflows & To-Dos", icon: a.workflow, module: "workflows" as const },
-  { label: "Dateien", icon: a.folder },
-  { label: "Controlling", icon: a.colFilter },
+  { label: "Dashboard", icon: a.dashboard },
+  { label: "Profil", icon: a.moduleProfile, module: "profil" as const },
+  { label: "Kommunikation", icon: a.moduleCommunication },
+  { label: "Workflows & To-Dos", icon: a.moduleWorkflow, module: "workflows" as const },
+  { label: "Dateien", icon: a.moduleFile },
+  { label: "Controlling", icon: a.moduleControlling },
+];
+
+const SIDE_AREAS = [
+  { label: "Riskmanagement", icon: a.riskTarget },
+  { label: "Maklermandat", icon: a.docList },
+  { label: "Inkasso", icon: a.tickList },
+  { label: "Wino", icon: a.logoMark, mark: true },
 ];
 
 function PersonAreaNav() {
@@ -74,9 +83,10 @@ function PersonModuleNav() {
   );
 }
 
-/** The areas of the file. Stammdaten is open; the other two are placeholders. */
+/** The areas of the file. Stammdaten expands; the rest are placeholders. */
 function Sidebar() {
-  const { sections, personName } = useWorkflow();
+  const { sections, personName, filePartnerId, openPersonArea } = useWorkflow();
+  const [stammdatenOpen, setStammdatenOpen] = useState(true);
   return (
     <aside className="pp-side">
       <header className="pp-side-head">
@@ -94,93 +104,98 @@ function Sidebar() {
         Suchen...
       </div>
 
-      <button type="button" className="pp-area open">
+      <button
+        type="button"
+        className="pp-area open"
+        aria-expanded={stammdatenOpen}
+        onClick={() => setStammdatenOpen((open) => !open)}
+      >
         <span className="pp-area-label">
           <Icon src={a.stammdaten} size={18} />
           Stammdaten
         </span>
-        <Icon src={a.chevronDown} size={18} />
+        <Icon
+          src={stammdatenOpen ? a.chevronDown : a.chevronDark}
+          size={18}
+          className={stammdatenOpen ? undefined : "caret-side"}
+        />
       </button>
 
-      <div className="pp-tree">
-        {NAV_GROUPS.map((group) => (
-          <div className="pp-tree-group" key={group.label}>
-            <span className="pp-tree-label">{group.label}</span>
-            {group.items.map((item) =>
-              "target" in item && item.target ? (
-                <button
-                  type="button"
-                  className="pp-tree-item"
-                  key={item.label}
-                  onClick={() =>
-                    document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" })
-                  }
-                >
-                  <span className="pp-tree-name">
-                    <Icon src={item.icon} size={18} />
-                    {navLabel(item, sections)}
+      {stammdatenOpen ? (
+        <div className="pp-tree">
+          {NAV_GROUPS.map((group) => (
+            <div className="pp-tree-group" key={group.label}>
+              <span className="pp-tree-label">{group.label}</span>
+              {group.items.map((item) =>
+                "target" in item && item.target ? (
+                  <button
+                    type="button"
+                    className="pp-tree-item"
+                    key={item.label}
+                    onClick={() =>
+                      document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    }
+                  >
+                    <span className="pp-tree-name">
+                      <Icon src={item.icon} size={18} />
+                      {navLabel(item, sections)}
+                    </span>
+                    <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
+                  </button>
+                ) : (
+                  <span className="pp-tree-item" key={item.label}>
+                    <span className="pp-tree-name">
+                      <Icon src={item.icon} size={18} />
+                      {navLabel(item, sections)}
+                    </span>
+                    <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
                   </span>
-                  <Icon src={a.chevron} size={18} className="pp-tree-caret" />
-                </button>
-              ) : (
-                <span className="pp-tree-item" key={item.label}>
-                  <span className="pp-tree-name">
-                    <Icon src={item.icon} size={18} />
-                    {navLabel(item, sections)}
-                  </span>
-                  <Icon src={a.chevron} size={18} className="pp-tree-caret" />
-                </span>
-              ),
-            )}
-          </div>
-        ))}
-      </div>
+                ),
+              )}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
-      <button type="button" className="pp-area">
-        <span className="pp-area-label">
-          <Icon src={a.riskTarget} size={18} />
-          Riskmanagement
-        </span>
-        <Icon src={a.chevron} size={18} />
-      </button>
-      <button type="button" className="pp-area">
-        <span className="pp-area-label">
-          <Icon src={a.docList} size={18} />
-          Maklermandat
-        </span>
-        <Icon src={a.chevron} size={18} />
-      </button>
+      {SIDE_AREAS.map((area) => (
+        <button
+          type="button"
+          className="pp-area"
+          key={area.label}
+          onClick={
+            filePartnerId === "ashley" && area.label === "Maklermandat"
+              ? () => openPersonArea("maklermandat")
+              : undefined
+          }
+        >
+          <span className="pp-area-label">
+            <Icon src={area.icon} size={18} className={area.mark ? "mm-wino" : undefined} />
+            {area.label}
+          </span>
+          <Icon src={a.chevronDark} size={18} className="caret-side" />
+        </button>
+      ))}
     </aside>
   );
 }
 
 /** The partner at a glance, next to the note and the Plausibilitäts-Check. */
 function IdentityStrip() {
-  const { personName } = useWorkflow();
+  const { filePartnerId } = useWorkflow();
+  const file = FILE_PARTNERS[filePartnerId];
+  const plausi = filePartnerId === "ashley" ? ASHLEY_PLAUSI : PLAUSI;
+
   return (
     <div className="pp-strip">
       <div className="pp-strip-main">
-        <div className="pp-id">
-          <span className="pp-id-avatar">
-            <img src={a.avatar} alt="" />
-          </span>
-          <div className="pp-id-copy">
-            <span className="chip">Interessent</span>
-            <strong>{personName}</strong>
-            <span className="pp-id-born">12.09.1988</span>
-            <span className="pp-id-address">
-              Mondseestrasse 32
-              <br />
-              A-5310 Mondsee
-            </span>
-          </div>
-          <span className="pp-id-nr">ID: 2813</span>
-        </div>
+        <FileIdentity />
 
-        <div className="pp-info">
-          <small>Info</small>
-          <p>Julia ist auch noch Geschäftsführerin der Lunixo AG.</p>
-        </div>
+        {file.info ? (
+          <div className="pp-info">
+            <small>Info</small>
+            <p>{file.info}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="pp-plausi">
@@ -189,7 +204,7 @@ function IdentityStrip() {
           Plausibilitäts Check
         </header>
         <ul>
-          {PLAUSI.map((entry) => (
+          {plausi.map((entry) => (
             <li key={entry.label}>
               <span className="pp-plausi-icon">
                 <Icon src={entry.icon} size={18} />
@@ -219,6 +234,7 @@ export function PersonPage() {
     openVersionHistory,
     personModule,
     filePartnerId,
+    personArea,
   } = useWorkflow();
   const [pendingDelete, setPendingDelete] = useState<{ area: ReturnType<typeof areaForSection>; card: Card } | null>(
     null,
@@ -273,7 +289,7 @@ export function PersonPage() {
 
         {personModule === "workflows" ? (
           <WorkflowsPage />
-        ) : filePartnerId === "ashley" ? (
+        ) : filePartnerId === "ashley" && personArea !== "stammdaten" ? (
           <MaklermandatPage />
         ) : (
         <div className="pp-body">

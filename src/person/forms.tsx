@@ -164,6 +164,17 @@ function PartnerSearch({
     pick(name);
   }
 
+  function commitTyped() {
+    const name = query.trim();
+    if (!name) return;
+    const exact = names.find((entry) => entry.toLowerCase() === name.toLowerCase());
+    if (exact) {
+      pick(exact);
+      return;
+    }
+    if (matches.length === 1) pick(matches[0]);
+  }
+
   return (
     <div className="dropdown sw-partner" ref={wrapRef}>
       <span className="sw-search">
@@ -180,6 +191,12 @@ function PartnerSearch({
             setQuery(event.target.value);
             setOpen(true);
           }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitTyped();
+            }
+          }}
         />
         <Icon src={a.searchDark} size={24} />
       </span>
@@ -191,8 +208,10 @@ function PartnerSearch({
                 type="button"
                 className={`menu-item${name === value ? " selected" : ""}`}
                 key={name}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => pick(name)}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  pick(name);
+                }}
               >
                 <span className="menu-item-main">
                   <EntityIcon src={a.personSmall} />
@@ -210,7 +229,14 @@ function PartnerSearch({
                 <strong>Keine Treffer gefunden!</strong>
                 Jeder Kontakt muss auch als Partner existieren um ihn als Kontakt hinzuzufügen
               </p>
-              <button type="button" className="empty-link" onMouseDown={(event) => event.preventDefault()} onClick={createPartner}>
+              <button
+                type="button"
+                className="empty-link"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  createPartner();
+                }}
+              >
                 + Partner anlegen
               </button>
             </div>
@@ -733,9 +759,10 @@ export function ContactFields({
         </Field>
       ) : (
         <>
-          <Field label="Partner">
+          <div className="block">
+            <span className="field-label">Partner</span>
             <PartnerSearch value={form.partner} onChange={(partner) => set("partner", partner)} />
-          </Field>
+          </div>
           <Field label="Kontaktbezeichnung oder Funktion">
             <Text value={form.bezeichnung} onChange={(value) => set("bezeichnung", value)} />
           </Field>

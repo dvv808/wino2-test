@@ -1,5 +1,11 @@
 import * as a from "../assets/index";
 import { ADVISOR, MANAGER } from "../approvalTabs";
+import {
+  STAMMDATEN_AREAS,
+  stammdatenDraftItems,
+  type Section,
+  type StammdatenAreaId,
+} from "../person/stammdaten";
 import type { Approval, ApprovalStep, PostedComment, RequestStamp } from "../workflow";
 
 export type RequestStatus = "offen" | "abgelehnt" | "abgeschlossen";
@@ -45,6 +51,12 @@ export type RequestRow = {
   pending?: boolean;
   /** Set on rows that belong to the live workflow, which makes them actionable. */
   step?: ApprovalStep;
+  /** Stammdaten Entwurf — opens this area instead of a Freigabe step. */
+  stammdatenArea?: StammdatenAreaId;
+  stammdatenCardId?: string;
+  /** Sub-row copy when the row is not a Freigabe step. */
+  stepLabel?: string;
+  stepPosition?: string;
 };
 
 export const SCHRITT: Record<ApprovalStep, string> = {
@@ -324,6 +336,39 @@ export function liveMaklerRows({
         (comments[step]?.length ?? 0),
       pending: approval === "idle",
       step,
+    };
+  });
+}
+
+/** One sub-row per Stammdaten card that is still in Entwurf. */
+export function liveStammdatenDraftRows({
+  sections,
+  partner,
+  types = ["Interessent"],
+}: {
+  sections: Section[];
+  partner: RequestRow["partner"];
+  types?: PartnerType[];
+}): RequestRow[] {
+  const total = STAMMDATEN_AREAS.length;
+  return stammdatenDraftItems(sections).map((item) => {
+    const index = STAMMDATEN_AREAS.findIndex((area) => area.id === item.area);
+    return {
+      id: `stammdaten-${item.cardId}`,
+      group: "stammdaten-draft",
+      partner,
+      types,
+      art: "Stammdaten Workflow",
+      schritt: item.label,
+      requester: ADVISOR,
+      date: "–",
+      time: "–",
+      status: "offen" as const,
+      pending: true,
+      stammdatenArea: item.area,
+      stammdatenCardId: item.cardId,
+      stepLabel: item.label,
+      stepPosition: `Schritt: ${index < 0 ? 1 : index + 1}/${total}`,
     };
   });
 }

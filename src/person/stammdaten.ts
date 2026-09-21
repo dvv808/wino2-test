@@ -117,6 +117,23 @@ export function areaTitle(area: StammdatenAreaId) {
   return STAMMDATEN_AREAS.find((entry) => entry.id === area)?.label.replace("\n", " ") ?? area;
 }
 
+/** Cards still in Entwurf, used as Workflows & To-Dos sub-items. */
+export function stammdatenDraftItems(sections: Section[]) {
+  const items: { area: StammdatenAreaId; cardId: string; label: string }[] = [];
+  for (const section of sections) {
+    const area = areaForSection(section.id);
+    for (const card of section.cards) {
+      if (!card.draft) continue;
+      items.push({
+        area,
+        cardId: card.id,
+        label: card.title?.trim() || areaTitle(area),
+      });
+    }
+  }
+  return items;
+}
+
 export function sectionIdForArea(area: StammdatenAreaId) {
   return area === "externe" ? "firmenbuch" : area;
 }
@@ -155,6 +172,7 @@ export type ContactForm = {
 /** System partners that a Person-contact must pick from. */
 export const CONTACT_PARTNERS = [
   "Julia Atkinson",
+  "Ashley Johnson",
   "Udo Ladraida",
   "Thomas Atkinson",
   "Dave Vice",
@@ -1239,3 +1257,156 @@ export const PLAUSI = [
   { label: "Bankdaten", state: "Abgeschlossen", icon: a.bank, done: true },
   { label: "Anhänge", state: "Offen", icon: a.paperclip, done: false },
 ];
+
+export const ASHLEY_PLAUSI = PLAUSI.map((entry) => ({ ...entry, state: "Offen", done: false }));
+
+function emptyLinkCard(id: string, icon: string, title: string, link: string): Card {
+  return {
+    id,
+    empty: { icon, title, lead: "Du kannst", link },
+  };
+}
+
+/** Ashley's file: name + system data only. Everything else is still empty. */
+export function cloneAshleySections(): Section[] {
+  return structuredClone([
+    {
+      id: "personendaten",
+      icon: a.navPerson,
+      title: "Allgemeine Personendaten",
+      cards: [
+        applyPartner(
+          { id: "partner-ashley" },
+          {
+            ...EMPTY_PARTNER,
+            vorname: "Ashley",
+            nachname: "Johnson",
+          },
+        ),
+      ],
+    },
+    {
+      id: "wirtschaftsdaten",
+      icon: a.cube,
+      title: "Wirtschaftsdaten",
+      cards: [
+        emptyLinkCard(
+          "wirtschaft-empty",
+          a.cube,
+          "Noch keine Wirtschaftsdaten hinterlegt",
+          "Wirtschaftsdaten hier anlegen",
+        ),
+      ],
+    },
+    {
+      id: "kontakte",
+      icon: a.contacts,
+      title: "Kontakte (0)",
+      cards: [
+        emptyLinkCard("kontakt-empty", a.contacts, "Noch keine Kontakte hinterlegt", "Kontakte hier anlegen"),
+      ],
+    },
+    {
+      id: "adressen",
+      icon: a.house,
+      title: "Adressen (0)",
+      cards: [
+        emptyLinkCard("adresse-empty", a.house, "Noch keine Adressen hinterlegt", "Adressen hier anlegen"),
+      ],
+    },
+    {
+      id: "bankverbindungen",
+      icon: a.bank,
+      title: "Bankverbindungen (0)",
+      cards: [
+        emptyLinkCard(
+          "bank-empty",
+          a.bank,
+          "Noch keine Bankverbindung hinterlegt",
+          "Bankverbindung hier anlegen",
+        ),
+      ],
+    },
+    {
+      id: "systemdaten",
+      icon: a.systemRing,
+      title: "Systemdaten",
+      cards: [
+        {
+          id: "system-daten",
+          title: "Systemdaten",
+          blocks: [
+            {
+              kind: "rows",
+              caption: "Allgemein",
+              rows: [
+                { label: "Personentyp", value: "Privatperson" },
+                { label: "Partnertyp", value: "-" },
+              ],
+            },
+            {
+              kind: "rows",
+              caption: "Interne Zuordnung",
+              rows: [
+                { label: "Mandat", value: "Makler Winter" },
+                { label: "Vermittler", value: "Winter" },
+                { label: "Kundenberater", value: "Lucy Dullon" },
+              ],
+            },
+            {
+              kind: "rows",
+              caption: "Vertraulichkeit",
+              rows: [
+                { label: "Rollen die Zugriff haben", value: "Alle" },
+                { label: "Personen die Zugriff haben", value: "Lucy Dullon" },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "verknuepfung",
+      icon: a.abteilung,
+      title: "Verknüpfung",
+      cards: [
+        emptyLinkCard(
+          "verknuepfung-empty",
+          a.abteilung,
+          "Noch keine Verknüpfung angelegt",
+          "neue Verknüpfungen hier anlegen",
+        ),
+      ],
+    },
+    {
+      id: "firmenbuch",
+      icon: a.firmenbuch,
+      title: "Firmenbuch",
+      cards: [
+        {
+          id: "externe-firmenbuch",
+          empty: {
+            icon: a.firmenbuch,
+            title: "Noch keine Firmenbuchdaten verknüpft",
+            link: "Firmenbuchdaten verknüpfen",
+          },
+        },
+      ],
+    },
+    {
+      id: "gisa",
+      icon: a.gisa,
+      title: "GISA",
+      cards: [
+        {
+          id: "externe-gisa",
+          empty: {
+            icon: a.gisa,
+            title: "Noch keine Gisa-Daten verknüpft",
+            link: "GISA-Daten verknüpfen",
+          },
+        },
+      ],
+    },
+  ]);
+}

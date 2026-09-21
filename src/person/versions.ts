@@ -353,6 +353,25 @@ export const INITIAL_VERSIONS: PersonVersion[] = [
   },
 ];
 
+/** Ashley starts as a new file: version 1, partner created, nothing else. */
+export const ASHLEY_VERSIONS: PersonVersion[] = [
+  {
+    id: "a01",
+    number: 1,
+    legal: true,
+    kind: "added",
+    date: "15.09.2026",
+    time: "09:04",
+    field: "Partner added",
+    to: "Ashley Johnson",
+    placeLabel: "Stammdaten · Partnerdaten",
+    place: { app: "stammdaten", area: "personendaten", cardId: "partner-ashley" },
+    editor: EDITOR_ADVISOR,
+    vorname: "Ashley",
+    nachname: "Johnson",
+  },
+];
+
 export function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("de-AT");
 }
@@ -517,6 +536,9 @@ export function historyFromStammdatenSave(
   }
 
   if (extras.legalNachname && !drafts.some((draft) => draft.field === "Nachname" && draft.kind === "changed")) {
+    const partnerCardId =
+      after.find((section) => section.id === "personendaten")?.cards.find((card) => !card.empty)?.id ??
+      "partner-julia";
     drafts.unshift({
       legal: true,
       kind: "changed",
@@ -524,7 +546,7 @@ export function historyFromStammdatenSave(
       from: extras.legalNachname.from,
       to: extras.legalNachname.to,
       placeLabel: "Stammdaten · Partnerdaten",
-      place: { app: "stammdaten", area: "personendaten", cardId: "partner-julia" },
+      place: { app: "stammdaten", area: "personendaten", cardId: partnerCardId },
       attachment: extras.legalNachname.attachment,
     });
   }
@@ -556,7 +578,7 @@ export function overlayPersonVersion(sections: Section[], version: PersonVersion
     return {
       ...section,
       cards: section.cards.map((card) => {
-        if (card.id !== "partner-julia") return card;
+        if (card.empty) return card;
         const form = partnerForm(card);
         const files = version.attachment
           ? [

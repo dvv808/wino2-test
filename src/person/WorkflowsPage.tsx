@@ -2,24 +2,27 @@ import { useState } from "react";
 import * as a from "../assets/index";
 import { StatCard, StatusPill } from "../manager/FreigabenPanel";
 import {
-  ADVISOR_REQUESTS,
   STEP_LABEL,
   STEP_POSITION,
   groupRequestRows,
   liveMaklerRows,
+  liveStammdatenDraftRows,
   reviewerOf,
   statusOfGroup,
   stepOf,
   type RequestRow,
   type RequestStatus,
 } from "../manager/requests";
+import { FILE_PARTNERS } from "./partners";
 import { ContextMenu, Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 
 const TABS = [
-  { label: "Workflows", icon: a.request },
-  { label: "To-Dos", icon: a.todo },
+  { id: "workflows" as const, label: "Workflows", icon: a.request },
+  { id: "todos" as const, label: "To-Dos", icon: a.todo },
 ];
+
+type ListTab = (typeof TABS)[number]["id"];
 
 const COLUMNS = [
   "Partner",
@@ -57,26 +60,31 @@ function SubRow({
   last: boolean;
   onView: (row: RequestRow) => void;
 }) {
-  const step = stepOf(row);
+  const draft = Boolean(row.stammdatenArea);
+  const step = row.step ?? (draft ? undefined : stepOf(row));
+  const label = row.stepLabel ?? (step ? STEP_LABEL[step] : row.schritt);
+  const position = row.stepPosition ?? (step ? STEP_POSITION[step] : undefined);
   const edge = last ? " last" : "";
 
   return (
-    <div className={`req-sub${edge}`} role="row">
+    <div className={`req-sub${edge}`} role="row" onClick={() => onView(row)}>
       <span className={`req-link${edge}`} aria-hidden="true" />
 
       <div className="subcell art-cell">
         <p>
-          {STEP_LABEL[step]}
-          <small>{STEP_POSITION[step]}</small>
+          {label}
+          {position ? <small>{position}</small> : null}
         </p>
       </div>
 
       <div className="subcell requester-cell">
-        {row.pending ? null : <Reviewer row={row} />}
+        {row.pending || draft ? null : <Reviewer row={row} />}
       </div>
 
       <div className="subcell date-cell">
-        {row.pending ? (
+        {draft ? (
+          <p className="muted">Entwurf gespeichert</p>
+        ) : row.pending ? (
           <p className="muted">Anforderung ausstehend</p>
         ) : (
           <p>
@@ -88,7 +96,7 @@ function SubRow({
       </div>
 
       <div className="subcell comment-cell">
-        {row.pending ? null : (
+        {row.pending || draft ? null : (
           <>
             <img src={a.comment} alt="" width={17} height={18} />
             <span>
@@ -99,7 +107,9 @@ function SubRow({
       </div>
 
       <div className="subcell status-cell">
-        {row.pending ? null : (
+        {draft ? (
+          <StatusPill status="offen" />
+        ) : row.pending ? null : (
           <>
             <StatusPill status={row.status} short />
             {row.status === "offen" ? (
@@ -134,14 +144,17 @@ function WorkflowRow({
   const comments = rows.reduce((sum, row) => sum + (row.commentCount ?? 0), 0);
 
   return (
-    <div className="req-row" role="row">
+    <div className="req-row" role="row" onClick={() => onView(entry)}>
       <div className="cell partner-cell">
         <button
           type="button"
           className={open ? "req-toggle open" : "req-toggle"}
           aria-expanded={open}
           aria-label={open ? "Freigaben zuklappen" : "Freigaben aufklappen"}
-          onClick={onToggle}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+          }}
         >
           <Icon src={a.chevronDark} size={18} />
         </button>
@@ -169,7 +182,15 @@ function WorkflowRow({
           ) : null}
         </span>
 
-        <button type="button" className="cell-open" aria-label={`${partner.name} öffnen`}>
+        <button
+          type="button"
+          className="cell-open"
+          aria-label={`${partner.name} öffnen`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onView(entry);
+          }}
+        >
           <Icon src={a.openTab} size={18} />
         </button>
       </div>
@@ -190,7 +211,15 @@ function WorkflowRow({
         {done ? (
           <>
             <Reviewer row={lead} />
-            <button type="button" className="cell-open" aria-label="Bestandsmanager öffnen">
+            <button
+              type="button"
+              className="cell-open"
+              aria-label="Bestandsmanager öffnen"
+              onClick={(event) => {
+                event.stopPropagation();
+                onView(entry);
+              }}
+            >
               <Icon src={a.openTab} size={15} />
             </button>
           </>
@@ -222,16 +251,25 @@ function WorkflowRow({
         {done ? (
           <>
             <StatusPill status="abgeschlossen" />
-            <button type="button" className="status-meta" onClick={() => onView(entry)}>
+            <button
+              type="button"
+              className="status-meta"
+              onClick={(event) => {
+                event.stopPropagation();
+                onView(entry);
+              }}
+            >
               {rows[rows.length - 1].decided}
             </button>
           </>
         ) : null}
 
-        <ContextMenu
-          label={`Aktionen für ${partner.name}`}
-          items={[{ label: "View", icon: a.eye, onSelect: () => onView(entry) }]}
-        />
+        <div onClick={(event) => event.stopPropagation()}>
+          <ContextMenu
+            label={`Aktionen für ${partner.name}`}
+            items={[{ label: "View", icon: a.eye, onSelect: () => onView(entry) }]}
+          />
+        </div>
       </div>
     </div>
   );
@@ -247,20 +285,33 @@ export function WorkflowsPage() {
     comments,
     goTo,
     openMakler,
+    openStammdaten,
+    filePartnerId,
+    sections,
+    personName,
+    ashleyConverted,
   } = useWorkflow();
   const [collapsed, setCollapsed] = useState<string[]>([]);
+  const [tab, setTab] = useState<ListTab>("workflows");
 
-  const rows = [
-    ...liveMaklerRows({
-      approvalOf,
-      docSigner,
-      requestedAt,
-      requestNote,
-      decisionNote,
-      comments,
-    }),
-    ...ADVISOR_REQUESTS,
-  ];
+  const file = FILE_PARTNERS[filePartnerId];
+  const stammdatenRows = liveStammdatenDraftRows({
+    sections,
+    partner: { name: personName, meta: file.born, kind: "person" },
+    types: filePartnerId === "ashley" && !ashleyConverted ? [] : ["Interessent"],
+  });
+  const maklerRows =
+    filePartnerId === "julia"
+      ? liveMaklerRows({
+          approvalOf,
+          docSigner,
+          requestedAt,
+          requestNote,
+          decisionNote,
+          comments,
+        })
+      : [];
+  const rows = tab === "todos" ? stammdatenRows : [...maklerRows, ...stammdatenRows];
   const groups = groupRequestRows(rows);
   const count = (status: RequestStatus) =>
     groups.filter((group) => statusOfGroup(group) === status).length;
@@ -272,8 +323,11 @@ export function WorkflowsPage() {
   }
 
   function openRequest(row: RequestRow) {
-    if (!row.step) return;
-    goTo(row.step);
+    if (row.stammdatenArea) {
+      openStammdaten(row.stammdatenArea, row.stammdatenCardId);
+      return;
+    }
+    goTo(row.step ?? stepOf(row));
     openMakler();
   }
 
@@ -286,14 +340,15 @@ export function WorkflowsPage() {
         </h1>
 
         <div className="freigaben-tabs">
-          {TABS.map((tab) => (
+          {TABS.map((entry) => (
             <button
               type="button"
-              className={tab.label === "Workflows" ? "fg-tab active" : "fg-tab"}
-              key={tab.label}
+              className={entry.id === tab ? "fg-tab active" : "fg-tab"}
+              key={entry.id}
+              onClick={() => setTab(entry.id)}
             >
-              <Icon src={tab.icon} size={24} />
-              {tab.label}
+              <Icon src={entry.icon} size={24} />
+              {entry.label}
             </button>
           ))}
         </div>

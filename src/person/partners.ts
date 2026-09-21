@@ -11,12 +11,12 @@ export type FilePartner = {
   id: PartnerId;
   slug: string;
   name: string;
-  born: string;
-  address: [string, string];
+  born?: string;
+  address?: [string, string];
   fileId: string;
-  phone: string;
-  email: string;
-  info: string;
+  phone?: string;
+  email?: string;
+  info?: string;
   contacts: FileContact[];
   moreContacts: number;
 };
@@ -42,17 +42,9 @@ export const ASHLEY: FilePartner = {
   id: "ashley",
   slug: "ashley-johnson",
   name: "Ashley Johnson",
-  born: "12.09.1988",
-  address: ["Mondseestrasse 32", "A-5310 Mondsee"],
   fileId: "3041",
-  phone: "+43 3810 393 112 3",
-  email: "ashley.johnson@mail.at",
-  info: "Ashley ist über Mobil privat am besten erreichbar.",
-  contacts: [
-    { kind: "phone", caption: "Mobil Privat", value: "+43 3810 393 112 3" },
-    { kind: "mail", caption: "Mail Privat", value: "ashley.johnson@mail.at" },
-  ],
-  moreContacts: 1,
+  contacts: [],
+  moreContacts: 0,
 };
 
 export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
@@ -65,5 +57,5 @@ export const PARTNER_BY_SLUG = new Map<string, PartnerId>(
 );
 
 export function kindLabel(kind: PartnerKind) {
-  return kind === "einfach" ? "Einfache Person" : "Interessent";
+  return kind === "interessent" ? "Interessent" : "";
 }
