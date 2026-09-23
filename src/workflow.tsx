@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { hashToRoute, routeToHash, type PersonArea, type PersonModule } from "./routing";
+import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
 import { FILE_PARTNERS, type PartnerId } from "./person/partners";
 import {
   MULTI_CARD_AREAS,
@@ -52,7 +53,7 @@ export type SignMode = "upload" | "digital";
  * The workflow and the Bestandsmanager are two separate workspaces. From the
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten";
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
 /** Only these two steps need a Freigabe from the Bestandsmanager. */
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
@@ -229,6 +230,10 @@ function useWorkflowState() {
   const [pdfOpen, setPdfOpen] = useState(false);
 
   const [view, setView] = useState<View>(initialRoute.view);
+  const [finanzenPage, setFinanzenPage] = useState<FinanzenPage>(initialRoute.finanzenPage ?? "month");
+  const [finanzenMonth, setFinanzenMonth] = useState(initialRoute.finanzenMonth ?? "2027-04");
+  const [finanzenStep, setFinanzenStep] = useState<HonorarStepKey>(initialRoute.finanzenStep ?? "status");
+  const [finanzenPartnerId, setFinanzenPartnerId] = useState(initialRoute.finanzenPartnerId ?? "");
   const [personModule, setPersonModule] = useState<PersonModule>(
     () => initialRoute.personModule ?? "profil",
   );
@@ -367,6 +372,10 @@ function useWorkflowState() {
       personModule,
       personArea,
       partnerId: filePartnerId,
+      finanzenPage,
+      finanzenMonth,
+      finanzenStep,
+      finanzenPartnerId,
     });
     if (window.location.hash === next) {
       hashWritten.current = true;
@@ -385,6 +394,10 @@ function useWorkflowState() {
     personModule,
     personArea,
     filePartnerId,
+    finanzenPage,
+    finanzenMonth,
+    finanzenStep,
+    finanzenPartnerId,
   ]);
 
   useEffect(() => {
@@ -400,6 +413,12 @@ function useWorkflowState() {
       if (route.personArea) setPersonArea(route.personArea);
       if (route.partnerId) setFilePartnerId(route.partnerId);
       if (route.view === "workflow") setMaklerOpen(true);
+      if (route.view === "finanzen") {
+        setFinanzenPage(route.finanzenPage ?? "month");
+        if (route.finanzenMonth) setFinanzenMonth(route.finanzenMonth);
+        if (route.finanzenStep) setFinanzenStep(route.finanzenStep);
+        setFinanzenPartnerId(route.finanzenPartnerId ?? "");
+      }
     }
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
@@ -879,6 +898,32 @@ function useWorkflowState() {
     setView("manager");
   }
 
+  /** Opens the Winter Versicherung Bestandsmanager tab (Freigaben list). */
+  function openManager() {
+    setFreigabeId(null);
+    setReviewStep(null);
+    setView("manager");
+  }
+
+  function openFinanzen(page: FinanzenPage = "month", month = finanzenMonth, step: HonorarStepKey = "status") {
+    setFinanzenPage(page);
+    setFinanzenMonth(month);
+    setFinanzenStep(step);
+    setView("finanzen");
+  }
+
+  function openFinanzenStep(step: HonorarStepKey) {
+    setFinanzenPage("month");
+    setFinanzenStep(step);
+    setView("finanzen");
+  }
+
+  function openFinanzenInkasso(partnerId: string) {
+    setFinanzenPage("inkasso");
+    setFinanzenPartnerId(partnerId);
+    setView("finanzen");
+  }
+
   return {
     activeStep,
     done,
@@ -972,6 +1017,15 @@ function useWorkflowState() {
     setReviewStep,
     decideRequest,
     leaveManager,
+    openManager,
+    openFinanzen,
+    openFinanzenStep,
+    openFinanzenInkasso,
+    finanzenPage,
+    finanzenMonth,
+    setFinanzenMonth,
+    finanzenStep,
+    finanzenPartnerId,
     freigabeId,
     openFreigabe,
     closeFreigabe,

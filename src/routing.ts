@@ -2,6 +2,7 @@ import { FILE_PARTNERS, PARTNER_BY_SLUG, type PartnerId } from "./person/partner
 import type { StammdatenAreaId } from "./person/stammdaten";
 import { STAMMDATEN_AREAS } from "./person/stammdaten";
 import type { StepId, View, WorkflowPane } from "./workflow";
+import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
 
 /** Profil is the default person module; Workflows & To-Dos is the advisor inbox. */
 export type PersonModule = "profil" | "workflows";
@@ -13,6 +14,7 @@ export type PersonArea = "stammdaten" | "maklermandat";
  */
 const WORKFLOW = "maklervereinbarung";
 const MANAGER = "bestandsmanager/freigaben";
+const FINANZEN = "bestandsmanager/finanzen";
 /** The profile page opens on Stammdaten; Ashley's file opens on Maklermandat. */
 const PERSON_AREA = "stammdaten";
 const ASHLEY_AREA = "maklermandat";
@@ -64,6 +66,17 @@ const PANE_BY_SLUG = new Map(
 );
 
 /** The Bestandsmanager has no step of its own, so activeStep is left alone there. */
+const FINANZEN_STEP_SLUGS: Record<HonorarStepKey, string> = {
+  status: "status",
+  data: "daten",
+  carrier: "datentraeger",
+  dispatch: "versand",
+};
+
+const FINANZEN_STEP_BY_SLUG = new Map(
+  Object.entries(FINANZEN_STEP_SLUGS).map(([id, slug]) => [slug, id as HonorarStepKey]),
+);
+
 export type Route = {
   view: View;
   activeStep?: StepId;
@@ -74,6 +87,10 @@ export type Route = {
   personModule?: PersonModule;
   personArea?: PersonArea;
   partnerId?: PartnerId;
+  finanzenPage?: FinanzenPage;
+  finanzenMonth?: string;
+  finanzenStep?: HonorarStepKey;
+  finanzenPartnerId?: string;
 };
 
 function partnerOf(parts: string[]): PartnerId {
@@ -90,6 +107,10 @@ export function routeToHash({
   personModule,
   personArea,
   partnerId = "julia",
+  finanzenPage,
+  finanzenMonth,
+  finanzenStep,
+  finanzenPartnerId,
 }: Route): string {
   if (view === "stammdaten") {
     const area = AREA_SLUGS[stammdatenArea ?? "personendaten"];
@@ -102,6 +123,15 @@ export function routeToHash({
     if (partnerId === "ashley" && personArea !== "stammdaten") return `#/${root}/${ASHLEY_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
+  if (view === "finanzen") {
+    if (finanzenPage === "openItems") return `#/${FINANZEN}/offene-posten`;
+    if (finanzenPage === "singleInvoices") return `#/${FINANZEN}/einzelfaktura`;
+    if (finanzenPage === "inkasso") return `#/${FINANZEN}/inkasso/${finanzenPartnerId ?? ""}`;
+    if (finanzenPage === "meinBereich") return `#/${FINANZEN}/mein-bereich`;
+    const month = finanzenMonth ?? "2027-04";
+    const step = finanzenStep && finanzenStep !== "status" ? `/${FINANZEN_STEP_SLUGS[finanzenStep]}` : "";
+    return `#/${FINANZEN}/${month}${step}`;
+  }
   if (view === "freigabe" && freigabeId) return `#/${MANAGER}/${freigabeId}`;
   if (view === "manager" || view === "freigabe") return `#/${MANAGER}`;
   const pane = workflowPane && workflowPane !== "workflow" ? PANE_SLUGS[workflowPane] : null;
@@ -112,6 +142,18 @@ export function routeToHash({
 
 export function hashToRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (parts[0] === "bestandsmanager" && parts[1] === "finanzen") {
+    const rest = parts.slice(2);
+    if (rest[0] === "offene-posten") return { view: "finanzen", finanzenPage: "openItems" };
+    if (rest[0] === "einzelfaktura") return { view: "finanzen", finanzenPage: "singleInvoices" };
+    if (rest[0] === "mein-bereich") return { view: "finanzen", finanzenPage: "meinBereich" };
+    if (rest[0] === "inkasso") {
+      return { view: "finanzen", finanzenPage: "inkasso", finanzenPartnerId: rest[1] };
+    }
+    const month = /^\d{4}-\d{2}$/.test(rest[0] ?? "") ? rest[0] : "2027-04";
+    const step = FINANZEN_STEP_BY_SLUG.get(rest[1] ?? "") ?? "status";
+    return { view: "finanzen", finanzenPage: "month", finanzenMonth: month, finanzenStep: step };
+  }
   if (parts[0] === "bestandsmanager") {
     const id = parts[2];
     return id ? { view: "freigabe", freigabeId: id } : { view: "manager" };

@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as a from "./assets/index";
 import { FILE_PARTNERS, kindLabel } from "./person/partners";
+import { liveFileIdentity } from "./person/stammdaten";
 import { Icon } from "./ui";
 import { useWorkflow, type WorkflowPane } from "./workflow";
 
@@ -66,6 +67,192 @@ export function LogoButton() {
               {link.label}
             </button>
           ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ProfileIcon({ src }: { src: string }) {
+  return (
+    <span className="profile-pop-icon">
+      <img src={src} alt="" />
+    </span>
+  );
+}
+
+function ProfileAreaIcon({
+  shelf,
+  mark,
+  shelfInset,
+  markInset,
+}: {
+  shelf: string;
+  mark: string;
+  shelfInset: string;
+  markInset: string;
+}) {
+  return (
+    <span className="profile-pop-icon area">
+      <span className="layer" style={{ inset: shelfInset }}>
+        <img src={shelf} alt="" />
+      </span>
+      <span className="layer" style={{ inset: markInset }}>
+        <img src={mark} alt="" />
+      </span>
+    </span>
+  );
+}
+
+/** Header avatar. Opens the Figma profile menu; item actions come later. */
+export function ProfileMenu() {
+  const { openManager } = useWorkflow();
+  const [open, setOpen] = useState(false);
+  const [widgetOn, setWidgetOn] = useState(true);
+  const [popBox, setPopBox] = useState<{ top: number; right: number } | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPopBox(null);
+      return;
+    }
+
+    function place() {
+      const button = wrapRef.current?.querySelector("button.avatar-wrap");
+      if (!button) return;
+      const box = button.getBoundingClientRect();
+      setPopBox({
+        top: box.bottom + 8,
+        right: Math.max(12, window.innerWidth - box.right),
+      });
+    }
+
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function away(event: MouseEvent) {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function escape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [open]);
+
+  return (
+    <div className="profile-menu" ref={wrapRef}>
+      <button
+        type="button"
+        className="avatar-wrap"
+        aria-label="Profil"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <img className="photo" src={a.avatar} alt="" />
+        <img className="ring" src={a.avatarRing} alt="" />
+        <img className="dot" src={a.statusDot} alt="" />
+      </button>
+      {open ? (
+        <div
+          className="profile-pop"
+          role="menu"
+          aria-label="Profil"
+          style={popBox ?? undefined}
+        >
+          <p className="profile-pop-name">Lucy Dallon (Ich):</p>
+          <div className="profile-pop-widget">
+            <span className="profile-pop-item static">
+              <ProfileIcon src={a.profileWidget} />
+              Widget einschalten
+            </span>
+            <button
+              type="button"
+              className="profile-pop-toggle"
+              aria-label="Widget einschalten"
+              aria-pressed={widgetOn}
+              onClick={() => setWidgetOn((current) => !current)}
+            >
+              <img src={widgetOn ? a.profileToggleOn : a.profileToggleOff} alt="" />
+            </button>
+          </div>
+          <div className="profile-pop-rule" />
+          <div className="profile-pop-list">
+            <button type="button" className="profile-pop-item" role="menuitem">
+              <ProfileIcon src={a.profileUser} />
+              Mein Bereich
+            </button>
+            <button type="button" className="profile-pop-item" role="menuitem">
+              <ProfileIcon src={a.profileSettings} />
+              Einstellungen
+            </button>
+            <button type="button" className="profile-pop-item" role="menuitem">
+              <ProfileIcon src={a.profileAdmin} />
+              Admin
+            </button>
+            <button type="button" className="profile-pop-item" role="menuitem">
+              <ProfileAreaIcon
+                shelf={a.profileMgmtShelf}
+                mark={a.profileMgmtPerson}
+                shelfInset="17.71% 7.29% 12.5% 6.22%"
+                markInset="45.83% 31.1% 12.5% 29.32%"
+              />
+              Management
+            </button>
+            <div className="profile-pop-subs">
+              <img className="profile-pop-tree short" src={a.profileTreeShort} alt="" />
+              <img className="profile-pop-tree long" src={a.profileTree} alt="" />
+              <button
+                type="button"
+                className="profile-pop-item sub"
+                role="menuitem"
+                onClick={() => {
+                  openManager();
+                  setOpen(false);
+                }}
+              >
+                <ProfileAreaIcon
+                  shelf={a.profileAreaShelf}
+                  mark={a.profileAreaWinter}
+                  shelfInset="16.67% 3.25% 23.82% 4.17%"
+                  markInset="44.79% 26.17% 7.3% 25.92%"
+                />
+                Winter Versicherung
+              </button>
+              <button type="button" className="profile-pop-item sub" role="menuitem">
+                <ProfileAreaIcon
+                  shelf={a.profileAreaShelf}
+                  mark={a.profileAreaBrombauer}
+                  shelfInset="18.75% 3.25% 21.73% 4.17%"
+                  markInset="52.08% 20.6% 18.07% 20.69%"
+                />
+                Brombauer & Partner
+              </button>
+            </div>
+          </div>
+          <div className="profile-pop-rule" />
+          <button type="button" className="profile-pop-item logout" role="menuitem">
+            <span className="profile-pop-icon logout-icon">
+              <span className="layer door">
+                <img src={a.profileLogoutDoor} alt="" />
+              </span>
+              <span className="layer arrow">
+                <img src={a.profileLogoutArrow} alt="" />
+              </span>
+            </span>
+            Ausloggen
+          </button>
         </div>
       ) : null}
     </div>
@@ -170,13 +357,30 @@ export function FileIdentity({
   className?: string;
   forceInteressent?: boolean;
 }) {
-  const { filePartnerId, personName, ashleyConverted } = useWorkflow();
+  const { filePartnerId, personName, ashleyConverted, displaySections } = useWorkflow();
   const file = FILE_PARTNERS[filePartnerId];
+  const live = liveFileIdentity(displaySections);
+  const born = live.born ?? file.born;
+  const address = live.address ?? file.address;
+  const usingLive = live.contacts.length > 0;
+  const contacts = usingLive ? live.contacts : file.contacts;
+  const extra = usingLive ? Math.max(contacts.length - 2, 0) : file.moreContacts;
+  const shown = contacts.slice(0, 2);
   const interessent = forceInteressent || filePartnerId === "julia" || ashleyConverted;
   const blank = filePartnerId === "ashley";
+  const compact = /\bcompact\b/.test(className);
+  const street = address?.[0] ?? "";
+  const city = address?.[1] ?? "";
+  const hasAddress = Boolean(street || city);
+  const showContacts = !compact && shown.length > 0;
 
   return (
     <div className={className}>
+      {compact ? null : (
+        <span className="pp-id-deco" aria-hidden>
+          <img src={a.idDeco} alt="" />
+        </span>
+      )}
       <span className={blank ? "pp-id-avatar mm-avatar" : "pp-id-avatar"}>
         {blank ? (
           <>
@@ -190,15 +394,35 @@ export function FileIdentity({
       <div className="pp-id-copy">
         {interessent ? <span className="chip">Interessent</span> : null}
         <strong>{personName}</strong>
-        {file.born ? <span className="pp-id-born">{file.born}</span> : null}
-        {file.address ? (
+        {born ? <span className="pp-id-born">{born}</span> : null}
+        {hasAddress ? (
           <span className="pp-id-address">
-            {file.address[0]}
-            <br />
-            {file.address[1]}
+            {street}
+            {street && city ? <br /> : null}
+            {city}
           </span>
         ) : null}
+        {showContacts ? (
+          <div className="mm-contacts">
+            {shown.map((contact) => (
+              <div className="mm-contact" key={`${contact.kind}-${contact.value}`}>
+                <span className="mm-contact-icon">
+                  <Icon src={contact.kind === "mail" ? a.mail : a.phone} size={18} />
+                </span>
+                <span>
+                  <small>{contact.caption}</small>
+                  <strong>{contact.value}</strong>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
+      {!compact && extra > 0 ? (
+        <button type="button" className="mm-more">
+          +{extra} weitere Kontakte
+        </button>
+      ) : null}
       <span className="pp-id-nr">ID: {file.fileId}</span>
     </div>
   );
@@ -230,11 +454,11 @@ export function AppsNav() {
 export type ContentPane = "workflow" | "freigabe";
 
 const WORKFLOW_PANES: { id: WorkflowPane; label: string; icon: string }[] = [
-  { id: "workflow", label: "Workflow", icon: a.workflow },
-  { id: "notizen", label: "Notizen", icon: a.notes },
-  { id: "email", label: "E-Mail", icon: a.mail },
-  { id: "dateien", label: "Dateien", icon: a.folder },
-  { id: "verlauf", label: "Verlauf", icon: a.history },
+  { id: "workflow", label: "Workflow", icon: a.moduleWorkflow },
+  { id: "notizen", label: "Notizen", icon: a.navNotes },
+  { id: "email", label: "E-Mail", icon: a.navMail },
+  { id: "dateien", label: "Dateien", icon: a.navFolder },
+  { id: "verlauf", label: "Verlauf", icon: a.navHistory },
 ];
 
 /** Sits under the app tabs and switches between the workflow and its Freigabe. */
@@ -255,7 +479,7 @@ export function ContentNav({
           className={`content-nav-item${active === "workflow" ? " active" : ""}`}
           onClick={() => onSelect("workflow")}
         >
-          <Icon src={a.workflow} size={24} />
+          <Icon src={a.moduleWorkflow} size={24} />
           Workflow
         </button>
         <button

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as a from "./assets/index";
-import { AppsNav, LogoButton, WorkflowNav } from "./chrome";
+import { AppsNav, LogoButton, ProfileMenu, WorkflowNav } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
 import { ConsentWarning } from "./ConsentWarning";
 import { PdfModal } from "./documents";
@@ -12,6 +12,8 @@ import { SignStep } from "./steps/SignStep";
 import { TasksStep } from "./steps/TasksStep";
 import { TermsStep } from "./steps/TermsStep";
 import { ManagerView } from "./manager/ManagerView";
+import { HonorarProvider } from "./honorar/store";
+import { HonorarView } from "./honorar/HonorarView";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
@@ -195,6 +197,15 @@ function LeavePrompt() {
 function Screen() {
   const { activeStep, view, openPerson, workflowPane, setWorkflowPane, personName, isHistorical } = useWorkflow();
 
+  if (view === "finanzen") {
+    return (
+      <>
+        <HonorarView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
   if (view === "manager" || view === "freigabe") {
     return (
       <>
@@ -246,11 +257,7 @@ function Screen() {
             <button type="button" className="search-btn" aria-label="Suche">
               <Icon src={a.search} size={42} />
             </button>
-            <div className="avatar-wrap">
-              <img className="photo" src={a.avatar} alt="Profil" />
-              <img className="ring" src={a.avatarRing} alt="" />
-              <img className="dot" src={a.statusDot} alt="" />
-            </div>
+            <ProfileMenu />
           </div>
         </header>
 
@@ -290,7 +297,9 @@ function Screen() {
 export default function App() {
   return (
     <WorkflowProvider>
-      <Screen />
+      <HonorarProvider>
+        <Screen />
+      </HonorarProvider>
     </WorkflowProvider>
   );
 }

@@ -1,5 +1,5 @@
 import * as a from "../assets/index";
-import { LogoButton } from "../chrome";
+import { LogoButton, ProfileMenu } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 
@@ -79,17 +79,15 @@ export function BestandMainNav({
         <button type="button" className="search-btn" aria-label="Suche">
           <Icon src={a.search} size={42} />
         </button>
-        <div className="avatar-wrap">
-          <img className="photo" src={a.avatar} alt="Profil" />
-          <img className="ring" src={a.avatarRing} alt="" />
-          <img className="dot" src={a.statusDot} alt="" />
-        </div>
+        <ProfileMenu />
       </div>
     </header>
   );
 }
 
 export function BestandAreaNav() {
+  const { openFinanzen } = useWorkflow();
+
   return (
     <nav className="area-nav">
       {AREAS.map((area) => {
@@ -99,7 +97,13 @@ export function BestandAreaNav() {
             {active ? (
               <img className="tab-ear left" src={a.appTabLeft} alt="" width={10} height={10} />
             ) : null}
-            <button type="button" className="area-tab-body">
+            <button
+              type="button"
+              className="area-tab-body"
+              onClick={() => {
+                if (area === "Finanzen") openFinanzen();
+              }}
+            >
               {area}
             </button>
             {active ? (
