@@ -109,7 +109,7 @@ export function HonorarSidebar() {
               if (!matches(query, monthLabel(id))) return null;
               const month = monthOf(state, id);
               const exists = Boolean(month);
-              const future = exists && id > active.id && !month.closed && !month.steps.status;
+              const future = Boolean(month && id > active.id && !month.closed && !month.steps.status);
               const current = finanzenPage === "month" && finanzenMonth === id;
               const muted = !exists || future;
               return (
