@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as a from "../assets/index";
-import { AppsNav, FileIdentity, LogoButton } from "../chrome";
+import { AppsNav, FileIdentity, LogoButton, ProfileMenu } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
@@ -275,11 +275,7 @@ export function StammdatenWorkflow() {
             <button type="button" className="search-btn" aria-label="Suche">
               <Icon src={a.search} size={42} />
             </button>
-            <div className="avatar-wrap">
-              <img className="photo" src={a.avatar} alt="Profil" />
-              <img className="ring" src={a.avatarRing} alt="" />
-              <img className="dot" src={a.statusDot} alt="" />
-            </div>
+            <ProfileMenu />
           </div>
         </header>
 

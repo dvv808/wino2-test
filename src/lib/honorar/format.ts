@@ -5,8 +5,13 @@ import type {
   PaymentStatus,
 } from "../../types/honorar";
 
+export function servicePeriod(monthId: string) {
+  const [year, month] = monthId.split("-");
+  return `01.${String(month).padStart(2, "0")}.${year} - 31.12.${year}`;
+}
+
 const MONTH_NAMES = [
-  "Januar",
+  "Jänner",
   "Februar",
   "März",
   "April",
@@ -94,7 +99,7 @@ export function paymentStatusLabel(status: PaymentStatus, dueDate?: string, reas
     return { title: "Offen vor Zahlungsziel", detail: dueDate ? `fällig am ${formatDay(dueDate)}` : undefined };
   }
   if (status === "paid") return { title: "Bezahlt" };
-  if (status === "unpaid") return { title: "Nicht bezahlt", detail: paymentReasonLabel(reason) };
+  if (status === "unpaid") return { title: "Nicht bezahlt nach Zahlungsziel", detail: paymentReasonLabel(reason) };
   return { title: "An Offene Posten übergeben" };
 }
 

@@ -61,6 +61,7 @@ export interface Fee {
   createdAt: string;
   createdBy: string;
   openItemId?: string;
+  hiddenOpen?: boolean;
 }
 
 export interface Month {
@@ -99,6 +100,12 @@ export interface SingleInvoice {
   amount: number;
   kind: string;
   status: "open" | "sent_to_bmd";
+  feeId?: string;
+  month?: string;
+  credit?: number;
+  comment?: string;
+  grantedAt?: string;
+  grantedBy?: string;
 }
 
 export interface HistoryEntry {

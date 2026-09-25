@@ -30,28 +30,28 @@ export function FinanzenModuleNav() {
         Dashboard &amp; Listen
       </button>
       <button type="button" className="module-pill active">
-        <Icon src={a.request} size={24} />
+        <Icon src={a.navRequest} size={24} />
         Inkasso Forderungen
       </button>
-      <button type="button" className="module-pill ghost">
-        <Icon src={a.bank} size={24} />
+      <button type="button" className="module-pill">
+        <Icon src={a.navBank} size={24} />
         Inkasso Verbindlichkeiten
       </button>
       <div className="module-group">
         <button type="button" className="module-pill ghost">
-          <Icon src={a.folder} size={24} />
+          <Icon src={a.navFolder} size={24} />
           Dokumente
         </button>
         <button type="button" className="module-pill ghost">
-          <Icon src={a.notes} size={24} />
+          <Icon src={a.navNotes} size={24} />
           Notizen
         </button>
         <button type="button" className="module-pill ghost">
-          <Icon src={a.mail} size={24} />
+          <Icon src={a.navMail} size={24} />
           Mail
         </button>
         <button type="button" className="module-pill ghost">
-          <Icon src={a.todo} size={24} />
+          <Icon src={a.navTodo} size={24} />
           Aufgaben
         </button>
       </div>
@@ -60,7 +60,7 @@ export function FinanzenModuleNav() {
         Settings
       </button>
       <button type="button" className="module-pill" onClick={() => window.dispatchEvent(new Event("honorar-verlauf"))}>
-        <Icon src={a.history} size={24} />
+        <Icon src={a.navHistory} size={24} />
         Verlauf
       </button>
       <button
@@ -118,7 +118,7 @@ export function HonorarView() {
             {finanzenPage === "openItems" ? <OpenItemsPage /> : null}
             {finanzenPage === "singleInvoices" ? <SingleInvoicesPage /> : null}
             {finanzenPage === "inkasso" ? <InkassoPage /> : null}
-            {finanzenPage === "meinBereich" ? <OpenItemsPage advisorOnly /> : null}
+            {finanzenPage === "meinBereich" ? <OpenItemsPage /> : null}
           </div>
         </div>
       </div>

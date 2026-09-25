@@ -7,7 +7,7 @@ import type {
   HonorarState,
   PaymentReason,
 } from "../../types/honorar";
-import { addDays, uid } from "./format";
+import { addDays, servicePeriod, uid } from "./format";
 import { actionNeeded, partnerOf, previousFees } from "./queries";
 
 function stamp(state: HonorarState) {
@@ -109,6 +109,11 @@ export function closeStatusStep(state: HonorarState, monthId: string, user: stri
   return withHistory({ ...state, fees, months }, entries);
 }
 
+export function clearMonthFees(state: HonorarState, monthId: string, user: string): HonorarState {
+  const fees = state.fees.filter((fee) => fee.month !== monthId);
+  return withHistory({ ...state, fees }, [history(state, user, "month", monthId, "Liste geleert")]);
+}
+
 export function importCaptureData(state: HonorarState, monthId: string, user: string): HonorarState {
   const incoming = createAprilImportFees(stamp(state)).map((fee) => ({ ...fee, month: monthId }));
   const partners = state.partners.map((partner) =>
@@ -128,7 +133,7 @@ export function fillRequiredFields(state: HonorarState, monthId: string, user: s
   );
   const fees = state.fees.map((fee) =>
     fee.month === monthId && !fee.servicePeriod
-      ? { ...fee, servicePeriod: "01.04.2027 – 30.04.2027" }
+      ? { ...fee, servicePeriod: servicePeriod(monthId) }
       : fee,
   );
   return withHistory({ ...state, partners, fees }, [history(state, user, "month", monthId, "Pflichtfelder ergänzt")]);
@@ -165,9 +170,28 @@ export function closeDataStep(state: HonorarState, monthId: string, user: string
   return withHistory({ ...state, months }, [history(state, user, "month", monthId, "Daten fertig erfasst")]);
 }
 
+function invoicesWaiting(state: HonorarState, monthId: string): HonorarState {
+  let changed = false;
+  const fees = state.fees.map((fee) => {
+    if (fee.month !== monthId || fee.invoiceStatus !== "not_created") return fee;
+    changed = true;
+    return { ...fee, invoiceStatus: "created" as const };
+  });
+  return changed ? { ...state, fees } : state;
+}
+
 export function createCarrier(state: HonorarState, monthId: string, user: string): HonorarState {
   const name = `Honorar_${monthId}.xml`;
-  return withHistory({ ...state, carrierFileName: name }, [history(state, user, "month", monthId, "Datenträger erstellt")]);
+  const next = invoicesWaiting(state, monthId);
+  return withHistory({ ...next, carrierFileName: name }, [history(state, user, "month", monthId, "Datenträger erstellt")]);
+}
+
+export function syncCarrierInvoices(state: HonorarState, monthId: string): HonorarState {
+  const created = state.history.some(
+    (entry) => entry.refType === "month" && entry.refId === monthId && entry.action === "Datenträger erstellt",
+  );
+  if (!created) return state;
+  return invoicesWaiting(state, monthId);
 }
 
 export function setChecklist(state: HonorarState, key: keyof HonorarState["checklist"], value: boolean): HonorarState {
@@ -179,9 +203,47 @@ export function handToBmd(state: HonorarState, monthId: string, user: string): H
     month.id === monthId ? { ...month, steps: { ...month.steps, dataCarrier: true } } : month,
   );
   const fees = state.fees.map((fee) =>
-    fee.month === monthId ? { ...fee, invoiceStatus: "created" as const } : fee,
+    fee.month === monthId && fee.invoiceStatus === "not_created" ? { ...fee, invoiceStatus: "created" as const } : fee,
   );
-  return withHistory({ ...state, months, fees }, [history(state, user, "month", monthId, "An BMD übergeben")]);
+  return withHistory({ ...state, months, fees }, [history(state, user, "month", monthId, "Datenträger übermittelt")]);
+}
+
+const CARRIER_RESET_ACTIONS = new Set([
+  "Datenträger erstellt",
+  "Datenträger übermittelt",
+  "An BMD übergeben",
+  "Rechnungen versendet",
+]);
+
+/** Open months always start with Datenträger Offen so the create → status flow can be retested. */
+export function resetOpenCarrier(state: HonorarState, monthId: string): HonorarState {
+  const month = state.months.find((entry) => entry.id === monthId);
+  if (!month || month.closed) return state;
+
+  const months = state.months.map((entry) =>
+    entry.id === monthId
+      ? { ...entry, steps: { ...entry.steps, dataCarrier: false, dispatch: false }, bmdDataLoaded: false }
+      : entry,
+  );
+  const fees = state.fees.map((fee) => {
+    if (fee.month !== monthId) return fee;
+    if (fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op") return fee;
+    return {
+      ...fee,
+      invoiceStatus: "not_created" as const,
+      sentAt: undefined,
+      sentTo: undefined,
+      paymentStatus: "open_before_due" as const,
+      paymentReason: undefined,
+    };
+  });
+  const history = state.history.filter(
+    (entry) => !(entry.refType === "month" && entry.refId === monthId && CARRIER_RESET_ACTIONS.has(entry.action)),
+  );
+  const carrierFileName =
+    state.carrierFileName === `Honorar_${monthId}.xml` ? undefined : state.carrierFileName;
+
+  return { ...state, months, fees, history, carrierFileName };
 }
 
 export function loadBmd(state: HonorarState, monthId: string, mismatches: boolean, user: string): HonorarState {
@@ -229,11 +291,14 @@ export function sendInvoices(state: HonorarState, monthId: string, user: string)
   const fees = state.fees.map((fee) => {
     if (fee.month !== monthId) return fee;
     const partner = partnerOf(state, fee.partnerId);
+    const settled = fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op";
     return {
       ...fee,
       invoiceStatus: "sent" as const,
       sentAt: now,
       sentTo: partner?.deliveryMethod === "print" ? "Post" : partner?.email,
+      paymentStatus: settled ? fee.paymentStatus : ("open_before_due" as const),
+      paymentReason: settled ? fee.paymentReason : undefined,
     };
   });
   return withHistory({ ...state, fees }, [history(state, user, "month", monthId, "Rechnungen versendet")]);
@@ -449,6 +514,57 @@ export function approveCorrection(state: HonorarState, correctionId: string, use
     history(state, user, "singleInvoice", invoiceId, "Einzelfaktura erstellt"),
     correction.openItemId ? history(state, user, "openItem", correction.openItemId, "Vereinbarung getroffen") : undefined,
   ].filter(Boolean) as HistoryEntry[]);
+}
+
+export function moveFeeToSingleInvoice(state: HonorarState, feeId: string, user: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  if (!fee || state.singleInvoices.some((invoice) => invoice.feeId === feeId)) return state;
+  const id = uid("inv");
+  const singleInvoices = [
+    ...state.singleInvoices,
+    {
+      id,
+      correctionId: "",
+      feeId,
+      partnerId: fee.partnerId,
+      amount: fee.amount,
+      kind: "Einzelfaktura/Gutschrift",
+      status: "open" as const,
+      month: fee.month,
+    },
+  ];
+  return withHistory({ ...state, singleInvoices }, [
+    history(state, user, "singleInvoice", id, "Einzelfaktura erstellt"),
+  ]);
+}
+
+export function hideOpenFee(state: HonorarState, feeId: string, user: string): HonorarState {
+  const fees = state.fees.map((fee) => (fee.id === feeId ? { ...fee, hiddenOpen: true } : fee));
+  return withHistory({ ...state, fees }, [history(state, user, "fee", feeId, "Offener Posten gelöscht")]);
+}
+
+export function grantSingleCredit(
+  state: HonorarState,
+  invoiceId: string,
+  amount: number,
+  comment: string,
+  user: string,
+): HonorarState {
+  const grantedAt = stamp(state);
+  const singleInvoices = state.singleInvoices.map((invoice) =>
+    invoice.id === invoiceId
+      ? { ...invoice, credit: amount, comment, grantedAt, grantedBy: user }
+      : invoice,
+  );
+  return withHistory({ ...state, singleInvoices }, [
+    history(state, user, "singleInvoice", invoiceId, "Gutschrift gewährt", comment || undefined),
+  ]);
+}
+
+export function clearSingleInvoices(state: HonorarState, user: string): HonorarState {
+  return withHistory({ ...state, singleInvoices: [] }, [
+    history(state, user, "month", state.months[0]?.id ?? "single", "Einzelfaktura-Liste geleert"),
+  ]);
 }
 
 export function sendSingleInvoice(state: HonorarState, invoiceId: string, user: string): HonorarState {

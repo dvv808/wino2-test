@@ -1,0 +1,23 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="319" height="164" viewBox="0 0 319 164" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 638364">
+<path id="Rectangle 8985" d="M0 12C0 5.37258 5.37258 0 12 0H268.905C272.452 0 275.817 1.5689 278.097 4.28555L282.653 9.71446C284.933 12.4311 288.298 14 291.845 14H307C313.627 14 319 19.3726 319 26V152C319 158.627 313.627 164 307 164H12C5.37259 164 0 158.627 0 152V12Z" fill="white"/>
+<path id="Rectangle 8984" d="M0 129H319V152C319 158.627 313.627 164 307 164H12C5.37259 164 0 158.627 0 152V129Z" fill="#EBF1F5"/>
+<path id="Rectangle 8983" d="M12 0.5H268.905C272.304 0.500052 275.529 2.00401 277.714 4.60742L282.271 10.0361C284.646 12.8658 288.15 14.5 291.845 14.5H307C313.351 14.5 318.5 19.6487 318.5 26V152C318.5 158.351 313.351 163.5 307 163.5H12C5.64873 163.5 0.5 158.351 0.5 152V12C0.5 5.64873 5.64873 0.5 12 0.5Z" stroke="#BACCD5"/>
+<g id="Group 638363">
+<rect id="Rectangle 8986" x="26" y="53" width="169" height="15" rx="4" fill="#EBF1F5"/>
+<rect id="Rectangle 8990" x="26" y="90" width="88" height="15" rx="4" fill="#EBF1F5"/>
+<rect id="Rectangle 8992" x="212" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8993" x="222" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8994" x="232" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8995" x="242" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8996" x="252" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8997" x="262" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8998" x="272" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8999" x="282" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 9000" x="292" y="139" width="6" height="15" rx="3" fill="white"/>
+<rect id="Rectangle 8991" x="119" y="90" width="144" height="15" rx="4" fill="#EBF1F5"/>
+<rect id="Rectangle 8989" x="26" y="33" width="169" height="15" rx="4" fill="#EBF1F5"/>
+<circle id="Ellipse 512" cx="275.5" cy="50.5" r="17.5" fill="#EBF1F5"/>
+</g>
+</g>
+</svg>

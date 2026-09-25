@@ -129,6 +129,63 @@ export function PaymentBadge({ status }: { status: PaymentStatus | OpenItemStatu
   );
 }
 
+export function StepEmpty({
+  icon,
+  title,
+  lead,
+  link,
+  onLink,
+}: {
+  icon: string;
+  title: string;
+  lead?: string;
+  link?: string;
+  onLink?: () => void;
+}) {
+  return (
+    <article className="pp-card empty">
+      <div className="pp-empty-art">
+        <span className="plate p3" />
+        <span className="plate p2" />
+        <span className="plate p1" />
+        <span className="orb">
+          <Icon src={icon} size={40} />
+        </span>
+      </div>
+      <strong>{title}</strong>
+      {lead || link ? (
+        <p>
+          {lead ? `${lead}${link ? " " : ""}` : null}
+          {link && onLink ? (
+            <button type="button" className="pp-empty-link" onClick={onLink}>
+              {link}
+            </button>
+          ) : (
+            link
+          )}.
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+export function PartnerAvatar({ company }: { company?: boolean }) {
+  if (company) {
+    return (
+      <>
+        <img className="hn-company-ring" src={a.hnCompanyRing} alt="" width={40} height={40} />
+        <img className="hn-company-glyph" src={a.hnCompanyGlyph} alt="" width={24.9187} height={25} />
+      </>
+    );
+  }
+  return (
+    <>
+      <img className="hn-person-ring" src={a.hnPersonRing} alt="" width={40} height={40} />
+      <img className="hn-person-glyph" src={a.hnPersonGlyph} alt="" width={22.3333} height={26.7858} />
+    </>
+  );
+}
+
 export function CountBadge({ value }: { value: number }) {
   if (!value) return null;
   return <span className="hn-count">{value}</span>;

@@ -1,194 +1,248 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import * as a from "../assets/index";
-import { ContextMenu, Icon } from "../ui";
-import { StatCard } from "../manager/FreigabenPanel";
-import { formatDate, money, monthYearLabel, paymentStatusLabel } from "../lib/honorar/format";
-import { actionNeeded, monthOf, partnerOf, previousFees, statusKpis, totals } from "../lib/honorar/queries";
+import { formatDate, formatDay, monthLabel, servicePeriod } from "../lib/honorar/format";
+import { feesOfMonth, missingFields, partnerOf, previousFees, statusKpis, totals } from "../lib/honorar/queries";
+import type { Fee, Partner } from "../types/honorar";
+import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "./store";
-import { ConfirmModal, EmptyState, PartnerCell, RequiredCommentModal, StickyBar } from "./ui";
+import { PartnerAvatar, StepEmpty } from "./ui";
+
+const COLUMNS = [
+  { key: "partner", label: "Partner", filter: false },
+  { key: "invoice", label: "Status zur Rechnung", filter: true },
+  { key: "method", label: "Zahlart", filter: true },
+  { key: "period", label: "Leistungszeitraum", filter: true },
+  { key: "payment", label: "Status zur Zahlung", filter: true },
+  { key: "due", label: "Zu zahlender Honorarbetrag", filter: true },
+  { key: "paid", label: "Bezahlter Honorarbetrag", filter: true },
+  { key: "captured", label: "Erfasst", filter: true },
+] as const;
+
+type ColumnKey = (typeof COLUMNS)[number]["key"];
+
+function money(value: number) {
+  const [whole, frac] = value.toFixed(2).split(".");
+  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${frac}`;
+}
+
+function invoiceLine(fee: Fee) {
+  if (fee.invoiceStatus === "not_created") return "Rechnung von BMD noch nicht erstellt";
+  if (fee.invoiceStatus === "created") return "Rechnung erstellt, wartet auf Versand";
+  if (fee.invoiceStatus === "send_failed") return "Versand fehlgeschlagen";
+  return fee.sentAt ? `Rechnung versendet am ${formatDay(fee.sentAt)}` : "Rechnung versendet";
+}
+
+function paymentLine(fee: Fee) {
+  if (fee.invoiceStatus === "not_created" || fee.invoiceStatus === "created") return "Rechnung noch nicht versendet";
+  if (fee.paymentStatus === "paid") return "Bezahlt";
+  if (fee.paymentStatus === "unpaid") return "Nicht bezahlt nach Zahlungsziel";
+  if (fee.paymentStatus === "handed_to_op") return "An Offene Posten übergeben";
+  return "Offen vor Zahlungsziel, warte auf Zahlung.";
+}
+
+function capturedWhen(iso: string) {
+  const formatted = formatDate(iso);
+  const [day, time] = formatted.split(" ");
+  return time ? `${day} - ${time}` : formatted;
+}
+
+function partnerMeta(partner: Partner) {
+  const bits = [partner.birthDate, partner.nickname ? `(vulgo ${partner.nickname})` : ""].filter(Boolean);
+  return bits.join(" ");
+}
+
+function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, string> {
+  return {
+    partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
+    invoice: invoiceLine(fee),
+    method: fee.paymentMethod,
+    period: servicePeriod(fee.month),
+    payment: paymentLine(fee),
+    due: `${money(fee.amount)} ${fee.tariff}`,
+    paid: `${money(fee.paid)} ${fee.tariff}`,
+    captured: `${capturedWhen(fee.createdAt)} ${fee.createdBy}`,
+  };
+}
 
 export function StatusStep() {
-  const { state, handToOpenItems, markPaid, closeStatusStep } = useHonorar();
-  const { finanzenMonth, openFinanzen, openFinanzenStep } = useWorkflow();
-  const fees = useMemo(() => previousFees(state, finanzenMonth), [state, finanzenMonth]);
-  const kpis = statusKpis(fees);
-  const sums = totals(fees);
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [handId, setHandId] = useState<string | null>(null);
-  const [payId, setPayId] = useState<string | null>(null);
-  const month = monthOf(state, finanzenMonth);
+  const { finanzenMonth } = useWorkflow();
+  const { state, importCaptureData } = useHonorar();
+  const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
 
-  useEffect(() => {
-    if (fees.length === 0 && month && !month.steps.status) closeStatusStep(finanzenMonth);
-  }, [fees.length, month, finanzenMonth, closeStatusStep]);
+  const fees = feesOfMonth(state, finanzenMonth);
+  const kpis = statusKpis(previousFees(state, finanzenMonth));
+  const rows = useMemo(() => {
+    return fees
+      .map((fee) => {
+        const partner = partnerOf(state, fee.partnerId);
+        return { fee, partner, text: rowText(fee, partner) };
+      })
+      .filter((row) =>
+        COLUMNS.every((column) => {
+          const query = filters[column.key]?.trim().toLowerCase();
+          return !query || row.text[column.key].toLowerCase().includes(query);
+        }),
+      );
+  }, [fees, filters, state]);
+  const sum = totals(rows.map((row) => row.fee));
 
-  if (fees.length === 0) {
-    return <EmptyState title="Keine Rechnungen aus dem Vormonat" text="Dieser Schritt gilt als erledigt." />;
+  function download() {
+    const header = ["Partner", "Status zur Rechnung", "Zahlart", "Leistungszeitraum", "Status zur Zahlung", "Zu zahlender Honorarbetrag", "Bezahlter Honorarbetrag", "Erfasst"];
+    const lines = rows.map((row) =>
+      [row.partner?.name ?? "", row.text.invoice, row.text.method, row.text.period, row.text.payment, money(row.fee.amount), money(row.fee.paid), row.text.captured]
+        .map((value) => `"${value.replaceAll('"', '""')}"`)
+        .join(";"),
+    );
+    const blob = new Blob([[header.join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Honorare_${finanzenMonth}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
-    <section className="freigaben hn-panel">
-      <h1 className="freigaben-title">Honorarverrechnung</h1>
-      <p className="hn-month">{monthYearLabel(finanzenMonth)}</p>
-      <h2 className="hn-h2">Status zu Rechnungen</h2>
+    <section className="freigaben hn-panel hn-status">
+      <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
+      <p className="hn-month">
+        <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
+      </p>
+      <h2 className="hn-h2 hn-status-title">Status zu Rechnungen</h2>
 
-      <div className="freigaben-stats">
-        <StatCard label="Handlungsbedarf" value={kpis.needed} icon={a.onhold} />
-        <StatCard label="Erledigt" value={kpis.done} icon={a.confirm} />
+      {fees.length === 0 ? (
+        <StepEmpty
+          icon={a.tickList}
+          title="Noch keine Rechnungen vorhanden"
+          lead="Du kannst"
+          link="Daten hier importieren"
+          onLink={() => importCaptureData(finanzenMonth)}
+        />
+      ) : (
+      <>
+      <div className="hn-stats">
+        <article className="stat-card dark">
+          <div className="stat-copy">
+            <small>Offen</small>
+            <strong>{String(kpis.needed).padStart(2, "0")}</strong>
+            <span>Zahlungen</span>
+          </div>
+          <span className="stat-icon">
+            <Icon src={a.onhold} size={16} />
+          </span>
+        </article>
+        <article className="stat-card">
+          <div className="stat-copy">
+            <small>Abgeschl.</small>
+            <strong>{String(kpis.done).padStart(2, "0")}</strong>
+            <span>Zahlungen</span>
+          </div>
+          <span className="stat-icon">
+            <Icon src={a.confirm} size={16} />
+          </span>
+        </article>
       </div>
 
-      <div className="req-table hn-table">
-        <div className="req-head hn-head" role="row">
-          {["Partner", "Status zur Rechnung", "Zahlart", "Status zur Zahlung", "Zu zahlender Honorarbetrag", "Bezahlter Honorarbetrag", "Erfasst"].map(
-            (label) => (
-              <div className="req-th" key={label}>
-                <span className="req-th-top">
-                  {label}
-                  <Icon src={a.colFilter} size={14} />
-                </span>
-                <input className="col-input" aria-label={label} />
-              </div>
-            ),
-          )}
+      <div className="hn-status-tools">
+        <button type="button" className="hn-drop" onClick={() => importCaptureData(finanzenMonth)}>
+          Daten importieren
+          <Icon src={a.chevronDown} size={18} />
+        </button>
+        <div className="hn-status-tools-end">
+          <button type="button" className="hn-drop" onClick={download}>
+            Liste herunterladen
+            <Icon src={a.chevronDown} size={18} />
+          </button>
         </div>
+      </div>
 
-        <div className="hn-total" role="row">
-          <span>Alle Honorare</span>
-          <span />
-          <span />
-          <span />
-          <span>
-            {money(sums.due)}
-            <small>Summe total</small>
-          </span>
-          <span>
-            {money(sums.paid)}
-            <small>Summe total</small>
-          </span>
-          <span>
-            Offen: {money(sums.open)}
-          </span>
-        </div>
-
-        {fees.map((fee) => {
-          const partner = partnerOf(state, fee.partnerId);
-          const payment = paymentStatusLabel(fee.paymentStatus, fee.dueDate, fee.paymentReason);
-          const unpaid = actionNeeded(fee);
-          return (
-            <div className={`hn-row${unpaid ? " amber" : ""}`} role="row" key={fee.id}>
-              <PartnerCell
-                name={partner?.name ?? fee.partnerId}
-                meta={[partner?.birthDate, partner?.nickname ? `(vulgo ${partner.nickname})` : ""].filter(Boolean).join(" ")}
-                photo={partner?.photo}
-                company={partner?.type === "company"}
+      <div className="hn-status-table" role="table" aria-label="Status zu Rechnungen">
+        <div className="hn-st-head" role="row">
+          {COLUMNS.map((column) => (
+            <div className="hn-st-th" role="columnheader" key={column.key}>
+              <span className="hn-st-label">
+                {column.label}
+                {column.filter ? <img src={a.colFilter} alt="" width={34} height={34} /> : null}
+              </span>
+              <input
+                className="col-input"
+                aria-label={`${column.label} filtern`}
+                value={filters[column.key] ?? ""}
+                onChange={(event) => setFilters((current) => ({ ...current, [column.key]: event.target.value }))}
               />
-              <div>
-                <span className="status-pill done">
-                  <Icon src={a.onhold} size={16} />
-                  Versendet am {fee.sentAt ? formatDate(fee.sentAt) : "–"}
+            </div>
+          ))}
+        </div>
+
+        <div className="hn-st-sum" role="row">
+          <div className="hn-st-sum-label">Alle Honorare</div>
+          <div />
+          <div />
+          <div />
+          <div />
+          <div className="hn-st-total">
+            <strong>{money(sum.due)}</strong>
+            <small>Summe Total</small>
+          </div>
+          <div className="hn-st-total">
+            <strong>{money(sum.paid)}</strong>
+            <small>Summe Total</small>
+          </div>
+          <div />
+        </div>
+
+        {rows.map(({ fee, partner, text }) => {
+          const locked = missingFields(fee, partner).length > 0;
+          return (
+            <div className="hn-st-row" role="row" key={fee.id}>
+              <div className="hn-st-partner">
+                <span className="partner-avatar">
+                  <PartnerAvatar company={partner?.type === "company"} />
+                  {partner?.type === "company" ? <img className="winter" src={a.winterMark} alt="" /> : null}
                 </span>
-                {fee.sentTo ? <small>an {fee.sentTo}</small> : null}
-              </div>
-              <div>{fee.paymentMethod}</div>
-              <div>
-                <span className={`status-pill ${unpaid ? "open" : "fertig"}`}>
-                  <Icon src={fee.paymentStatus === "paid" ? a.confirm : a.onhold} size={16} />
-                  {fee.watched ? "wird beobachtet" : payment.title}
+                <span className="partner-copy">
+                  <strong>
+                    {partner?.name}
+                    {locked ? <img className="hn-lock" src={a.hnLock} alt="" width={16} height={16} /> : null}
+                  </strong>
+                  {partner ? <small>{partnerMeta(partner)}</small> : null}
                 </span>
-                {fee.paymentStatus === "handed_to_op" ? (
-                  <button type="button" className="hn-link" onClick={() => openFinanzen("openItems")}>
-                    Offener Posten
-                  </button>
-                ) : payment.detail ? (
-                  <small>{payment.detail}</small>
-                ) : null}
+                <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
               </div>
-              <div>
-                {money(fee.amount)}
+              <div className="hn-st-note">
+                <Icon src={fee.invoiceStatus === "sent" ? a.confirm : a.onhold} size={16} />
+                <span>{text.invoice}</span>
+              </div>
+              <div>{text.method}</div>
+              <div className="hn-st-period">{text.period}</div>
+              <div className="hn-st-note">
+                <Icon src={a.onhold} size={16} />
+                <span>{text.payment}</span>
+              </div>
+              <div className="hn-st-money">
+                <strong>{money(fee.amount)}</strong>
                 <small>{fee.tariff}</small>
               </div>
-              <div>
-                {money(fee.paid)}
+              <div className="hn-st-money">
+                <strong>{money(fee.paid)}</strong>
                 <small>{fee.tariff}</small>
               </div>
-              <div className="hn-row-end">
+              <div className="hn-st-captured">
                 <span>
-                  {formatDate(fee.createdAt)}
+                  {capturedWhen(fee.createdAt)}
                   <small>{fee.createdBy}</small>
                 </span>
-                {unpaid ? (
-                  <button type="button" className="start-btn" onClick={() => setHandId(fee.id)}>
-                    An Offene Posten übergeben
-                  </button>
-                ) : null}
-                <ContextMenu
-                  items={[
-                    ...(fee.paymentMethod === "Abbucher" && fee.paymentReason === "direct_debit_failed"
-                      ? [{ label: "Doch bezahlt markieren", icon: a.confirm, onSelect: () => setPayId(fee.id) }]
-                      : []),
-                    { label: "Verlauf", icon: a.history, onSelect: () => undefined },
-                  ]}
-                />
+                <button type="button" className="hn-st-menu" aria-label="Aktionen">
+                  <Icon src={a.contextMenu} size={24} />
+                </button>
               </div>
             </div>
           );
         })}
       </div>
-
-      {month?.steps.status ? null : (
-      <StickyBar>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={kpis.needed > 0}
-          title={kpis.needed > 0 ? `Noch ${kpis.needed} Zeilen offen` : undefined}
-          onClick={() => setConfirmClose(true)}
-        >
-          Status abschliessen
-        </button>
-        {kpis.needed > 0 ? <small>Noch {kpis.needed} Zeilen offen</small> : null}
-      </StickyBar>
+      </>
       )}
-
-      {handId ? (
-        <ConfirmModal
-          title="An Offene Posten übergeben?"
-          text="Der Betrag erscheint danach in Offene Posten."
-          confirmLabel="Übergeben"
-          onCancel={() => setHandId(null)}
-          onConfirm={() => {
-            handToOpenItems(handId);
-            setHandId(null);
-          }}
-        />
-      ) : null}
-
-      {payId ? (
-        <RequiredCommentModal
-          title="Doch bezahlt markieren?"
-          confirmLabel="Markieren"
-          onCancel={() => setPayId(null)}
-          onConfirm={(comment) => {
-            markPaid(payId, comment);
-            setPayId(null);
-          }}
-        />
-      ) : null}
-
-      {confirmClose ? (
-        <ConfirmModal
-          title="Status abschliessen?"
-          text="Offene Beträge vor Zahlungsziel werden beobachtet."
-          confirmLabel="Abschliessen"
-          onCancel={() => setConfirmClose(false)}
-          onConfirm={() => {
-            closeStatusStep(finanzenMonth);
-            setConfirmClose(false);
-            openFinanzenStep("data");
-          }}
-        />
-      ) : null}
     </section>
   );
 }

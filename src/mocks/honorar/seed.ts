@@ -241,6 +241,35 @@ export function createAprilImportFees(now: string): Fee[] {
   });
 }
 
+const APRIL_ROWS: Array<Pick<Fee, "partnerId" | "amount" | "tariff" | "paymentMethod">> = [
+  { partnerId: "ava", amount: 120, tariff: "Single", paymentMethod: "Abbucher" },
+  { partnerId: "bella", amount: 120, tariff: "Single", paymentMethod: "Abbucher" },
+  { partnerId: "caleb", amount: 120, tariff: "Single", paymentMethod: "Überweisung" },
+  { partnerId: "charlotte", amount: 120, tariff: "Single", paymentMethod: "Abbucher" },
+  { partnerId: "brown", amount: 2000, tariff: "Business", paymentMethod: "Überweisung" },
+  { partnerId: "gavin", amount: 120, tariff: "Single", paymentMethod: "Überweisung" },
+  { partnerId: "gartner", amount: 3000, tariff: "Business", paymentMethod: "Abbucher" },
+];
+
+function aprilFees(): Fee[] {
+  return APRIL_ROWS.map((row) => ({
+    id: `fee-2027-04-${row.partnerId}`,
+    partnerId: row.partnerId,
+    month: "2027-04",
+    servicePeriod: row.partnerId === "gavin" ? "" : "01.04.2027 – 30.04.2027",
+    extraFields: { Thomas: "", Maria: "" },
+    amount: row.amount,
+    paid: 0,
+    tariff: row.tariff,
+    paymentMethod: row.paymentMethod,
+    dueDate: "2027-04-30",
+    invoiceStatus: "not_created",
+    paymentStatus: "open_before_due",
+    createdAt: "2026-12-12T12:33:00",
+    createdBy: PEOPLE.mike,
+  }));
+}
+
 export function createSeedState(testMode = false): HonorarState {
   return {
     today: TODAY,
@@ -248,7 +277,7 @@ export function createSeedState(testMode = false): HonorarState {
     testMode,
     months: months(),
     partners: partners.map((partner) => ({ ...partner })),
-    fees: marchFees.map((fee) => ({ ...fee })),
+    fees: [...marchFees.map((fee) => ({ ...fee })), ...aprilFees()],
     openItems: [{ ...februaryOpenItem }],
     corrections: [],
     singleInvoices: [],

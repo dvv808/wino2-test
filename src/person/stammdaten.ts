@@ -1,4 +1,5 @@
 import * as a from "../assets/index";
+import { FILE_PARTNERS, type FileContact } from "./partners";
 
 /**
  * The Stammdaten page is a long stack of sections, and every section holds one or
@@ -718,11 +719,65 @@ export function cloneSections(): Section[] {
 }
 
 export function countedTitle(section: Section) {
-  const n = section.cards.filter((card) => !card.empty && !card.draft).length;
+  const n = section.cards.filter((card) => !card.empty).length;
   if (section.id === "kontakte") return `Kontakte (${n})`;
   if (section.id === "adressen") return `Adressen (${n})`;
   if (section.id === "bankverbindungen") return `Bankverbindungen (${n})`;
   return section.title;
+}
+
+function filled(value: string | undefined) {
+  const text = value?.trim() ?? "";
+  return text && text !== "-" ? text : "";
+}
+
+function liveCards(sections: Section[], sectionId: string) {
+  return sections.find((section) => section.id === sectionId)?.cards.filter((card) => !card.empty) ?? [];
+}
+
+/** Header identity: live Stammdaten first, so a new contact or address shows on the file card. */
+export function liveFileIdentity(sections: Section[]) {
+  const partner = liveCards(sections, "personendaten")[0];
+  const form = partner ? partnerForm(partner) : null;
+  const born = form ? joinDate(form.geburtTag, form.geburtMonat, form.geburtJahr) : "";
+
+  const contacts: FileContact[] = [];
+  const primaryContact = liveCards(sections, "kontakte")[0];
+  if (primaryContact) {
+    const contact = contactForm(primaryContact);
+    for (const phone of contact.phones) {
+      if (!filled(phone.value)) continue;
+      contacts.push({
+        kind: "phone",
+        caption: phone.extra === "Festnetz" ? "Festnetz" : "Mobil Privat",
+        value: phone.value,
+      });
+    }
+    for (const mail of contact.mails) {
+      if (!filled(mail.value)) continue;
+      contacts.push({
+        kind: "mail",
+        caption: "Mail Privat",
+        value: mail.value,
+      });
+    }
+  }
+
+  const addresses = liveCards(sections, "adressen");
+  const preferred = addresses.find((card) => card.title === "Hauptwohnsitz") ?? addresses[0];
+  const addressFormValues = preferred ? addressForm(preferred) : null;
+  const street = addressFormValues
+    ? [addressFormValues.strasse, addressFormValues.nummer].filter(Boolean).join(" ")
+    : "";
+  const city = addressFormValues
+    ? [addressFormValues.plz && `A-${addressFormValues.plz}`, addressFormValues.ort].filter(Boolean).join(" ")
+    : "";
+
+  return {
+    born: filled(born) || undefined,
+    address: street || city ? ([street, city] as [string, string]) : undefined,
+    contacts,
+  };
 }
 
 export function navLabel(item: { label: string; target?: string }, sections: Section[]) {
@@ -1033,13 +1088,17 @@ export function applyContact(card: Card, form: ContactForm, draft = false): Card
         kind: "person",
         tag: kanal
           ? "Kanal"
-          : person?.kind === "person" && person.tag !== "Kanal"
+          : person?.kind === "person" && person.tag && person.tag !== "Kanal"
             ? person.tag
-            : form.partner
+            : form.partner === FILE_PARTNERS.julia.name
               ? "Interessent"
               : undefined,
         name: kanal ? form.bezeichnung || "Kanal" : form.partner || "Partner",
-        sub: kanal ? "-" : person?.kind === "person" ? person.sub : "-",
+        sub: kanal
+          ? "-"
+          : filled(person?.kind === "person" ? person.sub : "") ||
+            Object.values(FILE_PARTNERS).find((entry) => entry.name === form.partner)?.born ||
+            "-",
       },
       { kind: "note", caption: "Allgemeine Notiz zur Kontaktperson", text: form.notiz || "-" },
       {
