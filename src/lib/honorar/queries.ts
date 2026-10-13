@@ -16,6 +16,23 @@ export function feesOfMonth(state: HonorarState, monthId: string) {
   return state.fees.filter((fee) => fee.month === monthId);
 }
 
+/** Invoices of a month that were not paid in time. */
+export function reminderCandidates(state: HonorarState, monthId: string) {
+  return feesOfMonth(state, monthId).filter(
+    (fee) => fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op",
+  );
+}
+
+/**
+ * A fee belongs in Offene Posten as soon as its invoice is out and it is not paid:
+ * overdue fees of any month, and fees of earlier months that are still waiting for their (new) due date.
+ */
+export function isOpenItemFee(state: HonorarState, fee: Fee) {
+  if (fee.hiddenOpen || fee.paymentStatus === "paid") return false;
+  if (fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op") return true;
+  return fee.invoiceStatus === "sent" && fee.month < state.today.slice(0, 7);
+}
+
 export function previousFees(state: HonorarState, monthId: string) {
   const [year, month] = monthId.split("-").map(Number);
   const previous = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;

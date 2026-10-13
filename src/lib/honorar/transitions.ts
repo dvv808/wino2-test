@@ -170,6 +170,36 @@ export function closeDataStep(state: HonorarState, monthId: string, user: string
   return withHistory({ ...state, months }, [history(state, user, "month", monthId, "Daten fertig erfasst")]);
 }
 
+export function setStepDone(
+  state: HonorarState,
+  monthId: string,
+  key: "data" | "dataCarrier",
+  value: boolean,
+  user: string,
+): HonorarState {
+  const months = state.months.map((month) =>
+    month.id === monthId ? { ...month, steps: { ...month.steps, [key]: value } } : month,
+  );
+  const label = key === "data" ? "Daten erfassen" : "Datenträger erstellen";
+  return withHistory({ ...state, months }, [history(state, user, "month", monthId, value ? `${label} fertig` : `${label} wieder offen`)]);
+}
+
+export function setCarrierTick(
+  state: HonorarState,
+  monthId: string,
+  index: number,
+  value: boolean,
+  total: number,
+  user: string,
+): HonorarState {
+  const ticks = Array.from({ length: total }, (_, i) => state.carrierTicks[monthId]?.[i] ?? false);
+  ticks[index] = value;
+  const next = { ...state, carrierTicks: { ...state.carrierTicks, [monthId]: ticks } };
+  const all = ticks.every(Boolean);
+  const current = Boolean(state.months.find((month) => month.id === monthId)?.steps.dataCarrier);
+  return all === current ? next : setStepDone(next, monthId, "dataCarrier", all, user);
+}
+
 function invoicesWaiting(state: HonorarState, monthId: string): HonorarState {
   let changed = false;
   const fees = state.fees.map((fee) => {
@@ -213,6 +243,7 @@ const CARRIER_RESET_ACTIONS = new Set([
   "Datenträger übermittelt",
   "An BMD übergeben",
   "Rechnungen versendet",
+  "Rechnungen erneut versendet",
 ]);
 
 /** Open months always start with Datenträger Offen so the create → status flow can be retested. */
@@ -233,6 +264,7 @@ export function resetOpenCarrier(state: HonorarState, monthId: string): HonorarS
       invoiceStatus: "not_created" as const,
       sentAt: undefined,
       sentTo: undefined,
+      mailTo: undefined,
       paymentStatus: "open_before_due" as const,
       paymentReason: undefined,
     };
@@ -286,22 +318,107 @@ export function realignFee(state: HonorarState, feeId: string, user: string): Ho
   return withHistory({ ...state, fees }, [history(state, user, "fee", feeId, "Neu abgeglichen")]);
 }
 
-export function sendInvoices(state: HonorarState, monthId: string, user: string): HonorarState {
+/** The mails that do not arrive when everything goes out at once: always two, as long as there are two recipients. */
+function bouncingFeeIds(state: HonorarState, monthId: string) {
+  const mails = state.fees.filter(
+    (fee) => fee.month === monthId && partnerOf(state, fee.partnerId)?.deliveryMethod !== "print",
+  );
+  const picks = mails.length >= 4 ? [mails[1], mails[3]] : mails.slice(-2);
+  return new Set(picks.filter((fee): fee is Fee => Boolean(fee) && !fee!.mailTo).map((fee) => fee.id));
+}
+
+/** Mail goes out now. Post stays "created" until the user ticks it as sent. */
+export function sendInvoices(state: HonorarState, monthId: string, user: string, again = false): HonorarState {
   const now = stamp(state);
+  // A repeated send goes out to everybody again and is not simulated to bounce.
+  const failing = again ? new Set<string>() : bouncingFeeIds(state, monthId);
   const fees = state.fees.map((fee) => {
     if (fee.month !== monthId) return fee;
     const partner = partnerOf(state, fee.partnerId);
+    if (partner?.deliveryMethod === "print") {
+      if (again) return fee;
+      // Post is ticked off by hand once the letter is really out.
+      return { ...fee, invoiceStatus: "created" as const, sentAt: undefined, sentTo: undefined };
+    }
+    if (fee.invoiceStatus === "sent" && !again) return fee;
+    const to = fee.mailTo ?? partner?.email;
+    if (failing.has(fee.id)) {
+      return { ...fee, invoiceStatus: "send_failed" as const, sentAt: undefined, sentTo: to };
+    }
     const settled = fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op";
     return {
       ...fee,
       invoiceStatus: "sent" as const,
       sentAt: now,
-      sentTo: partner?.deliveryMethod === "print" ? "Post" : partner?.email,
+      sentTo: to,
       paymentStatus: settled ? fee.paymentStatus : ("open_before_due" as const),
       paymentReason: settled ? fee.paymentReason : undefined,
     };
   });
-  return withHistory({ ...state, fees }, [history(state, user, "month", monthId, "Rechnungen versendet")]);
+  return withHistory({ ...state, fees }, [history(state, user, "month", monthId, again ? "Rechnungen erneut versendet" : "Rechnungen versendet")]);
+}
+
+/** Sends one invoice by mail. A new address is used for this invoice only. */
+export function sendFeeMail(state: HonorarState, feeId: string, user: string, email?: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  if (!fee) return state;
+  const partner = partnerOf(state, fee.partnerId);
+  const to = email?.trim() || fee.mailTo || partner?.email;
+  const settled = fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op";
+  const fees = state.fees.map((entry) =>
+    entry.id === feeId
+      ? {
+          ...entry,
+          invoiceStatus: "sent" as const,
+          sentAt: stamp(state),
+          sentTo: to,
+          mailTo: email?.trim() ? email.trim() : entry.mailTo,
+          paymentStatus: settled ? entry.paymentStatus : ("open_before_due" as const),
+          paymentReason: settled ? entry.paymentReason : undefined,
+        }
+      : entry,
+  );
+  return withHistory({ ...state, fees }, [
+    history(state, user, "fee", feeId, email?.trim() ? "E-Mail an neue Adresse versendet" : "E-Mail versendet", to),
+  ]);
+}
+
+/** All Post invoices of a month go to the Postversand department in one step. */
+export function handPostToDispatch(state: HonorarState, monthId: string, user: string): HonorarState {
+  let next = state;
+  state.fees.forEach((fee) => {
+    if (fee.month !== monthId || fee.invoiceStatus === "sent") return;
+    if (partnerOf(state, fee.partnerId)?.deliveryMethod !== "print") return;
+    next = setPostSent(next, fee.id, true, user);
+  });
+  return withHistory(next, [history(state, user, "month", monthId, "Post-Rechnungen an Postversand übergeben")]);
+}
+
+/** The Post invoices were downloaded (printing happens outside the app). */
+export function logPostDownload(state: HonorarState, monthId: string, user: string): HonorarState {
+  return withHistory(state, [history(state, user, "month", monthId, "Post-Rechnungen heruntergeladen")]);
+}
+
+/** The user ticks a Post invoice as sent, or takes the tick back. */
+export function setPostSent(state: HonorarState, feeId: string, sent: boolean, user: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  if (!fee) return state;
+  const settled = fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op";
+  const fees = state.fees.map((entry) => {
+    if (entry.id !== feeId) return entry;
+    if (!sent) return { ...entry, invoiceStatus: "created" as const, sentAt: undefined, sentTo: undefined };
+    return {
+      ...entry,
+      invoiceStatus: "sent" as const,
+      sentAt: stamp(state),
+      sentTo: "Post",
+      paymentStatus: settled ? entry.paymentStatus : ("open_before_due" as const),
+      paymentReason: settled ? entry.paymentReason : undefined,
+    };
+  });
+  return withHistory({ ...state, fees }, [
+    history(state, user, "fee", feeId, sent ? "Per Post versendet" : "Postversand zurückgenommen"),
+  ]);
 }
 
 export function bounceMail(state: HonorarState, feeId: string, user: string): HonorarState {
@@ -391,6 +508,35 @@ export function exceedDueDates(state: HonorarState): HonorarState {
   return processDueDates({ ...state, today: addDays(latest, 1) }, target.map((fee) => fee.id));
 }
 
+/** Demo helper for step 4: three invoices of the month become overdue, so reminders can be tried out. */
+export function simulateOverdue(state: HonorarState, monthId: string, user: string, count = 3): HonorarState {
+  const eligible = state.fees
+    .filter((fee) => fee.month === monthId && fee.paymentStatus !== "paid" && fee.paymentStatus !== "unpaid" && fee.paymentStatus !== "handed_to_op")
+    .slice(0, count)
+    .map((fee) => fee.id);
+  if (eligible.length === 0) return state;
+  const picked = new Set(eligible);
+  const yesterday = addDays(state.today, -1);
+  const fees = state.fees.map((fee) => {
+    if (!picked.has(fee.id)) return fee;
+    const partner = partnerOf(state, fee.partnerId);
+    return {
+      ...fee,
+      invoiceStatus: "sent" as const,
+      sentAt: fee.sentAt ?? `${monthId}-12T13:33:00`,
+      sentTo: fee.sentTo ?? partner?.email,
+      paymentStatus: "unpaid" as const,
+      paymentReason: (fee.paymentMethod === "Abbucher" ? "direct_debit_failed" : "due_date_exceeded") as PaymentReason,
+      dueDate: yesterday,
+      paid: 0,
+    };
+  });
+  return withHistory(
+    { ...state, fees },
+    eligible.map((id) => history(state, user, "fee", id, "Zahlungsziel überschritten (Simulation)")),
+  );
+}
+
 export function sepaChargeback(state: HonorarState, feeId: string, user: string): HonorarState {
   const fees = state.fees.map((fee) =>
     fee.id === feeId
@@ -405,6 +551,49 @@ export function sendReminder(state: HonorarState, itemId: string, user: string):
     item.id === itemId ? { ...item, status: "reminder_sent" as const, reminderSentAt: stamp(state) } : item,
   );
   return withHistory({ ...state, openItems }, [history(state, user, "openItem", itemId, "Zahlungserinnerung versendet")]);
+}
+
+/** Sends a payment reminder for every not yet reminded, overdue invoice of the month (or just the given ones). */
+export function sendPaymentReminders(
+  state: HonorarState,
+  monthId: string,
+  user: string,
+  feeIds?: string[],
+  email?: string,
+): HonorarState {
+  const now = stamp(state);
+  const targets = state.fees
+    .filter((fee) => fee.month === monthId)
+    .filter((fee) => fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op")
+    .filter((fee) => (feeIds ? feeIds.includes(fee.id) : !fee.reminderSentAt))
+    .map((fee) => fee.id);
+  if (targets.length === 0) return state;
+  const fees = state.fees.map((fee) =>
+    targets.includes(fee.id)
+      ? { ...fee, reminderSentAt: now, mailTo: email?.trim() ? email.trim() : fee.mailTo }
+      : fee,
+  );
+  const openItems = state.openItems.map((item) =>
+    targets.includes(item.feeId) && item.status !== "done"
+      ? { ...item, status: "reminder_sent" as const, reminderSentAt: now }
+      : item,
+  );
+  return withHistory({ ...state, fees, openItems }, [
+    history(state, user, "month", monthId, "Zahlungserinnerungen versendet", `${targets.length} Rechnungen`),
+  ]);
+}
+
+/** Takes a payment reminder back (post reminders are ticked off by hand). */
+export function clearPaymentReminder(state: HonorarState, feeId: string, user: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  if (!fee?.reminderSentAt) return state;
+  const fees = state.fees.map((entry) => (entry.id === feeId ? { ...entry, reminderSentAt: undefined } : entry));
+  const openItems = state.openItems.map((item) =>
+    item.feeId === feeId && item.status === "reminder_sent"
+      ? { ...item, status: "no_reminder" as const, reminderSentAt: undefined }
+      : item,
+  );
+  return withHistory({ ...state, fees, openItems }, [history(state, user, "fee", feeId, "Zahlungserinnerung zurückgenommen")]);
 }
 
 export function reminderOverdue(state: HonorarState, itemId: string, user: string): HonorarState {
@@ -511,7 +700,7 @@ export function approveCorrection(state: HonorarState, correctionId: string, use
   ];
   return withHistory({ ...state, corrections, openItems, singleInvoices }, [
     history(state, user, "correction", correctionId, "Freigegeben"),
-    history(state, user, "singleInvoice", invoiceId, "Einzelfaktura erstellt"),
+    history(state, user, "singleInvoice", invoiceId, "Sammelfaktura erstellt"),
     correction.openItemId ? history(state, user, "openItem", correction.openItemId, "Vereinbarung getroffen") : undefined,
   ].filter(Boolean) as HistoryEntry[]);
 }
@@ -528,13 +717,13 @@ export function moveFeeToSingleInvoice(state: HonorarState, feeId: string, user:
       feeId,
       partnerId: fee.partnerId,
       amount: fee.amount,
-      kind: "Einzelfaktura/Gutschrift",
+      kind: "Sammelfaktura/Gutschrift",
       status: "open" as const,
       month: fee.month,
     },
   ];
   return withHistory({ ...state, singleInvoices }, [
-    history(state, user, "singleInvoice", id, "Einzelfaktura erstellt"),
+    history(state, user, "singleInvoice", id, "Sammelfaktura erstellt"),
   ]);
 }
 
@@ -549,21 +738,37 @@ export function grantSingleCredit(
   amount: number,
   comment: string,
   user: string,
+  dueDate?: string,
 ): HonorarState {
   const grantedAt = stamp(state);
+  const target = state.singleInvoices.find((invoice) => invoice.id === invoiceId);
   const singleInvoices = state.singleInvoices.map((invoice) =>
     invoice.id === invoiceId
-      ? { ...invoice, credit: amount, comment, grantedAt, grantedBy: user }
+      ? { ...invoice, credit: amount > 0 ? amount : undefined, comment, grantedAt, grantedBy: user, dueDate: dueDate ?? invoice.dueDate, dueDateOriginal: invoice.dueDateOriginal ?? (dueDate ? state.fees.find((fee) => fee.id === invoice.feeId)?.dueDate : undefined) }
       : invoice,
   );
-  return withHistory({ ...state, singleInvoices }, [
-    history(state, user, "singleInvoice", invoiceId, "Gutschrift gewährt", comment || undefined),
-  ]);
+  // Keep the fee in sync: a credit that covers the open amount settles it, and a new due date in
+  // the future puts an overdue fee back to "open before due".
+  const fees = target?.feeId
+    ? state.fees.map((fee) => {
+        if (fee.id !== target.feeId) return fee;
+        const next = { ...fee, dueDate: dueDate ?? fee.dueDate };
+        if (fee.paymentStatus === "paid") return next;
+        if (amount > 0 && fee.amount - fee.paid - amount <= 0) return { ...next, paymentStatus: "paid" as const };
+        if (fee.paymentStatus === "unpaid" && next.dueDate >= state.today) {
+          return { ...next, paymentStatus: "open_before_due" as const };
+        }
+        return next;
+      })
+    : state.fees;
+  const entries = amount > 0 ? [history(state, user, "singleInvoice", invoiceId, "Gutschrift gewährt", comment || undefined)] : [];
+  if (dueDate) entries.push(history(state, user, "singleInvoice", invoiceId, "Zahlungsziel geändert", dueDate));
+  return withHistory({ ...state, singleInvoices, fees }, entries);
 }
 
 export function clearSingleInvoices(state: HonorarState, user: string): HonorarState {
   return withHistory({ ...state, singleInvoices: [] }, [
-    history(state, user, "month", state.months[0]?.id ?? "single", "Einzelfaktura-Liste geleert"),
+    history(state, user, "month", state.months[0]?.id ?? "single", "Sammelfaktura-Liste geleert"),
   ]);
 }
 

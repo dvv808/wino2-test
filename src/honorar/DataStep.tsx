@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import * as a from "../assets/index";
 import { formatDate, monthLabel, servicePeriod } from "../lib/honorar/format";
-import { feesOfMonth, missingFields, partnerOf, previousFees, statusKpis, totals } from "../lib/honorar/queries";
+import { feesOfMonth, missingFields, monthOf, partnerOf, totals } from "../lib/honorar/queries";
 import type { Fee, Partner } from "../types/honorar";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
-import { ConfirmModal, PartnerAvatar, StepEmpty } from "./ui";
+import { ConfirmModal, PartnerAvatar, ProfileDueMenu, StepEmpty } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
@@ -59,25 +60,23 @@ function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, stri
 
 export function DataStep() {
   const { finanzenMonth } = useWorkflow();
-  const { state, importCaptureData, clearMonthFees } = useHonorar();
+  const { state, importCaptureData, clearMonthFees, setStepDone } = useHonorar();
+  const dataDone = Boolean(monthOf(state, finanzenMonth)?.steps.data);
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
 
   const fees = feesOfMonth(state, finanzenMonth);
-  const kpis = statusKpis(previousFees(state, finanzenMonth));
-  const rows = useMemo(() => {
+  const baseRows = useMemo(() => {
     return fees
       .map((fee) => {
         const partner = partnerOf(state, fee.partnerId);
         return { fee, partner, text: rowText(fee, partner) };
-      })
-      .filter((row) =>
-        COLUMNS.every((column) => {
-          const query = filters[column.key]?.trim().toLowerCase();
-          return !query || row.text[column.key].toLowerCase().includes(query);
-        }),
-      );
-  }, [fees, filters, state]);
+      });
+  }, [fees, state]);
+  const rows = useMemo(
+    () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
+    [baseRows, filters],
+  );
   const sum = totals(rows.map((row) => row.fee));
 
   function download() {
@@ -114,42 +113,25 @@ export function DataStep() {
         />
       ) : (
       <>
-      <div className="hn-stats">
-        <article className="stat-card dark">
-          <div className="stat-copy">
-            <small>Offen</small>
-            <strong>{String(kpis.needed).padStart(2, "0")}</strong>
-            <span>Zahlungen</span>
-          </div>
-          <span className="stat-icon">
-            <Icon src={a.onhold} size={16} />
-          </span>
-        </article>
-        <article className="stat-card">
-          <div className="stat-copy">
-            <small>Abgeschl.</small>
-            <strong>{String(kpis.done).padStart(2, "0")}</strong>
-            <span>Zahlungen</span>
-          </div>
-          <span className="stat-icon">
-            <Icon src={a.confirm} size={16} />
-          </span>
-        </article>
-      </div>
-
       <div className="hn-status-tools">
         <button type="button" className="hn-drop" onClick={() => importCaptureData(finanzenMonth)}>
           Daten importieren
           <Icon src={a.chevronDown} size={18} />
         </button>
         <div className="hn-status-tools-end">
-          <button type="button" className="hn-clear" onClick={() => setConfirmClear(true)}>
-            <Icon src={a.trash} size={18} />
-            Liste leeren
-          </button>
           <button type="button" className="hn-drop" onClick={download}>
             Liste herunterladen
             <Icon src={a.chevronDown} size={18} />
+          </button>
+          <button
+            type="button"
+            className="hn-done-toggle"
+            role="switch"
+            aria-checked={dataDone}
+            onClick={() => setStepDone(finanzenMonth, "data", !dataDone)}
+          >
+            Als Fertig markieren
+            <span className={dataDone ? "switch on" : "switch"} />
           </button>
         </div>
       </div>
@@ -160,13 +142,17 @@ export function DataStep() {
             <div className="hn-st-th" role="columnheader" key={column.key}>
               <span className="hn-st-label">
                 {column.label}
-                {column.filter ? <img src={a.colFilter} alt="" width={34} height={34} /> : null}
+                {column.filter ? <ColumnFilter
+                    label={column.label}
+                    value={filters[column.key] ?? ""}
+                    samples={baseRows.map((row) => row.text[column.key])}
+                    onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
+                  /> : null}
               </span>
               <input
                 className="col-input"
                 aria-label={`${column.label} filtern`}
-                value={filters[column.key] ?? ""}
-                onChange={(event) => setFilters((current) => ({ ...current, [column.key]: event.target.value }))}
+                {...filterInputProps(filters[column.key], (next) => setFilters((current) => ({ ...current, [column.key]: next })))}
               />
             </div>
           ))}
@@ -223,9 +209,7 @@ export function DataStep() {
                   {capturedWhen(fee.createdAt)}
                   <small>{fee.createdBy}</small>
                 </span>
-                <button type="button" className="hn-st-menu" aria-label="Aktionen">
-                  <Icon src={a.contextMenu} size={24} />
-                </button>
+                <ProfileDueMenu />
               </div>
             </div>
           );

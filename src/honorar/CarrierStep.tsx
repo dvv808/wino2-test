@@ -10,6 +10,13 @@ function money(value: number) {
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${frac}`;
 }
 
+const NEXT_STEPS = [
+  "Datenträger herunterladen und",
+  "in BMD importieren.",
+  "Rechnungen in BMD erfassen.",
+  "An Wino senden und mit Schritt 3. Rechnungsversand weitermachen.",
+];
+
 function createdLine(iso: string, user: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return `Erstellt von ${user}`;
@@ -19,8 +26,13 @@ function createdLine(iso: string, user: string) {
 
 export function CarrierStep() {
   const { finanzenMonth, openFinanzenStep } = useWorkflow();
-  const { state, createCarrier, handToBmd } = useHonorar();
+  const { state, createCarrier, handToBmd, setStepDone, setCarrierTick } = useHonorar();
   const [ask, setAsk] = useState(false);
+  const ticks = NEXT_STEPS.map((_, i) => state.carrierTicks[finanzenMonth]?.[i] ?? false);
+
+  function toggleStep(index: number) {
+    setCarrierTick(finanzenMonth, index, !ticks[index], NEXT_STEPS.length);
+  }
 
   const fees = feesOfMonth(state, finanzenMonth);
   const sum = totals(fees);
@@ -31,6 +43,7 @@ export function CarrierStep() {
   const handed = state.history.some(
     (entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action === "Datenträger übermittelt",
   );
+  const dataDone = Boolean(month?.steps.data);
   const partnerWord = fees.length === 1 ? "Partner" : "Partnern";
 
   function confirm() {
@@ -39,7 +52,11 @@ export function CarrierStep() {
   }
 
   function submitCarrier() {
-    handToBmd(finanzenMonth);
+    if (!handed && !month?.closed) {
+      handToBmd(finanzenMonth);
+      // Handing over does not tick off the checklist: step 2 stays open until every box is ticked.
+      if (!ticks.every(Boolean)) setStepDone(finanzenMonth, "dataCarrier", false);
+    }
     openFinanzenStep("dispatch");
   }
 
@@ -74,7 +91,7 @@ export function CarrierStep() {
         <>
         <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
           <p className="hn-carrier-done-title">
-            <img src={a.hnCarrierCheck} alt="" width={24} height={24} />
+            <img src={a.confirm} alt="" width={24} height={24} />
             Datenträger erstellt. Jetzt in BMD weiter verarbeiten.
           </p>
           <p className="hn-carrier-done-meta">{createdLine(created.timestamp, created.user)}</p>
@@ -87,11 +104,27 @@ export function CarrierStep() {
             Datenträger herunterladen
           </button>
         </article>
-        {handed || month?.closed ? null : (
-          <button type="button" className="hn-carrier-submit" onClick={submitCarrier}>
-            Datenträger übermitteln
+        <section className="hn-next-steps" aria-label="Nächste Schritte">
+          <h3>Nächste Schritte.</h3>
+          <ol>
+            {NEXT_STEPS.map((label, index) => (
+              <li key={label}>
+                <label className="hn-tickbox">
+                  <input type="checkbox" checked={ticks[index]} onChange={() => toggleStep(index)} />
+                  <span className="hn-tickbox-box" aria-hidden>
+                    {ticks[index] ? <img src={a.hnCheckTick} alt="" width={16} height={16} /> : null}
+                  </span>
+                  <span className="hn-tickbox-label">
+                    {index + 1}. {label}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ol>
+          <button type="button" className="hn-carrier-submit" disabled={!ticks.every(Boolean)} onClick={submitCarrier}>
+            Weiter zu Schritt 3
           </button>
-        )}
+        </section>
         </>
       ) : (
         <div className="hn-carrier-stage">
@@ -109,11 +142,17 @@ export function CarrierStep() {
           <p className="hn-carrier-copy">
             Vergewissere dich das in Schritt 1 alles Vollständig ist und erstelle dann den Datenträger.
           </p>
-          <button type="button" className="hn-carrier-primary" onClick={() => setAsk(true)}>
+          {dataDone ? null : (
+            <p className="hn-carrier-hint">
+              <img src={a.onhold} alt="" width={16} height={16} />
+              Markiere zuerst in Schritt 1 „Daten erfassen“ als Fertig.
+            </p>
+          )}
+          <button type="button" className="hn-carrier-primary" disabled={!dataDone} onClick={() => setAsk(true)}>
             <img src={a.hnCarrierFiles} alt="" width={11.6918} height={14} />
             Datenträger erstellen
           </button>
-          <button type="button" className="hn-carrier-secondary">
+          <button type="button" className="hn-carrier-secondary" disabled={!dataDone}>
             <img src={a.download} alt="" width={14.5} height={13.6583} />
             Datenträger importieren
           </button>

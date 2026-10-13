@@ -49,7 +49,15 @@ function loadState(): HonorarState {
       fees: keepOpenFlags(seed.fees, parsed.fees),
       openItems: parsed.openItems ?? seed.openItems,
       corrections: parsed.corrections ?? seed.corrections,
-      singleInvoices: parsed.singleInvoices ?? seed.singleInvoices,
+      // Saved invoices stay; demo invoices are added for fees that have none yet.
+      singleInvoices: parsed.singleInvoices
+        ? [
+            ...parsed.singleInvoices,
+            ...seed.singleInvoices.filter(
+              (demo) => !parsed.singleInvoices!.some((saved) => saved.id === demo.id || saved.feeId === demo.feeId),
+            ),
+          ]
+        : seed.singleInvoices,
       history: keepListHistory(seed.history, parsed),
     };
   } catch {
@@ -91,6 +99,10 @@ function useHonorarState() {
       apply((prev) => t.patchFee(prev, ...args)),
     patchPartner: (...args: Parameters<typeof t.patchPartner> extends [HonorarState, ...infer Rest] ? Rest : never) =>
       apply((prev) => t.patchPartner(prev, ...args)),
+    setStepDone: (monthId: string, key: "data" | "dataCarrier", value: boolean) =>
+      asUser((prev, actor) => t.setStepDone(prev, monthId, key, value, actor)),
+    setCarrierTick: (monthId: string, index: number, value: boolean, total: number) =>
+      asUser((prev, actor) => t.setCarrierTick(prev, monthId, index, value, total, actor)),
     closeDataStep: (monthId: string) => asUser((prev, actor) => t.closeDataStep(prev, monthId, actor)),
     createCarrier: (monthId: string) => asUser((prev, actor) => t.createCarrier(prev, monthId, actor)),
     setChecklist: (key: keyof HonorarState["checklist"], value: boolean) =>
@@ -101,13 +113,22 @@ function useHonorarState() {
     loadBmd: (monthId: string, mismatches: boolean) => asUser((prev, actor) => t.loadBmd(prev, monthId, mismatches, actor)),
     importBmdCorrection: (monthId: string) => asUser((prev, actor) => t.importBmdCorrection(prev, monthId, actor)),
     realignFee: (feeId: string) => asUser((prev, actor) => t.realignFee(prev, feeId, actor)),
-    sendInvoices: (monthId: string) => asUser((prev, actor) => t.sendInvoices(prev, monthId, actor)),
+    sendInvoices: (monthId: string, again = false) => asUser((prev, actor) => t.sendInvoices(prev, monthId, actor, again)),
+    sendFeeMail: (feeId: string, email?: string) =>
+      asUser((prev, actor) => t.sendFeeMail(prev, feeId, actor, email)),
+    handPostToDispatch: (monthId: string) => asUser((prev, actor) => t.handPostToDispatch(prev, monthId, actor)),
+    logPostDownload: (monthId: string) => asUser((prev, actor) => t.logPostDownload(prev, monthId, actor)),
+    setPostSent: (feeId: string, sent: boolean) => asUser((prev, actor) => t.setPostSent(prev, feeId, sent, actor)),
     bounceMail: (feeId: string) => asUser((prev, actor) => t.bounceMail(prev, feeId, actor)),
     resendInvoice: (feeId: string, byPost: boolean) => asUser((prev, actor) => t.resendInvoice(prev, feeId, byPost, actor)),
     closeMonth: (monthId: string) => asUser((prev, actor) => t.closeMonth(prev, monthId, actor)),
+    simulateOverdue: (monthId: string) => asUser((prev, actor) => t.simulateOverdue(prev, monthId, actor)),
     exceedDueDates: () => apply((prev) => t.exceedDueDates(prev)),
     sepaChargeback: (feeId: string) => asUser((prev, actor) => t.sepaChargeback(prev, feeId, actor)),
     sendReminder: (itemId: string) => asUser((prev, actor) => t.sendReminder(prev, itemId, actor)),
+    sendPaymentReminders: (monthId: string, feeIds?: string[], email?: string) =>
+      asUser((prev, actor) => t.sendPaymentReminders(prev, monthId, actor, feeIds, email)),
+    clearPaymentReminder: (feeId: string) => asUser((prev, actor) => t.clearPaymentReminder(prev, feeId, actor)),
     reminderOverdue: (itemId: string) => asUser((prev, actor) => t.reminderOverdue(prev, itemId, actor)),
     bookOpenPayment: (itemId: string, amount: number) =>
       asUser((prev, actor) => t.bookOpenPayment(prev, itemId, amount, actor)),
@@ -131,8 +152,8 @@ function useHonorarState() {
     approveCorrection: (correctionId: string) => asUser((prev, actor) => t.approveCorrection(prev, correctionId, actor)),
     moveFeeToSingleInvoice: (feeId: string) => asUser((prev, actor) => t.moveFeeToSingleInvoice(prev, feeId, actor)),
     hideOpenFee: (feeId: string) => asUser((prev, actor) => t.hideOpenFee(prev, feeId, actor)),
-    grantSingleCredit: (invoiceId: string, amount: number, comment: string) =>
-      asUser((prev, actor) => t.grantSingleCredit(prev, invoiceId, amount, comment, actor)),
+    grantSingleCredit: (invoiceId: string, amount: number, comment: string, dueDate?: string) =>
+      asUser((prev, actor) => t.grantSingleCredit(prev, invoiceId, amount, comment, actor, dueDate)),
     clearSingleInvoices: () => asUser((prev, actor) => t.clearSingleInvoices(prev, actor)),
     sendSingleInvoice: (invoiceId: string) => asUser((prev, actor) => t.sendSingleInvoice(prev, invoiceId, actor)),
     simulateLastWorkingDay: () => apply((prev) => t.simulateLastWorkingDay(prev)),

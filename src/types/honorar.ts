@@ -20,7 +20,7 @@ export type CorrectionStatus = "draft" | "in_approval" | "reset" | "approved";
 
 export type HonorarRole = "backoffice" | "advisor" | "head" | "approver";
 
-export type HonorarStepKey = "status" | "data" | "carrier" | "dispatch";
+export type HonorarStepKey = "status" | "data" | "carrier" | "dispatch" | "reminders";
 
 export type FinanzenPage = "month" | "openItems" | "singleInvoices" | "inkasso" | "meinBereich";
 
@@ -54,8 +54,16 @@ export interface Fee {
   invoiceStatus: InvoiceStatus;
   sentAt?: string;
   sentTo?: string;
+  /** One-time mail address for this invoice. The partner's own address stays untouched. */
+  mailTo?: string;
   paymentStatus: PaymentStatus;
+  /** Set once a payment reminder (Zahlungserinnerung) went out for this invoice. */
+  reminderSentAt?: string;
   paymentReason?: PaymentReason;
+  /** Paid, but only after a reminder or after two months. */
+  paidLate?: "reminder" | "two_months";
+  /** A Gutschrift was granted for this invoice (seed data; granted single invoices count as well), with the amount. */
+  creditAmount?: number;
   watched?: boolean;
   bmd?: { amount: number; address: string; email: string; servicePeriod: string };
   createdAt: string;
@@ -106,6 +114,10 @@ export interface SingleInvoice {
   comment?: string;
   grantedAt?: string;
   grantedBy?: string;
+  /** New Zahlungsziel (YYYY-MM-DD) set when the invoice was moved here from Offene Posten. */
+  dueDate?: string;
+  /** The Zahlungsziel before it was changed (YYYY-MM-DD). */
+  dueDateOriginal?: string;
 }
 
 export interface HistoryEntry {
@@ -140,5 +152,7 @@ export interface HonorarState {
   importedFileName?: string;
   carrierFileName?: string;
   checklist: { count: boolean; sum: boolean; banks: boolean };
+  /** Ticked "Nächste Schritte" of step 2 per month. All ticked finishes step 2. */
+  carrierTicks: Record<string, boolean[]>;
   bmdCorrectionImported?: boolean;
 }

@@ -92,7 +92,7 @@ function ContactCard() {
   );
 }
 
-function HonorarCard() {
+export function HonorarCard({ onEdit }: { onEdit?: () => void } = {}) {
   const {
     model,
     modelLabel,
@@ -115,7 +115,7 @@ function HonorarCard() {
     <>
       <div className="card-head">
         <h3>Honoroar Modell</h3>
-        <EditLink />
+        <EditLink onClick={onEdit} />
       </div>
       <div className="model-row">
         <div className="model-meta">

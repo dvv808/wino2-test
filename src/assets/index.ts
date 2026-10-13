@@ -116,6 +116,7 @@ export { default as hnMenuUser } from "./icons/hn-menu-user.svg";
 export { default as hnMenuDelete } from "./icons/hn-menu-delete.svg";
 export { default as hnAttention } from "./icons/hn-attention.svg";
 export { default as tickbox } from "./icons/tickbox.svg";
+export { default as hnCheckTick } from "./icons/hn-check-tick.svg";
 export { default as searchDark } from "./icons/search-dark.svg";
 export { default as colFilter } from "./icons/col-filter.svg";
 export { default as warningCircle } from "./icons/warning-circle.svg";

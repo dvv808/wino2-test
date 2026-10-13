@@ -150,9 +150,9 @@ export function WarnBox({ children }: { children: ReactNode }) {
   );
 }
 
-export function EditLink({ label = "anpassen" }: { label?: string }) {
+export function EditLink({ label = "anpassen", onClick }: { label?: string; onClick?: () => void }) {
   return (
-    <button type="button" className="edit-link">
+    <button type="button" className="edit-link" onClick={onClick}>
       <Icon src={a.edit} size={20} />
       {label}
     </button>

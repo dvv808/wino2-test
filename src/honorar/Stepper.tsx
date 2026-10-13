@@ -2,19 +2,20 @@ import * as a from "../assets/index";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import type { HonorarStepKey } from "../types/honorar";
-import { monthOf } from "../lib/honorar/queries";
+import { feesOfMonth, monthOf, reminderCandidates } from "../lib/honorar/queries";
 import { useHonorar } from "./store";
 
 const STEPS: {
   id: HonorarStepKey;
   label: string;
   n?: string;
-  doneKey: "status" | "data" | "dataCarrier" | "dispatch";
+  doneKey: "status" | "data" | "dataCarrier" | "dispatch" | "reminders";
 }[] = [
   { id: "status", label: "Status zu Rechnungen", doneKey: "status" },
   { id: "data", label: "Daten erfassen", n: "1", doneKey: "data" },
   { id: "carrier", label: "Datenträger erstellen", n: "2", doneKey: "dataCarrier" },
-  { id: "dispatch", label: "Empfangene Daten verarbeiten", n: "3", doneKey: "dispatch" },
+  { id: "dispatch", label: "Rechnungsversand", n: "3", doneKey: "dispatch" },
+  { id: "reminders", label: "Zahlungserinnerungen (Rechnungen)", n: "4", doneKey: "reminders" },
 ];
 
 export function HonorarStepper() {
@@ -23,7 +24,14 @@ export function HonorarStepper() {
   const month = monthOf(state, finanzenMonth);
 
   if (!month) return null;
-  const done = month.steps;
+  const overdue = reminderCandidates(state, finanzenMonth);
+  const fees = feesOfMonth(state, finanzenMonth);
+  const done = {
+    ...month.steps,
+    // Step 3 is finished as soon as every invoice of the month has been sent.
+    dispatch: month.steps.dispatch || (fees.length > 0 && fees.every((fee) => fee.invoiceStatus === "sent")),
+    reminders: overdue.length > 0 && overdue.every((fee) => fee.reminderSentAt),
+  };
 
   return (
     <div className="stepper-wrap">

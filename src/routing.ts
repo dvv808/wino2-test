@@ -6,7 +6,7 @@ import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
 
 /** Profil is the default person module; Workflows & To-Dos is the advisor inbox. */
 export type PersonModule = "profil" | "workflows";
-export type PersonArea = "stammdaten" | "maklermandat";
+export type PersonArea = "stammdaten" | "maklermandat" | "inkasso";
 
 /**
  * URLs mirror the app's nesting: the open person tab, the open workflow tab, then the page.
@@ -18,6 +18,7 @@ const FINANZEN = "bestandsmanager/finanzen";
 /** The profile page opens on Stammdaten; Ashley's file opens on Maklermandat. */
 const PERSON_AREA = "stammdaten";
 const ASHLEY_AREA = "maklermandat";
+const INKASSO_AREA = "inkasso";
 const PERSON_WORKFLOWS = "workflows-to-dos";
 const STAMMDATEN_WORKFLOW = "stammdaten-workflow";
 
@@ -71,6 +72,7 @@ const FINANZEN_STEP_SLUGS: Record<HonorarStepKey, string> = {
   data: "daten",
   carrier: "datentraeger",
   dispatch: "versand",
+  reminders: "erinnerungen",
 };
 
 const FINANZEN_STEP_BY_SLUG = new Map(
@@ -120,6 +122,7 @@ export function routeToHash({
   if (view === "person") {
     const root = personRoot(partnerId);
     if (personModule === "workflows") return `#/${root}/${PERSON_WORKFLOWS}`;
+    if (personArea === "inkasso") return `#/${root}/${INKASSO_AREA}`;
     if (partnerId === "ashley" && personArea !== "stammdaten") return `#/${root}/${ASHLEY_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
@@ -177,7 +180,8 @@ export function hashToRoute(hash: string): Route {
       view: "person",
       partnerId: partnerOf(parts),
       personModule: "profil",
-      personArea: parts[2] === ASHLEY_AREA ? "maklermandat" : "stammdaten",
+      personArea:
+        parts[2] === INKASSO_AREA ? "inkasso" : parts[2] === ASHLEY_AREA ? "maklermandat" : "stammdaten",
     };
   }
   const last = parts[parts.length - 1] ?? "";

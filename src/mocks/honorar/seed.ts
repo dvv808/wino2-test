@@ -1,5 +1,5 @@
 import * as a from "../../assets/index";
-import type { Fee, HistoryEntry, HonorarState, Month, OpenItem, Partner } from "../../types/honorar";
+import type { Fee, HistoryEntry, HonorarState, Month, OpenItem, Partner, SingleInvoice } from "../../types/honorar";
 
 const YEAR = 2027;
 const TODAY = "2027-04-10";
@@ -187,11 +187,83 @@ const marchFees: Fee[] = [
   marchFee("ava", 120, 0, "Abbucher", "Single", "unpaid", { paymentReason: "direct_debit_failed" }),
   marchFee("bella", 120, 20, "Abbucher", "Single", "unpaid", { paymentReason: "amount_mismatch" }),
   marchFee("caleb", 120, 120, "Überweisung", "Single", "paid"),
-  marchFee("charlotte", 120, 120, "Abbucher", "Single", "paid"),
+  marchFee("charlotte", 120, 120, "Abbucher", "Single", "paid", { creditAmount: 30 }),
   marchFee("brown", 2000, 2000, "Überweisung", "Business", "paid"),
   marchFee("gavin", 120, 0, "Überweisung", "Single", "unpaid", { paymentReason: "due_date_exceeded" }),
   marchFee("gartner", 3000, 3000, "Abbucher", "Business", "paid"),
   marchFee("hofer", 2000, 0, "Überweisung", "Business", "open_before_due", { dueDate: "2027-04-15" }),
+];
+
+/** Older unpaid invoices so that Offene Posten has a realistic list (3 from March + 12 here). */
+function olderFee(
+  month: "2027-01" | "2027-02",
+  partnerId: string,
+  amount: number,
+  paid: number,
+  paymentMethod: Fee["paymentMethod"],
+  tariff: Fee["tariff"],
+  paymentReason: NonNullable<Fee["paymentReason"]>,
+  extras: Partial<Fee> = {},
+): Fee {
+  const partner = partners.find((entry) => entry.id === partnerId)!;
+  const [, mm] = month.split("-");
+  const last = mm === "01" ? "31" : "28";
+  return {
+    id: `fee-${month}-${partnerId}`,
+    partnerId,
+    month,
+    servicePeriod: `01.${mm}.2027 – ${last}.${mm}.2027`,
+    extraFields: { Thomas: "", Maria: "" },
+    amount,
+    paid,
+    tariff,
+    paymentMethod,
+    dueDate: `2027-${mm}-${last}`,
+    invoiceStatus: "sent",
+    sentAt: `2027-${mm}-12T13:33:00`,
+    sentTo: partner.email,
+    paymentStatus: "unpaid",
+    paymentReason,
+    createdAt: `2027-${mm}-12T13:33:00`,
+    createdBy: PEOPLE.mike,
+    ...extras,
+  };
+}
+
+/** Invoices of earlier months that were paid late. */
+function paidLateFee(
+  month: "2027-01" | "2027-02",
+  partnerId: string,
+  amount: number,
+  paymentMethod: Fee["paymentMethod"],
+  tariff: Fee["tariff"],
+  paidLate: NonNullable<Fee["paidLate"]>,
+): Fee {
+  return olderFee(month, partnerId, amount, amount, paymentMethod, tariff, "due_date_exceeded", {
+    paymentStatus: "paid",
+    paymentReason: undefined,
+    paidLate,
+    // Paid after a reminder means that a reminder went out first.
+    ...(paidLate === "reminder" ? { reminderSentAt: `2027-${month === "2027-01" ? "02" : "03"}-12T09:00:00` } : {}),
+  });
+}
+
+const olderUnpaidFees: Fee[] = [
+  olderFee("2027-01", "ava", 120, 0, "Abbucher", "Single", "direct_debit_failed", { reminderSentAt: "2027-02-12T09:00:00" }),
+  olderFee("2027-01", "bella", 120, 40, "Überweisung", "Single", "amount_mismatch", { creditAmount: 40 }),
+  olderFee("2027-01", "gavin", 120, 0, "Überweisung", "Single", "due_date_exceeded", { reminderSentAt: "2027-02-12T09:00:00" }),
+  olderFee("2027-01", "brown", 2000, 0, "Überweisung", "Business", "due_date_exceeded"),
+  olderFee("2027-01", "hofer", 2000, 500, "Überweisung", "Business", "amount_mismatch"),
+  olderFee("2027-01", "charlotte", 120, 0, "Abbucher", "Single", "sepa_chargeback"),
+  olderFee("2027-02", "ava", 120, 0, "Abbucher", "Single", "direct_debit_failed", { reminderSentAt: "2027-03-12T09:00:00" }),
+  olderFee("2027-02", "gartner", 3000, 0, "Abbucher", "Business", "sepa_chargeback"),
+  olderFee("2027-02", "gavin", 120, 0, "Überweisung", "Single", "due_date_exceeded", { creditAmount: 60 }),
+  olderFee("2027-01", "caleb", 120, 0, "Überweisung", "Single", "due_date_exceeded"),
+  olderFee("2027-02", "bella", 120, 60, "Überweisung", "Single", "amount_mismatch", { reminderSentAt: "2027-03-12T09:00:00" }),
+  olderFee("2027-02", "charlotte", 120, 0, "Abbucher", "Single", "direct_debit_failed"),
+  paidLateFee("2027-01", "gartner", 3000, "Abbucher", "Business", "reminder"),
+  paidLateFee("2027-02", "brown", 2000, "Überweisung", "Business", "reminder"),
+  paidLateFee("2027-02", "hofer", 2000, "Überweisung", "Business", "two_months"),
 ];
 
 const februaryOpenItem: OpenItem = {
@@ -270,19 +342,92 @@ function aprilFees(): Fee[] {
   }));
 }
 
+/**
+ * Sammelfaktura examples: new Zahlungsziel (paid and unpaid), credits, and combinations.
+ * Their fees get the new due date in createSeedState.
+ */
+function demoInvoice(
+  key: string,
+  feeId: string,
+  partnerId: string,
+  amount: number,
+  month: string,
+  dueDateOriginal: string,
+  extras: Partial<SingleInvoice>,
+): SingleInvoice {
+  return {
+    id: `inv-seed-${key}`,
+    correctionId: "",
+    feeId,
+    partnerId,
+    amount,
+    kind: "Sammelfaktura/Gutschrift",
+    status: "open",
+    month,
+    dueDateOriginal,
+    grantedBy: PEOPLE.lucy,
+    ...extras,
+  };
+}
+
+const demoSingleInvoices: SingleInvoice[] = [
+  demoInvoice("brown-feb", "fee-2027-02-brown", "brown", 2000, "2027-02", "2027-02-28", {
+    dueDate: "2027-03-31",
+    grantedAt: "2027-02-20T10:15:00",
+    comment: "Zahlungsziel verlängert, Partner hat nach der Erinnerung bezahlt.",
+  }),
+  demoInvoice("gartner-jan", "fee-2027-01-gartner", "gartner", 3000, "2027-01", "2027-01-31", {
+    dueDate: "2027-02-28",
+    grantedAt: "2027-01-25T09:40:00",
+    comment: "Zahlungsziel um einen Monat verlängert.",
+  }),
+  demoInvoice("caleb-jan", "fee-2027-01-caleb", "caleb", 120, "2027-01", "2027-01-31", {
+    dueDate: "2027-04-30",
+    grantedAt: "2027-02-03T14:05:00",
+    comment: "Neues Zahlungsziel nach Rücksprache mit dem Partner.",
+  }),
+  demoInvoice("charlotte-feb", "fee-2027-02-charlotte", "charlotte", 120, "2027-02", "2027-02-28", {
+    credit: 40,
+    dueDate: "2027-04-15",
+    grantedAt: "2027-03-05T11:20:00",
+    comment: "Teilgutschrift und neues Zahlungsziel vereinbart.",
+  }),
+  demoInvoice("hofer-mar", "fee-2027-03-hofer", "hofer", 2000, "2027-03", "2027-04-15", {
+    dueDate: "2027-05-15",
+    grantedAt: "2027-03-18T16:00:00",
+    comment: "Zahlungsziel auf Wunsch verschoben.",
+  }),
+  demoInvoice("hofer-feb", "fee-2027-02-hofer", "hofer", 2000, "2027-02", "2027-02-28", {
+    credit: 100,
+    dueDate: "2027-03-31",
+    grantedAt: "2027-03-02T10:00:00",
+    comment: "Gutschrift und Zahlungsziel angepasst, danach bezahlt.",
+  }),
+];
+
 export function createSeedState(testMode = false): HonorarState {
+  const changedDue = new Map(demoSingleInvoices.map((invoice) => [invoice.feeId, invoice.dueDate]));
   return {
     today: TODAY,
     role: "backoffice",
     testMode,
     months: months(),
     partners: partners.map((partner) => ({ ...partner })),
-    fees: [...marchFees.map((fee) => ({ ...fee })), ...aprilFees()],
+    fees: [...olderUnpaidFees.map((fee) => ({ ...fee })), ...marchFees.map((fee) => ({ ...fee })), ...aprilFees()].map(
+      (fee) => {
+        const due = changedDue.get(fee.id);
+        if (!due) return fee;
+        // A new due date in the future means the fee is no longer overdue.
+        const status = fee.paymentStatus === "unpaid" && due >= TODAY ? ("open_before_due" as const) : fee.paymentStatus;
+        return { ...fee, dueDate: due, paymentStatus: status };
+      },
+    ),
     openItems: [{ ...februaryOpenItem }],
     corrections: [],
-    singleInvoices: [],
+    singleInvoices: demoSingleInvoices.map((invoice) => ({ ...invoice })),
     history: history.map((entry) => ({ ...entry })),
     notices: [],
     checklist: { count: false, sum: false, banks: false },
+    carrierTicks: {},
   };
 }

@@ -230,6 +230,8 @@ function useWorkflowState() {
   const [pdfOpen, setPdfOpen] = useState(false);
 
   const [view, setView] = useState<View>(initialRoute.view);
+  /** A partner profile opened from the Forderungen tables stays as a second tab next to the Management tab. */
+  const [finanzenProfileOpen, setFinanzenProfileOpen] = useState(false);
   const [finanzenPage, setFinanzenPage] = useState<FinanzenPage>(initialRoute.finanzenPage ?? "month");
   const [finanzenMonth, setFinanzenMonth] = useState(initialRoute.finanzenMonth ?? "2027-04");
   const [finanzenStep, setFinanzenStep] = useState<HonorarStepKey>(initialRoute.finanzenStep ?? "status");
@@ -542,6 +544,7 @@ function useWorkflowState() {
 
   /** Back to the workflow. Undecided requests stay pending. */
   function exitToWorkflow(step?: ApprovalStep) {
+    setFinanzenProfileOpen(false);
     const target = step ?? returnStep;
     if (target) setActiveStep(target);
     setReturnStep(null);
@@ -582,6 +585,38 @@ function useWorkflowState() {
     setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
     setVersionHistoryOpen(false);
     setView("person");
+  }
+
+  /** From the Honorar tables: the partner's profile, Inkasso area (Zahlungsziel lives there). */
+  function openPartnerInkasso(id: PartnerId = "julia") {
+    setFilePartnerId(id);
+    setPersonModule("profil");
+    setPersonArea("inkasso");
+    setVersionHistoryOpen(false);
+    setFinanzenProfileOpen(true);
+    setView("person");
+  }
+
+  /** From a failed direct debit: the partner's profile, Stammdaten, Bankverbindung section. */
+  function openPartnerBank(id: PartnerId = "julia") {
+    setFilePartnerId(id);
+    setPersonModule("profil");
+    setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
+    setVersionHistoryOpen(false);
+    setFinanzenProfileOpen(true);
+    setView("person");
+    window.setTimeout(() => document.getElementById("bankverbindungen")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+  }
+
+  /** Back to the Forderungen tab, the parked profile tab stays open. */
+  function backToFinanzen() {
+    setView("finanzen");
+  }
+
+  /** Closes only the profile tab and returns to the Forderungen tab. */
+  function closeFinanzenProfile() {
+    setFinanzenProfileOpen(false);
+    setView("finanzen");
   }
 
   function openPersonArea(area: PersonArea) {
@@ -1032,6 +1067,11 @@ function useWorkflowState() {
     openPerson,
     filePartnerId,
     openPartner,
+    openPartnerInkasso,
+    openPartnerBank,
+    finanzenProfileOpen,
+    backToFinanzen,
+    closeFinanzenProfile,
     ashleyConverted,
     convertAshley,
     personModule,

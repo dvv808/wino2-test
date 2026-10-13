@@ -13,7 +13,7 @@ const MODULES = [
 ];
 
 /** The management-area glyph is a shelf over a person, two layers in Figma. */
-function ManagementAreaIcon() {
+export function ManagementAreaIcon() {
   return (
     <span className="mgmt-icon">
       <img src={a.mgmtAreaShelf} alt="" />
@@ -26,9 +26,12 @@ function ManagementAreaIcon() {
 export function BestandMainNav({
   partner,
   onClosePartner,
+  onOpenPartner,
 }: {
   partner?: string;
   onClosePartner?: () => void;
+  /** Makes the partner tab a button that switches to the partner's file. */
+  onOpenPartner?: () => void;
 } = {}) {
   const { leaveManager } = useWorkflow();
 
@@ -57,11 +60,17 @@ export function BestandMainNav({
           <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
         </div>
         {partner ? (
-          <div className="person-tab">
+          <div className={onOpenPartner ? "person-tab inactive" : "person-tab"}>
             <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
             <span className="person-tab-body">
               <Icon src={a.person} size={24} />
-              {partner}
+              {onOpenPartner ? (
+                <button type="button" className="person-tab-open" onClick={onOpenPartner}>
+                  {partner}
+                </button>
+              ) : (
+                partner
+              )}
               <button
                 type="button"
                 className="close-icon"

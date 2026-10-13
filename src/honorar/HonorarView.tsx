@@ -11,6 +11,7 @@ import { InkassoPage } from "./InkassoPage";
 import { OpenItemsPage } from "./OpenItemsPage";
 import { HonorarSidebar } from "./Sidebar";
 import { SingleInvoicesPage } from "./SingleInvoicesPage";
+import { ReminderStep } from "./ReminderStep";
 import { StatusStep } from "./StatusStep";
 import { HonorarStepper } from "./Stepper";
 import { TestPanel } from "./TestPanel";
@@ -31,11 +32,11 @@ export function FinanzenModuleNav() {
       </button>
       <button type="button" className="module-pill active">
         <Icon src={a.navRequest} size={24} />
-        Inkasso Forderungen
+        Forderungen
       </button>
       <button type="button" className="module-pill">
         <Icon src={a.navBank} size={24} />
-        Inkasso Verbindlichkeiten
+        Verbindlichkeiten
       </button>
       <div className="module-group">
         <button type="button" className="module-pill ghost">
@@ -89,7 +90,8 @@ export function FinanzenModuleNav() {
 
 export function HonorarView() {
   const { state } = useHonorar();
-  const { finanzenPage, finanzenMonth, finanzenStep } = useWorkflow();
+  const { finanzenPage, finanzenMonth, finanzenStep, finanzenProfileOpen, personName, openPerson, closeFinanzenProfile } =
+    useWorkflow();
   const [history, setHistory] = useState(false);
   const monthEntries = state.history.filter((entry) => entry.refType === "month" && entry.refId === finanzenMonth);
 
@@ -104,7 +106,11 @@ export function HonorarView() {
   return (
     <div className="app">
       <div className="shell">
-        <BestandMainNav />
+        <BestandMainNav
+          {...(finanzenProfileOpen
+            ? { partner: personName, onOpenPartner: openPerson, onClosePartner: closeFinanzenProfile }
+            : {})}
+        />
         <FinanzenAreaNav />
         <FinanzenModuleNav />
         <div className="content-shell bestand-body">
@@ -115,6 +121,7 @@ export function HonorarView() {
             {finanzenPage === "month" && finanzenStep === "data" ? <DataStep /> : null}
             {finanzenPage === "month" && finanzenStep === "carrier" ? <CarrierStep /> : null}
             {finanzenPage === "month" && finanzenStep === "dispatch" ? <DispatchStep /> : null}
+            {finanzenPage === "month" && finanzenStep === "reminders" ? <ReminderStep /> : null}
             {finanzenPage === "openItems" ? <OpenItemsPage /> : null}
             {finanzenPage === "singleInvoices" ? <SingleInvoicesPage /> : null}
             {finanzenPage === "inkasso" ? <InkassoPage /> : null}

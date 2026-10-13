@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { Icon } from "../ui";
+import { useWorkflow } from "../workflow";
 import type { OpenItemStatus, PaymentStatus } from "../types/honorar";
 
 export function ConfirmModal({
@@ -226,4 +227,115 @@ export function EmptyState({ title, text }: { title: string; text: string }) {
 
 export function StickyBar({ children }: { children: ReactNode }) {
   return <div className="hn-sticky">{children}</div>;
+}
+
+export type StatFilter = "open" | "done" | "credit" | "due" | "paid" | null;
+
+export type StatExtra = { kind: "credit" | "due" | "paid"; label: string; count: number; icon: string };
+
+/**
+ * Filter cards above a table. The dark card is the active filter, the grey one is inactive.
+ * Clicking the active card clears the filter again (table shows everything).
+ */
+export function StatCards({
+  open,
+  done,
+  unit,
+  doneLabel = "Abgeschl.",
+  extra = [],
+  trailing = [],
+  value,
+  onChange,
+}: {
+  extra?: StatExtra[];
+  /** Cards shown after the "done" card. */
+  trailing?: StatExtra[];
+  open: number;
+  done: number;
+  unit: string;
+  doneLabel?: string;
+  value: StatFilter;
+  onChange: (value: StatFilter) => void;
+}) {
+  const card = (kind: "open" | "done" | "credit" | "due" | "paid", label: string, count: number, icon: string) => (
+    <button
+      type="button"
+      className={value === kind ? "stat-card dark" : "stat-card"}
+      aria-pressed={value === kind}
+      onClick={() => onChange(value === kind ? null : kind)}
+    >
+      <span className="stat-copy">
+        <small>{label}</small>
+        <strong>{String(count).padStart(2, "0")}</strong>
+        <span>{unit}</span>
+      </span>
+      <span className="stat-icon">
+        <Icon src={icon} size={16} />
+      </span>
+    </button>
+  );
+  return (
+    <div className="hn-stats">
+      {card("open", "Offen", open, a.onhold)}
+      {extra.map((entry) => card(entry.kind, entry.label, entry.count, entry.icon))}
+      {card("done", doneLabel, done, a.confirm)}
+      {trailing.map((entry) => card(entry.kind, entry.label, entry.count, entry.icon))}
+    </div>
+  );
+}
+
+/** Row menu for tables that only offer the profile shortcut. */
+export function ProfileDueMenu() {
+  const { openPartnerInkasso } = useWorkflow();
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const away = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setPos(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPos(null);
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [pos]);
+
+  return (
+    <>
+      <button
+        type="button"
+        className="hn-st-menu"
+        aria-label="Aktionen"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          setPos({ top: rect.bottom + 4, left: Math.max(8, rect.right - 260) });
+        }}
+      >
+        <Icon src={a.contextMenu} size={24} />
+      </button>
+      {pos ? (
+        <div className="hn-row-menu wide" ref={ref} role="menu" style={{ top: pos.top, left: pos.left }}>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setPos(null);
+              openPartnerInkasso();
+            }}
+          >
+            <span className="hn-menu-ico">
+              <Icon src={a.calendar} size={18} />
+            </span>
+            Zahlungsziel im Profil anpassen
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }

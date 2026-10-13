@@ -2,19 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 import * as a from "../assets/index";
 import { formatDate, monthLabel, servicePeriod } from "../lib/honorar/format";
 import { missingFields, partnerOf } from "../lib/honorar/queries";
-import type { Fee, HistoryEntry, Partner, SingleInvoice } from "../types/honorar";
+import type { Fee, HistoryEntry, HonorarState, Partner, SingleInvoice } from "../types/honorar";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
-import { PartnerAvatar } from "./ui";
+import { clearPendingCredit, peekPendingCredit } from "./pendingCredit";
+import { INVOICE_FILE, InvoiceModal } from "./InvoiceModal";
+import { setFocusFee } from "./focusFee";
+import { PartnerAvatar, ProfileDueMenu, StatCards, type StatFilter } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
+  { key: "payment", label: "Status zur Zahlung", filter: true },
+  { key: "reminder", label: "Zahlungserinnerung", filter: true },
   { key: "due", label: "Fälligkeit", filter: true },
   { key: "method", label: "Zahlart / Leist.-zeitraum", filter: true },
-  { key: "payment", label: "Status zur Zahlung", filter: true },
+  { key: "invoice", label: "Original-Rechnung", filter: true },
   { key: "amount", label: "Zu zahlender Honorarbetrag", filter: true },
-  { key: "credit", label: "Gutschrift Einzelfaktura", filter: true },
+  { key: "credit", label: "Gutschrift zu Sammelfaktura", filter: true },
   { key: "balance", label: "Total Saldo Honorarbetrag", filter: true },
   { key: "captured", label: "Erfasst Begründung", filter: true },
 ] as const;
@@ -39,7 +45,11 @@ function partnerMeta(partner: Partner) {
   return [partner.birthDate, partner.nickname ? `(vulgo ${partner.nickname})` : ""].filter(Boolean).join(" ");
 }
 
-function dueDay(monthId: string) {
+function dueDay(monthId: string, invoice?: SingleInvoice) {
+  if (invoice?.dueDate) {
+    const [year, month, day] = invoice.dueDate.split("-");
+    return `${day}.${month}.${year}`;
+  }
   const month = monthId.split("-")[1] ?? "";
   return `01.${month}.`;
 }
@@ -49,12 +59,29 @@ function openAmount(invoice: SingleInvoice, fee?: Fee) {
 }
 
 function invoiceBalance(invoice: SingleInvoice, fee?: Fee) {
-  if (invoice.credit == null) return 0;
-  return Math.max(0, openAmount(invoice, fee) - invoice.credit);
+  return Math.max(0, openAmount(invoice, fee) - (invoice.credit ?? 0));
+}
+
+/** Paid means closed: nothing is left after payments and credit. */
+function isPaid(invoice: SingleInvoice, fee?: Fee) {
+  return invoiceBalance(invoice, fee) === 0;
+}
+
+function hasCredit(invoice: SingleInvoice) {
+  return (invoice.credit ?? 0) > 0;
+}
+
+type ReminderInfo = { sent: boolean; at?: string };
+
+function reminderOf(fee: Fee | undefined, state: HonorarState): ReminderInfo {
+  if (!fee) return { sent: false };
+  const at = fee.reminderSentAt ?? state.openItems.find((item) => item.feeId === fee.id)?.reminderSentAt;
+  if (at) return { sent: true, at };
+  return { sent: fee.paidLate === "reminder" };
 }
 
 function creditGrantMeta(invoice: SingleInvoice, history: HistoryEntry[]): GrantMeta | null {
-  if (invoice.credit == null) return null;
+  if (invoice.credit == null && !invoice.grantedAt) return null;
   if (invoice.grantedAt && invoice.grantedBy) {
     return { at: invoice.grantedAt, by: invoice.grantedBy, comment: invoice.comment ?? "" };
   }
@@ -79,34 +106,64 @@ function parseMoney(value: string) {
 }
 
 export function SingleInvoicesPage() {
-  const { finanzenMonth } = useWorkflow();
+  const { finanzenMonth, openFinanzen } = useWorkflow();
   const { state, grantSingleCredit } = useHonorar();
+  const [invoiceFeeId, setInvoiceFeeId] = useState<string | null>(null);
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [creditId, setCreditId] = useState<string | null>(null);
+  const [withDueDate, setWithDueDate] = useState(false);
+  const [stat, setStat] = useState<StatFilter>(null);
 
-  const openCount = state.singleInvoices.filter((invoice) => invoice.status === "open").length;
-  const closedCount = state.singleInvoices.filter((invoice) => invoice.status === "sent_to_bmd").length;
-  const rows = useMemo(() => {
+  // Coming from Offene Posten ("Zahlungsziel ändern"): open the credit overlay with the date field.
+  useEffect(() => {
+    const pending = peekPendingCredit();
+    if (!pending) return;
+    const invoice = state.singleInvoices.find((entry) => entry.feeId === pending.feeId);
+    if (!invoice) return;
+    clearPendingCredit();
+    setWithDueDate(pending.withDueDate);
+    setCreditId(invoice.id);
+  }, [state.singleInvoices]);
+
+  const feeOf = (invoice: SingleInvoice) => state.fees.find((entry) => entry.id === invoice.feeId);
+  const closedCount = state.singleInvoices.filter((invoice) => isPaid(invoice, feeOf(invoice))).length;
+  const openCount = state.singleInvoices.length - closedCount;
+  const creditCount = state.singleInvoices.filter(hasCredit).length;
+  const dueCount = state.singleInvoices.filter((invoice) => Boolean(invoice.dueDate)).length;
+  const baseRows = useMemo(() => {
     return state.singleInvoices
+      .filter((invoice) => {
+        if (stat === null) return true;
+        if (stat === "credit") return hasCredit(invoice);
+        if (stat === "due") return Boolean(invoice.dueDate);
+        return (stat === "done") === isPaid(invoice, feeOf(invoice));
+      })
       .map((invoice) => {
         const fee = state.fees.find((entry) => entry.id === invoice.feeId);
         const partner = partnerOf(state, invoice.partnerId);
         const month = invoice.month ?? fee?.month ?? finanzenMonth;
         const grant = creditGrantMeta(invoice, state.history);
         const balance = invoiceBalance(invoice, fee);
-        const unpaid = invoice.credit == null || balance > 0;
+        const unpaid = balance > 0;
+        const reminder = reminderOf(fee, state);
         const text: Record<ColumnKey, string> = {
           partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
-          due: `${monthLabel(month)} ${dueDay(month)}`,
+          due: `${monthLabel(month)} ${dueDay(month, invoice)}`,
           method: `${fee?.paymentMethod ?? ""} ${servicePeriod(month)}`,
           payment: [
-            unpaid ? "Rechnung nicht bezahlt" : "",
-            grant ? "Gutschrift wurde gewährt" : "Einzelfaktura/Gutschrift",
+            hasCredit(invoice) ? `Gutschrift gewährt (${money(invoice.credit ?? 0)} €)` : "",
+            invoice.dueDate ? `Neues Zahlungsziel ${dueDay(month, invoice)}` : "",
+            grant ? "" : "Sammelfaktura/Gutschrift",
+            unpaid ? "Rechnung nicht bezahlt" : "Bezahlt Abgeschlossen",
           ]
             .filter(Boolean)
             .join(" "),
+          reminder: reminder.sent
+            ? `Zahlungserinnerung versendet ${reminder.at ? formatDate(reminder.at) : ""}`
+            : "Keine Erinnerung",
+          invoice: fee ? INVOICE_FILE : "",
           amount: `${money(invoice.amount)} ${fee?.tariff ?? "Single"}`,
-          credit: invoice.credit == null ? "" : `${money(invoice.credit)} ${fee?.tariff ?? "Single"}`,
+          credit: !hasCredit(invoice) ? "" : `${money(invoice.credit ?? 0)} ${fee?.tariff ?? "Single"}`,
           balance: `${money(balance)} ${fee?.tariff ?? "Single"}`,
           captured: grant
             ? `${capturedWhen(grant.at)} ${grant.by} ${grant.comment}`
@@ -114,15 +171,13 @@ export function SingleInvoicesPage() {
               ? `${capturedWhen(fee.createdAt)} ${fee.createdBy}`
               : "",
         };
-        return { invoice, fee, partner, grant, text };
-      })
-      .filter((row) =>
-        COLUMNS.every((column) => {
-          const query = filters[column.key]?.trim().toLowerCase();
-          return !query || row.text[column.key].toLowerCase().includes(query);
-        }),
-      );
-  }, [filters, finanzenMonth, state]);
+        return { invoice, fee, partner, grant, reminder, text };
+      });
+  }, [finanzenMonth, state, stat]);
+  const rows = useMemo(
+    () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
+    [baseRows, filters],
+  );
   const dueSum = rows.reduce((sum, row) => sum + row.invoice.amount, 0);
   const balanceSum = rows.reduce((sum, row) => sum + invoiceBalance(row.invoice, row.fee), 0);
   const creditInvoice = state.singleInvoices.find((invoice) => invoice.id === creditId);
@@ -131,30 +186,19 @@ export function SingleInvoicesPage() {
     <section className="freigaben hn-panel hn-status">
       <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
       <p className="hn-month">{finanzenMonth.slice(0, 4)}</p>
-      <h2 className="hn-h2 hn-status-title">Einzelfaktura / Gutschriften</h2>
+      <h2 className="hn-h2 hn-status-title">Sammelfaktura</h2>
 
-      <div className="hn-stats">
-        <article className="stat-card dark">
-          <div className="stat-copy">
-            <small>Offen</small>
-            <strong>{String(openCount).padStart(2, "0")}</strong>
-            <span>Zahlungen</span>
-          </div>
-          <span className="stat-icon">
-            <Icon src={a.onhold} size={16} />
-          </span>
-        </article>
-        <article className="stat-card">
-          <div className="stat-copy">
-            <small>Abgeschl.</small>
-            <strong>{String(closedCount).padStart(2, "0")}</strong>
-            <span>Zahlungen</span>
-          </div>
-          <span className="stat-icon">
-            <Icon src={a.confirm} size={16} />
-          </span>
-        </article>
-      </div>
+      <StatCards
+        open={openCount}
+        done={closedCount}
+        unit="Zahlungen"
+        extra={[
+          { kind: "credit", label: "Gutschriften", count: creditCount, icon: a.docList },
+          { kind: "due", label: "Neues Zahlungsziel", count: dueCount, icon: a.calendar },
+        ]}
+        value={stat}
+        onChange={setStat}
+      />
 
       <div className="hn-status-tools">
         <button type="button" className="hn-drop">
@@ -163,19 +207,23 @@ export function SingleInvoicesPage() {
         </button>
       </div>
 
-      <div className="hn-status-table single" role="table" aria-label="Einzelfaktura / Gutschriften">
+      <div className="hn-status-table single" role="table" aria-label="Sammelfaktura">
         <div className="hn-st-head" role="row">
           {COLUMNS.map((column) => (
             <div className="hn-st-th" role="columnheader" key={column.key}>
               <span className="hn-st-label">
                 {column.label}
-                {column.filter ? <img src={a.colFilter} alt="" width={34} height={34} /> : null}
+                {column.filter ? <ColumnFilter
+                    label={column.label}
+                    value={filters[column.key] ?? ""}
+                    samples={baseRows.map((row) => row.text[column.key])}
+                    onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
+                  /> : null}
               </span>
               <input
                 className="col-input"
                 aria-label={`${column.label} filtern`}
-                value={filters[column.key] ?? ""}
-                onChange={(event) => setFilters((current) => ({ ...current, [column.key]: event.target.value }))}
+                {...filterInputProps(filters[column.key], (next) => setFilters((current) => ({ ...current, [column.key]: next })))}
               />
             </div>
           ))}
@@ -183,6 +231,8 @@ export function SingleInvoicesPage() {
 
         <div className="hn-st-sum" role="row">
           <div className="hn-st-sum-label">Alle Honorare</div>
+          <div />
+          <div />
           <div />
           <div />
           <div />
@@ -198,28 +248,56 @@ export function SingleInvoicesPage() {
           <div />
         </div>
 
-        {rows.map(({ invoice, fee, partner, grant }, index) => (
+        {rows.map(({ invoice, fee, partner, grant, reminder }, index) => (
           <InvoiceRow
             key={invoice.id}
             invoice={invoice}
             fee={fee}
             partner={partner}
             grant={grant}
+            reminder={reminder}
             lead={index === 0}
             onCredit={() => setCreditId(invoice.id)}
+            onReminder={() => {
+              if (!fee) return;
+              setFocusFee(fee.id);
+              openFinanzen("month", fee.month, "reminders");
+            }}
+            onDocument={() => fee && setInvoiceFeeId(fee.id)}
           />
         ))}
       </div>
+
+      {invoiceFeeId
+        ? (() => {
+            const fee = state.fees.find((entry) => entry.id === invoiceFeeId);
+            if (!fee) return null;
+            return (
+              <InvoiceModal
+                fee={fee}
+                partner={partnerOf(state, fee.partnerId)}
+                today={state.today}
+                onClose={() => setInvoiceFeeId(null)}
+              />
+            );
+          })()
+        : null}
 
       {creditInvoice ? (
         <CreditModal
           invoice={creditInvoice}
           fee={state.fees.find((entry) => entry.id === creditInvoice.feeId)}
           partner={partnerOf(state, creditInvoice.partnerId)}
-          onCancel={() => setCreditId(null)}
-          onConfirm={(amount, comment) => {
-            grantSingleCredit(creditInvoice.id, amount, comment);
+          withDueDate={withDueDate}
+          today={state.today}
+          onCancel={() => {
             setCreditId(null);
+            setWithDueDate(false);
+          }}
+          onConfirm={(amount, comment, dueDate) => {
+            grantSingleCredit(creditInvoice.id, amount, comment, dueDate);
+            setCreditId(null);
+            setWithDueDate(false);
           }}
         />
       ) : null}
@@ -232,20 +310,27 @@ function InvoiceRow({
   fee,
   partner,
   grant,
+  reminder,
   lead,
   onCredit,
+  onReminder,
+  onDocument,
 }: {
   invoice: SingleInvoice;
   fee?: Fee;
   partner?: Partner;
   grant: GrantMeta | null;
+  reminder: ReminderInfo;
   lead?: boolean;
   onCredit: () => void;
+  onReminder: () => void;
+  onDocument: () => void;
 }) {
   const month = invoice.month ?? fee?.month ?? "";
   const locked = fee ? missingFields(fee, partner).length > 0 : false;
   const balance = invoiceBalance(invoice, fee);
-  const showUnpaid = invoice.credit == null || balance > 0;
+  const showUnpaid = balance > 0;
+  const credited = hasCredit(invoice);
   const moneyClass =
     invoice.credit != null && balance === 0 ? "hn-st-money settled" : "hn-st-money due";
 
@@ -265,36 +350,74 @@ function InvoiceRow({
         </span>
         <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
       </div>
-      <div className="hn-st-stack">
-        <span>{monthLabel(month)}</span>
-        <span>{dueDay(month)}</span>
-      </div>
-      <div className="hn-st-stack">
-        <span>{fee?.paymentMethod}</span>
-        <span>{servicePeriod(month)}</span>
-      </div>
       <div className="hn-st-note">
-        {showUnpaid ? (
-          <span className="hn-st-unpaid">
-            <img src={a.hnAttention} alt="" width={16.5} height={15.4688} />
-            <span>Rechnung nicht bezahlt</span>
-          </span>
-        ) : null}
-        {grant ? (
+        {credited ? (
           <div className="hn-credit-granted">
             <span className="hn-credit-granted-label">
-              <img src={a.hnCarrierCheck} alt="" width={16} height={16} />
-              Gutschrift wurde gewährt
+              Gutschrift gewährt ({money(invoice.credit ?? 0)} €)
             </span>
             <button type="button" className="hn-link" onClick={onCredit}>
               Ansehen
             </button>
           </div>
+        ) : null}
+        {invoice.dueDate ? (
+          <div className="hn-credit-granted">
+            <span className="hn-credit-granted-label">Neues Zahlungsziel: {dueDay(month, invoice)}</span>
+            {invoice.dueDateOriginal ? (
+              <small className="hn-st-prev">Vorher {dueDay(month, { dueDate: invoice.dueDateOriginal } as SingleInvoice)}</small>
+            ) : null}
+            {credited ? null : (
+              <button type="button" className="hn-link" onClick={onCredit}>
+                Ansehen
+              </button>
+            )}
+          </div>
+        ) : null}
+        {showUnpaid ? (
+          <span className="hn-st-unpaid">
+            <img src={a.hnAttention} alt="" width={16.5} height={15.4688} />
+            <span>Rechnung nicht bezahlt</span>
+          </span>
         ) : (
+          <span className="hn-st-unpaid">
+            <img src={a.confirm} alt="" width={16} height={16} />
+            <span>Bezahlt</span>
+          </span>
+        )}
+        {grant ? null : (
           <button type="button" className="hn-credit-btn" onClick={onCredit}>
             <img src={a.hnCopyLight} alt="" width={14} height={14} />
-            Einzelfaktura/Gutschrift
+            Sammelfaktura/Gutschrift
           </button>
+        )}
+      </div>
+      <div
+        className={!reminder.sent && showUnpaid && fee ? "hn-st-note rem link" : "hn-st-note rem"}
+        {...(!reminder.sent && showUnpaid && fee
+          ? { role: "button", tabIndex: 0, title: "Zu Zahlungserinnerungen", onClick: onReminder }
+          : {})}
+      >
+        <Icon src={reminder.sent ? a.confirm : a.onhold} size={16} />
+        <span>{reminder.sent ? "Zahlungserinnerung versendet" : "Keine Erinnerung"}</span>
+        {reminder.sent && reminder.at ? <small>{formatDate(reminder.at)}</small> : null}
+      </div>
+      <div className="hn-st-stack">
+        <span>{monthLabel(month)}</span>
+        <span>{dueDay(month, invoice)}</span>
+      </div>
+      <div className="hn-st-stack">
+        <span>{fee?.paymentMethod}</span>
+        <span>{servicePeriod(month)}</span>
+      </div>
+      <div className="hn-st-captured">
+        {fee ? (
+          <button type="button" className="hn-doc-link" onClick={onDocument}>
+            <img src={a.pdf} alt="" width={12} height={14} />
+            <span>{INVOICE_FILE}</span>
+          </button>
+        ) : (
+          <span />
         )}
       </div>
       <div className="hn-st-money">
@@ -302,9 +425,9 @@ function InvoiceRow({
         <small>{fee?.tariff ?? "Single"}</small>
       </div>
       <div className="hn-st-money">
-        {invoice.credit == null ? null : (
+        {!credited ? null : (
           <>
-            <strong>{money(invoice.credit)}</strong>
+            <strong>{money(invoice.credit ?? 0)}</strong>
             <small>{fee?.tariff ?? "Single"}</small>
           </>
         )}
@@ -328,9 +451,7 @@ function InvoiceRow({
         ) : (
           <span />
         )}
-        <button type="button" className="hn-st-menu" aria-label="Aktionen">
-          <Icon src={a.contextMenu} size={24} />
-        </button>
+        <ProfileDueMenu />
       </div>
     </div>
   );
@@ -340,18 +461,24 @@ function CreditModal({
   invoice,
   fee,
   partner,
+  withDueDate,
+  today,
   onCancel,
   onConfirm,
 }: {
+  today: string;
   invoice: SingleInvoice;
   fee?: Fee;
   partner?: Partner;
+  withDueDate?: boolean;
   onCancel: () => void;
-  onConfirm: (amount: number, comment: string) => void;
+  onConfirm: (amount: number, comment: string, dueDate?: string) => void;
 }) {
   const month = invoice.month ?? fee?.month ?? "";
   const open = openAmount(invoice, fee);
-  const [amount, setAmount] = useState(money(invoice.credit ?? open));
+  const [amount, setAmount] = useState(money(invoice.credit ?? (withDueDate ? 0 : open)));
+  const originalDue = invoice.dueDateOriginal ?? fee?.dueDate ?? "";
+  const [dueDate, setDueDate] = useState(invoice.dueDate ?? fee?.dueDate ?? "");
   const [comment, setComment] = useState(invoice.comment ?? "");
 
   useEffect(() => {
@@ -365,7 +492,9 @@ function CreditModal({
   function finish() {
     const parsed = parseMoney(amount);
     if (parsed == null) return;
-    onConfirm(Math.min(parsed, open), comment.trim());
+    const changed = dueDate && dueDate !== (invoice.dueDate ?? fee?.dueDate);
+    if (!(parsed > 0) && !changed) return;
+    onConfirm(Math.min(parsed, open), comment.trim(), changed ? dueDate : undefined);
   }
 
   return (
@@ -375,7 +504,7 @@ function CreditModal({
         <header className="review-titlebar">
           <span className="review-titlebar-label">
             <Icon src={a.hnRefresh} size={16} />
-            Einzelfaktura / Gutschrift erstellen
+            Sammelfaktura / Gutschrift erstellen
           </span>
           <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onCancel}>
             <img src={a.iconCloseDark} alt="" width={12} height={12} />
@@ -386,7 +515,7 @@ function CreditModal({
             <span className="hn-credit-tile">
               <img src={a.hnRefresh} alt="" width={24} height={24} />
             </span>
-            <h2 id="hn-credit-title">Einzelfaktura / Gutschrift erstellen</h2>
+            <h2 id="hn-credit-title">Sammelfaktura / Gutschrift erstellen</h2>
           </div>
           <article className="hn-credit-card">
             <div className="hn-credit-who">
@@ -404,7 +533,7 @@ function CreditModal({
               <span>
                 <small>Fälligkeit</small>
                 <em>{monthLabel(month)}</em>
-                <em>{dueDay(month)}</em>
+                <em>{dueDay(month, invoice)}</em>
               </span>
               <span>
                 <small>Zahlart / Leist.-zeitraum</small>
@@ -443,6 +572,17 @@ function CreditModal({
             <strong>Gutschrift</strong>
             <small>Betrag in €</small>
           </div>
+          <label className="hn-credit-due">
+            Zahlungsziel
+            <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+            {originalDue ? (
+              <small className="hn-credit-due-info">
+                {originalDue < today ? "War fällig am " : "Ist fällig am "}
+                <strong>{dueDay(month, { dueDate: originalDue } as SingleInvoice)}</strong>
+                {originalDue < today ? " (überfällig)" : ""}
+              </small>
+            ) : null}
+          </label>
           <label className="hn-credit-comment">
             Kommentar
             <textarea
@@ -456,7 +596,14 @@ function CreditModal({
           <button type="button" className="btn-secondary" onClick={onCancel}>
             Abbrechen
           </button>
-          <button type="button" className="btn-primary" onClick={finish}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={finish}
+            disabled={
+              !((parseMoney(amount) ?? 0) > 0) && !(dueDate && dueDate !== (invoice.dueDate ?? fee?.dueDate))
+            }
+          >
             Abschließen
           </button>
         </footer>

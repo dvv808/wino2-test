@@ -197,7 +197,7 @@ function Sidebar({ converted }: { converted: boolean }) {
         </div>
       ) : null}
 
-      <button type="button" className="pp-area">
+      <button type="button" className="pp-area" onClick={() => openPersonArea("inkasso")}>
         <span className="pp-area-label">
           <Icon src={a.tickList} size={18} />
           Inkasso

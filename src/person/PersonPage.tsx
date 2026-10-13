@@ -3,8 +3,10 @@ import * as a from "../assets/index";
 import { Icon, IdCardIcon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { LogoButton, FileIdentity, ProfileMenu, VerlaufCaption, WorkflowDock } from "../chrome";
+import { ManagementAreaIcon } from "../manager/BestandChrome";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
+import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { WorkflowsPage } from "./WorkflowsPage";
 import { FILE_PARTNERS } from "./partners";
@@ -85,7 +87,7 @@ function PersonModuleNav() {
 
 /** The areas of the file. Stammdaten expands; the rest are placeholders. */
 function Sidebar() {
-  const { sections, personName, filePartnerId, openPersonArea } = useWorkflow();
+  const { sections, personName, filePartnerId, personArea, openPersonArea } = useWorkflow();
   const [stammdatenOpen, setStammdatenOpen] = useState(true);
   return (
     <aside className="pp-side">
@@ -108,7 +110,10 @@ function Sidebar() {
         type="button"
         className="pp-area open"
         aria-expanded={stammdatenOpen}
-        onClick={() => setStammdatenOpen((open) => !open)}
+        onClick={() => {
+          setStammdatenOpen((open) => !open);
+          if (personArea !== "stammdaten") openPersonArea("stammdaten");
+        }}
       >
         <span className="pp-area-label">
           <Icon src={a.stammdaten} size={18} />
@@ -160,12 +165,14 @@ function Sidebar() {
       {SIDE_AREAS.map((area) => (
         <button
           type="button"
-          className="pp-area"
+          className={area.label === "Inkasso" && personArea === "inkasso" ? "pp-area open" : "pp-area"}
           key={area.label}
           onClick={
-            filePartnerId === "ashley" && area.label === "Maklermandat"
-              ? () => openPersonArea("maklermandat")
-              : undefined
+            area.label === "Inkasso"
+              ? () => openPersonArea("inkasso")
+              : filePartnerId === "ashley" && area.label === "Maklermandat"
+                ? () => openPersonArea("maklermandat")
+                : undefined
           }
         >
           <span className="pp-area-label">
@@ -235,6 +242,9 @@ export function PersonPage() {
     personModule,
     filePartnerId,
     personArea,
+    finanzenProfileOpen,
+    backToFinanzen,
+    closeFinanzenProfile,
   } = useWorkflow();
   const [pendingDelete, setPendingDelete] = useState<{ area: ReturnType<typeof areaForSection>; card: Card } | null>(
     null,
@@ -255,6 +265,28 @@ export function PersonPage() {
         <header className="main-nav">
           <div className="main-nav-left">
             <LogoButton />
+            {finanzenProfileOpen ? (
+              <div className="person-tab inactive">
+                <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+                <span className="person-tab-body mgmt-tab">
+                  <ManagementAreaIcon />
+                  <button type="button" className="mgmt-tab-copy person-tab-open" onClick={backToFinanzen}>
+                    Management
+                    <br />
+                    Winter Vers.
+                  </button>
+                  <button
+                    type="button"
+                    className="close-icon"
+                    aria-label="Bestandsmanagement schließen"
+                    onClick={() => leaveManager()}
+                  >
+                    <img src={a.iconClose} alt="" width={18} height={18} />
+                  </button>
+                </span>
+                <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+              </div>
+            ) : null}
             <div className="person-tab">
               <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
               <span className="person-tab-body">
@@ -264,7 +296,7 @@ export function PersonPage() {
                   type="button"
                   className="close-icon"
                   aria-label={`${personName} schließen`}
-                  onClick={() => leaveManager()}
+                  onClick={() => (finanzenProfileOpen ? closeFinanzenProfile() : leaveManager())}
                 >
                   <img src={a.iconClose} alt="" width={18} height={18} />
                 </button>
@@ -285,6 +317,11 @@ export function PersonPage() {
 
         {personModule === "workflows" ? (
           <WorkflowsPage />
+        ) : personArea === "inkasso" ? (
+          <div className="pp-body">
+            <Sidebar />
+            <InkassoMain />
+          </div>
         ) : filePartnerId === "ashley" && personArea !== "stammdaten" ? (
           <MaklermandatPage />
         ) : (

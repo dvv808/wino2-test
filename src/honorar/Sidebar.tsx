@@ -1,7 +1,7 @@
 import { useState } from "react";
 import * as a from "../assets/index";
 import { monthLabel } from "../lib/honorar/format";
-import { activeMonth, monthOf } from "../lib/honorar/queries";
+import { isOpenItemFee, monthOf } from "../lib/honorar/queries";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "./store";
@@ -26,7 +26,6 @@ function matches(query: string, ...labels: string[]) {
 export function HonorarSidebar() {
   const { state } = useHonorar();
   const { finanzenPage, finanzenMonth, openFinanzen } = useWorkflow();
-  const active = activeMonth(state);
   const advisor = state.role === "advisor" || state.role === "head";
 
   const [query, setQuery] = useState("");
@@ -34,7 +33,9 @@ export function HonorarSidebar() {
 
   const years = Array.from(new Set([...EXTRA_YEARS, ...state.months.map((month) => yearOf(month.id))])).sort();
   const yearHasMonths = state.months.some((month) => yearOf(month.id) === year);
-  const showSingle = matches(query, "Einzelfaktura", "Gutschriften");
+  const showSingle = matches(query, "Sammelfaktura");
+  const hasOpenSingle = state.singleInvoices.some((invoice) => invoice.status === "open");
+  const hasOpenItems = state.fees.some((fee) => isOpenItemFee(state, fee));
   const showOpenItems = matches(query, "Offene Posten");
   const showMeinBereich = advisor && matches(query, "Mein Bereich");
 
@@ -47,7 +48,7 @@ export function HonorarSidebar() {
         </span>
         <span className="pp-side-title">
           <strong>Honorarverrechnung</strong>
-          <small>Finanzen</small>
+          <small>Forderungen</small>
         </span>
       </header>
 
@@ -77,6 +78,59 @@ export function HonorarSidebar() {
       </div>
 
       <div className="hn-side-body">
+        {showOpenItems || showSingle || showMeinBereich ? (
+          <details className="hn-folder" open>
+            <summary className="pp-area">
+              <span className="pp-area-label">
+                <Icon src={a.bank} size={18} />
+                Forderungen
+              </span>
+              <Icon src={a.chevronDown} size={18} className="hn-folder-caret" />
+            </summary>
+
+            <div className="pp-tree hn-tree">
+              {showOpenItems ? (
+                <button
+                  type="button"
+                  className={`hn-tree-item${finanzenPage === "openItems" ? " active" : ""}`}
+                  onClick={() => openFinanzen("openItems")}
+                >
+                  <span className="hn-tree-name">
+                    <Icon src={a.hnRefresh} size={18} />
+                    Offene Posten
+                  </span>
+                  {hasOpenItems ? <Icon src={a.onhold} size={16} /> : null}
+                </button>
+              ) : null}
+              {showSingle ? (
+                <button
+                  type="button"
+                  className={`hn-tree-item${finanzenPage === "singleInvoices" ? " active" : ""}`}
+                  onClick={() => openFinanzen("singleInvoices")}
+                >
+                  <span className="hn-tree-name">
+                    <Icon src={a.docList} size={18} />
+                    Sammelfaktura
+                  </span>
+                  {hasOpenSingle ? <Icon src={a.onhold} size={16} /> : null}
+                </button>
+              ) : null}
+              {showMeinBereich ? (
+                <button
+                  type="button"
+                  className={`hn-tree-item${finanzenPage === "meinBereich" ? " active" : ""}`}
+                  onClick={() => openFinanzen("meinBereich")}
+                >
+                  <span className="hn-tree-name">
+                    <Icon src={a.person} size={18} />
+                    Mein Bereich
+                  </span>
+                </button>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
+
         <details className="hn-folder" open>
           <summary className="pp-area">
             <span className="pp-area-label">
@@ -87,38 +141,18 @@ export function HonorarSidebar() {
           </summary>
 
           <div className="pp-tree hn-tree">
-            {showSingle ? (
-              <button
-                type="button"
-                className={`hn-tree-item stack${finanzenPage === "singleInvoices" ? " active" : ""}`}
-                onClick={() => openFinanzen("singleInvoices")}
-              >
-                <span className="hn-tree-name">
-                  <Icon src={a.docList} size={18} />
-                  <span>
-                    Einzelfaktura
-                    <br />
-                    Gutschriften
-                  </span>
-                </span>
-                <StatusBadge kind="offen" />
-              </button>
-            ) : null}
-
             {monthIdsForYear(year).map((id) => {
               if (!matches(query, monthLabel(id))) return null;
               const month = monthOf(state, id);
               const exists = Boolean(month);
-              const future = Boolean(month && id > active.id && !month.closed && !month.steps.status);
               const current = finanzenPage === "month" && finanzenMonth === id;
-              const muted = !exists || future;
               return (
                 <button
                   type="button"
                   key={id}
-                  className={`hn-tree-item${current ? " active" : ""}${muted ? " muted" : ""}`}
-                  disabled={muted}
-                  title={!exists ? "Dieses Jahr ist noch nicht angelegt" : future ? "Noch nicht begonnen" : undefined}
+                  className={`hn-tree-item${current ? " active" : ""}${exists ? "" : " muted"}`}
+                  disabled={!exists}
+                  title={exists ? undefined : "Dieses Jahr ist noch nicht angelegt"}
                   onClick={() => {
                     if (!month) return;
                     openFinanzen("month", id, month.steps.status ? "data" : "status");
@@ -134,40 +168,6 @@ export function HonorarSidebar() {
             })}
           </div>
         </details>
-
-        {showOpenItems || showMeinBereich ? (
-          <details
-            className="hn-folder"
-            onToggle={(event) => {
-              if (event.currentTarget.open) openFinanzen("openItems");
-            }}
-          >
-            {showOpenItems ? (
-              <summary className={`pp-area${finanzenPage === "openItems" ? " current" : ""}`}>
-                <span className="pp-area-label">
-                  <Icon src={a.hnRefresh} size={18} />
-                  Offene Posten
-                </span>
-                <Icon src={a.chevronDown} size={18} className="hn-folder-caret" />
-              </summary>
-            ) : null}
-
-            {showMeinBereich ? (
-              <div className="pp-tree hn-tree">
-                <button
-                  type="button"
-                  className={`hn-tree-item${finanzenPage === "meinBereich" ? " active" : ""}`}
-                  onClick={() => openFinanzen("meinBereich")}
-                >
-                  <span className="hn-tree-name">
-                    <Icon src={a.person} size={18} />
-                    Mein Bereich
-                  </span>
-                </button>
-              </div>
-            ) : null}
-          </details>
-        ) : null}
 
         {!yearHasMonths && !query ? <p className="hn-side-empty">Für {year} gibt es noch keine Fakturierung.</p> : null}
       </div>
