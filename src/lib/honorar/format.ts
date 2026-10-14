@@ -10,6 +10,14 @@ export function servicePeriod(monthId: string) {
   return `01.${String(month).padStart(2, "0")}.${year} - 31.12.${year}`;
 }
 
+/** Yearly Single honorar. Cover always runs to 31.12., so a start after January is aliquot. */
+export const SINGLE_YEARLY = 120;
+
+export function aliquotSingle(monthId: string) {
+  const month = Number(monthId.slice(5, 7));
+  return (SINGLE_YEARLY * (13 - month)) / 12;
+}
+
 const MONTH_NAMES = [
   "Jänner",
   "Februar",

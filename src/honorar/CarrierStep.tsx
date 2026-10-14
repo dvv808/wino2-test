@@ -14,7 +14,7 @@ const NEXT_STEPS = [
   "Datenträger herunterladen und",
   "in BMD importieren.",
   "Rechnungen in BMD erfassen.",
-  "An Wino senden und mit Schritt 3. Rechnungsversand weitermachen.",
+  "An Wino senden und mit Schritt 3. Rechnungsversand (Rechnungen) weitermachen.",
 ];
 
 function createdLine(iso: string, user: string) {
@@ -60,15 +60,16 @@ export function CarrierStep() {
     openFinanzenStep("dispatch");
   }
 
-  function downloadCarrier() {
-    const name = `Honorar_${finanzenMonth}.xml`;
+  function downloadCarrier(kind: "kunde" | "buchung") {
+    const name = kind === "kunde" ? `Kundendatentraeger_${finanzenMonth}.xml` : `Buchungsdatentraeger_${finanzenMonth}.xml`;
+    const tag = kind === "kunde" ? "Kundendatentraeger" : "Buchungsdatentraeger";
     const rows = fees
       .map((fee) => {
         const partner = state.partners.find((entry) => entry.id === fee.partnerId);
         return `  <Honorar partner="${partner?.name ?? fee.partnerId}" betrag="${fee.amount.toFixed(2)}"/>`;
       })
       .join("\n");
-    const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n<Datentraeger monat="${finanzenMonth}">\n${rows}\n</Datentraeger>\n`], {
+    const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n<${tag} monat="${finanzenMonth}">\n${rows}\n</${tag}>\n`], {
       type: "application/xml",
     });
     const url = URL.createObjectURL(blob);
@@ -99,10 +100,17 @@ export function CarrierStep() {
             <img src={a.comment} alt="" width={12.5358} height={13.5} />
             1 Kommentar
           </p>
-          <button type="button" className="hn-carrier-done-link" onClick={downloadCarrier}>
-            <img src={a.download} alt="" width={14.5} height={13.6583} />
-            Datenträger herunterladen
-          </button>
+          <p className="hn-carrier-done-hint">Beide Datenträger müssen in BMD hochgeladen werden.</p>
+          <div className="hn-carrier-downloads">
+            <button type="button" className="btn-secondary hn-carrier-download-btn" onClick={() => downloadCarrier("kunde")}>
+              <img src={a.download} alt="" width={14.5} height={13.6583} />
+              Kundendatenträger herunterladen
+            </button>
+            <button type="button" className="btn-secondary hn-carrier-download-btn" onClick={() => downloadCarrier("buchung")}>
+              <img src={a.download} alt="" width={14.5} height={13.6583} />
+              Buchungsdatenträger herunterladen
+            </button>
+          </div>
         </article>
         <section className="hn-next-steps" aria-label="Nächste Schritte">
           <h3>Nächste Schritte.</h3>
@@ -168,8 +176,7 @@ export function CarrierStep() {
             </button>
             <h2>Datenträger erstellen?</h2>
             <p>
-              Datenträger mit {fees.length} {partnerWord} über {money(sum.due)} wird an BMD übergeben. Dort werden die
-              Rechnungen erstellt.
+              Datenträger mit {fees.length} {partnerWord} über {money(sum.due)} wird erstellt.
             </p>
             <footer className="wmodal-foot carrier-ask">
               <button type="button" className="btn-secondary" onClick={() => setAsk(false)}>

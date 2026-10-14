@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as a from "./assets/index";
-import { AppsNav, LogoButton, ProfileMenu, WorkflowNav } from "./chrome";
+import { AppsNav, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
 import { ConsentWarning } from "./ConsentWarning";
 import { PdfModal } from "./documents";
@@ -14,6 +14,7 @@ import { TermsStep } from "./steps/TermsStep";
 import { ManagerView } from "./manager/ManagerView";
 import { HonorarProvider } from "./honorar/store";
 import { HonorarView } from "./honorar/HonorarView";
+import { MeinBereichView } from "./mein-bereich/MeinBereichView";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
@@ -197,6 +198,15 @@ function LeavePrompt() {
 function Screen() {
   const { activeStep, view, openPerson, workflowPane, setWorkflowPane, personName, isHistorical } = useWorkflow();
 
+  if (view === "meinBereich") {
+    return (
+      <>
+        <MeinBereichView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
   if (view === "finanzen") {
     return (
       <>
@@ -252,6 +262,7 @@ function Screen() {
               </button>
               <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
             </div>
+            <MeinBereichTab />
           </div>
           <div className="main-nav-right">
             <button type="button" className="search-btn" aria-label="Suche">

@@ -14,8 +14,12 @@ function keepOpenFlags(seedFees: Fee[], savedFees: Fee[] | undefined) {
   const saved = new Map(savedFees.map((fee) => [fee.id, fee]));
   return seedFees.map((fee) => {
     const previous = saved.get(fee.id);
-    if (!previous?.hiddenOpen) return fee;
-    return { ...fee, hiddenOpen: true };
+    if (!previous?.hiddenOpen && !previous?.settledVia) return fee;
+    return {
+      ...fee,
+      ...(previous.hiddenOpen ? { hiddenOpen: true } : {}),
+      ...(previous.settledVia ? { settledVia: previous.settledVia } : {}),
+    };
   });
 }
 
@@ -116,12 +120,15 @@ function useHonorarState() {
     sendInvoices: (monthId: string, again = false) => asUser((prev, actor) => t.sendInvoices(prev, monthId, actor, again)),
     sendFeeMail: (feeId: string, email?: string) =>
       asUser((prev, actor) => t.sendFeeMail(prev, feeId, actor, email)),
-    handPostToDispatch: (monthId: string) => asUser((prev, actor) => t.handPostToDispatch(prev, monthId, actor)),
-    logPostDownload: (monthId: string) => asUser((prev, actor) => t.logPostDownload(prev, monthId, actor)),
+    printPostInvoices: (monthId: string) => asUser((prev, actor) => t.printPostInvoices(prev, monthId, actor)),
+    printPostReminders: (monthId: string) => asUser((prev, actor) => t.printPostReminders(prev, monthId, actor)),
+    finishMonthWithFailures: (monthId: string) => asUser((prev, actor) => t.finishMonthWithFailures(prev, monthId, actor)),
     setPostSent: (feeId: string, sent: boolean) => asUser((prev, actor) => t.setPostSent(prev, feeId, sent, actor)),
     bounceMail: (feeId: string) => asUser((prev, actor) => t.bounceMail(prev, feeId, actor)),
     resendInvoice: (feeId: string, byPost: boolean) => asUser((prev, actor) => t.resendInvoice(prev, feeId, byPost, actor)),
     closeMonth: (monthId: string) => asUser((prev, actor) => t.closeMonth(prev, monthId, actor)),
+    syncInfinity: (monthId: string) => asUser((prev, actor) => t.syncInfinity(prev, monthId, actor)),
+    expireDueDates: (monthId: string) => asUser((prev, actor) => t.expireDueDates(prev, monthId, actor)),
     simulateOverdue: (monthId: string) => asUser((prev, actor) => t.simulateOverdue(prev, monthId, actor)),
     exceedDueDates: () => apply((prev) => t.exceedDueDates(prev)),
     sepaChargeback: (feeId: string) => asUser((prev, actor) => t.sepaChargeback(prev, feeId, actor)),
@@ -150,6 +157,10 @@ function useHonorarState() {
     patchCorrection: (...args: Parameters<typeof t.patchCorrection> extends [HonorarState, ...infer Rest] ? Rest : never) =>
       apply((prev) => t.patchCorrection(prev, ...args)),
     approveCorrection: (correctionId: string) => asUser((prev, actor) => t.approveCorrection(prev, correctionId, actor)),
+    settleViaInkasso: (invoiceId: string, amount: number, comment: string, dueDate?: string) =>
+      asUser((prev, actor) => t.settleViaInkasso(prev, invoiceId, amount, comment, actor, dueDate)),
+    settleFeeViaInkasso: (feeId: string, amount: number, comment: string, dueDate?: string) =>
+      asUser((prev, actor) => t.settleFeeViaInkasso(prev, feeId, amount, comment, actor, dueDate)),
     moveFeeToSingleInvoice: (feeId: string) => asUser((prev, actor) => t.moveFeeToSingleInvoice(prev, feeId, actor)),
     hideOpenFee: (feeId: string) => asUser((prev, actor) => t.hideOpenFee(prev, feeId, actor)),
     grantSingleCredit: (invoiceId: string, amount: number, comment: string, dueDate?: string) =>

@@ -8,6 +8,27 @@ import { useWorkflow, type WorkflowPane } from "./workflow";
 const APPS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
 
 /** Two text links under the mark: the files this prototype can open. */
+/** The "Mein Bereich" tab while it is open but another tab is shown; clicking it switches over without closing anything. */
+export function MeinBereichTab() {
+  const { view, meinBereichOpen, openMeinBereich, closeMeinBereich } = useWorkflow();
+  if (!meinBereichOpen || view === "meinBereich") return null;
+  return (
+    <div className="person-tab inactive">
+      <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+      <span className="person-tab-body">
+        <img className="mb-tab-avatar" src={a.avatar} alt="" width={24} height={24} />
+        <button type="button" className="person-tab-open" onClick={openMeinBereich}>
+          Mein Bereich
+        </button>
+        <button type="button" className="close-icon" aria-label="Mein Bereich schließen" onClick={closeMeinBereich}>
+          <img src={a.iconClose} alt="" width={18} height={18} />
+        </button>
+      </span>
+      <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+    </div>
+  );
+}
+
 export function LogoButton() {
   const { openPartner, ashleyConverted } = useWorkflow();
   const [open, setOpen] = useState(false);
@@ -106,7 +127,7 @@ function ProfileAreaIcon({
 
 /** Header avatar. Opens the Figma profile menu; item actions come later. */
 export function ProfileMenu() {
-  const { openManager } = useWorkflow();
+  const { openManager, openMeinBereich } = useWorkflow();
   const [open, setOpen] = useState(false);
   const [widgetOn, setWidgetOn] = useState(true);
   const [popBox, setPopBox] = useState<{ top: number; right: number } | null>(null);
@@ -189,7 +210,15 @@ export function ProfileMenu() {
           </div>
           <div className="profile-pop-rule" />
           <div className="profile-pop-list">
-            <button type="button" className="profile-pop-item" role="menuitem">
+            <button
+              type="button"
+              className="profile-pop-item"
+              role="menuitem"
+              onClick={() => {
+                openMeinBereich();
+                setOpen(false);
+              }}
+            >
               <ProfileIcon src={a.profileUser} />
               Mein Bereich
             </button>

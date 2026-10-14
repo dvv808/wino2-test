@@ -2,20 +2,21 @@ import * as a from "../assets/index";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import type { HonorarStepKey } from "../types/honorar";
-import { feesOfMonth, monthOf, reminderCandidates } from "../lib/honorar/queries";
+import { abbucherSynced, feesOfMonth, monthOf, reminderCandidates } from "../lib/honorar/queries";
 import { useHonorar } from "./store";
 
 const STEPS: {
   id: HonorarStepKey;
   label: string;
   n?: string;
-  doneKey: "status" | "data" | "dataCarrier" | "dispatch" | "reminders";
+  doneKey: "status" | "data" | "dataCarrier" | "abbucher" | "dispatch" | "reminders";
 }[] = [
   { id: "status", label: "Status zu Rechnungen", doneKey: "status" },
   { id: "data", label: "Daten erfassen", n: "1", doneKey: "data" },
   { id: "carrier", label: "Datenträger erstellen", n: "2", doneKey: "dataCarrier" },
-  { id: "dispatch", label: "Rechnungsversand", n: "3", doneKey: "dispatch" },
-  { id: "reminders", label: "Zahlungserinnerungen (Rechnungen)", n: "4", doneKey: "reminders" },
+  { id: "dispatch", label: "Rechnungsversand (Rechnungen)", n: "3", doneKey: "dispatch" },
+  { id: "abbucher", label: "Status zu Zahlungen (Abbucher)", n: "4", doneKey: "abbucher" },
+  { id: "reminders", label: "Zahlungserinnerungen (Rechnungen)", n: "5", doneKey: "reminders" },
 ];
 
 export function HonorarStepper() {
@@ -25,11 +26,14 @@ export function HonorarStepper() {
 
   if (!month) return null;
   const overdue = reminderCandidates(state, finanzenMonth);
-  const fees = feesOfMonth(state, finanzenMonth);
+  // Abbucher never goes through the invoice dispatch (mail/post) - the debit is settled directly in Infinity.
+  const dispatchFees = feesOfMonth(state, finanzenMonth).filter((fee) => fee.paymentMethod !== "Abbucher");
   const done = {
     ...month.steps,
+    // Step 4 is finished as soon as the direct debits have their result from Infinity.
+    abbucher: abbucherSynced(state, finanzenMonth),
     // Step 3 is finished as soon as every invoice of the month has been sent.
-    dispatch: month.steps.dispatch || (fees.length > 0 && fees.every((fee) => fee.invoiceStatus === "sent")),
+    dispatch: month.steps.dispatch || (dispatchFees.length > 0 && dispatchFees.every((fee) => fee.invoiceStatus === "sent")),
     reminders: overdue.length > 0 && overdue.every((fee) => fee.reminderSentAt),
   };
 

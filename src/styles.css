@@ -742,6 +742,15 @@ input.text-field {
   letter-spacing: 0.13px;
 }
 
+.info-box.success {
+  border-color: var(--wino-signal-greenlight);
+  background: linear-gradient(78deg, rgba(255, 255, 255, 0.4) 8%, rgba(160, 230, 150, 0.4) 102%);
+}
+
+.info-box p {
+  margin: 0;
+}
+
 .radio-stack {
   display: flex;
   flex-direction: column;
@@ -2708,6 +2717,20 @@ input.text-field {
   line-height: 27px;
   font-weight: 400;
   letter-spacing: 0.21px;
+}
+
+.hn-panel {
+  position: relative;
+}
+
+.hn-today {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+  font-size: 15px;
+  line-height: 18px;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
 }
 
 .freigaben-title.hn-kicker {
@@ -7343,6 +7366,67 @@ body.historical-version .shell {
   color: var(--wino-black-light);
 }
 
+.hn-year-groups {
+  width: auto;
+  margin: 0 0 10px 14px;
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.hn-year-compact {
+  height: 32px;
+  margin: 0 auto 8px;
+}
+
+.hn-year-compact .hn-year-btn {
+  height: 32px;
+}
+
+.hn-year-group {
+  width: 100%;
+  margin: 0;
+}
+
+.hn-year-group-head {
+  position: relative;
+  width: 100%;
+  height: 34px;
+  margin: 0 0 6px;
+  font-weight: 400;
+}
+
+.hn-year-group-head::before {
+  content: "";
+  position: absolute;
+  left: -14px;
+  top: 50%;
+  width: 10px;
+  border-top: 1px solid var(--wino-violet-light);
+}
+
+.hn-year-group .pp-tree.hn-tree {
+  width: auto;
+  margin: 0 0 4px 8px;
+  padding-left: 10px;
+}
+
+.hn-year-group .hn-tree-item {
+  padding: 6px 8px;
+  gap: 4px;
+}
+
+.hn-year-group .hn-tree-item::before {
+  left: -10px;
+  width: 8px;
+}
+
+.hn-year-group .hn-tree-name {
+  gap: 4px;
+}
+
 .hn-side-empty {
   margin: 8px 16px 0;
   font-size: 11px;
@@ -7556,6 +7640,10 @@ body.historical-version .shell {
   min-width: 1320px;
 }
 
+.hn-status-table.abbucher {
+  --st-cols: minmax(220px, 1.45fr) minmax(190px, 1.3fr) minmax(100px, 0.7fr) minmax(150px, 1fr) minmax(120px, 0.85fr) minmax(120px, 0.85fr) minmax(140px, 0.95fr);
+}
+
 .hn-status-table.data {
   --st-cols: minmax(220px, 1.45fr) minmax(150px, 1.05fr) minmax(100px, 0.7fr) minmax(190px, 1fr) minmax(180px, 1.2fr) minmax(130px, 0.9fr) minmax(140px, 0.95fr);
 }
@@ -7650,6 +7738,11 @@ body.historical-version .shell {
 
 .hn-post-sent small {
   padding-left: 36px;
+}
+
+.hn-st-invoice-line {
+  padding-left: 0;
+  color: var(--wino-black-light);
 }
 
 .hn-mail-field {
@@ -7991,6 +8084,10 @@ body.historical-version .shell {
 
 .hn-st-note .icon {
   margin-top: 1px;
+}
+
+.hn-st-note.muted span {
+  color: var(--wino-black-light);
 }
 
 .hn-st-money {
@@ -8833,7 +8930,7 @@ body.historical-version .shell {
   max-width: 100%;
   min-height: 126px;
   margin-top: 28px;
-  padding: 8px 12px;
+  padding: 8px 12px 16px;
   border: 1px solid var(--wino-signal-greenlight);
   border-radius: 6px;
   background-position: center;
@@ -8844,6 +8941,36 @@ body.historical-version .shell {
   align-items: flex-start;
   justify-content: center;
   gap: 0;
+}
+
+.hn-carrier-done-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.12px;
+  color: var(--wino-black-medium);
+}
+
+.hn-carrier-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.hn-carrier-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.hn-carrier-download-btn img {
+  max-width: none;
+  flex: none;
+  filter: none;
 }
 
 .hn-carrier-done-title,
@@ -9377,4 +9504,276 @@ button.person-tab-open {
 .hn-carrier-submit:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* --- Sammelfaktura dashboard placeholder (static skeletons, no animation) --- */
+.hn-dash-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hn-skel {
+  border-radius: 12px;
+  background: var(--wino-bg-darker);
+  opacity: 0.6;
+}
+
+.hn-skel-cards {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.hn-skel-card {
+  width: 140px;
+  height: 90px;
+  border-radius: 16px;
+}
+
+.hn-skel-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.hn-skel-line {
+  height: 40px;
+}
+
+.hn-skel-line.short {
+  width: 220px;
+  height: 24px;
+}
+
+.hn-step-hint {
+  margin: 16px 0 0;
+}
+
+.hn-step-hint-top {
+  margin: 0 0 24px;
+}
+
+/* Mein Bereich: "Seite noch im Aufbau" */
+.mb-tab-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.mb-body {
+  align-items: center;
+  justify-content: center;
+}
+
+.mb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: var(--wino-black-dark);
+}
+
+.mb-empty h1 {
+  margin: 38px 0 10px;
+  font-size: 27px;
+  line-height: 34px;
+  font-weight: 500;
+  letter-spacing: 0.27px;
+}
+
+.mb-empty p {
+  margin: 0;
+  width: 337px;
+  font-size: 15px;
+  line-height: 24px;
+  letter-spacing: 0.15px;
+}
+
+.mb-art {
+  position: relative;
+  width: 163.759px;
+  height: 178.251px;
+}
+
+.mb-art > *,
+.mb-art > span > img,
+.mb-art > span > span {
+  position: absolute;
+  display: block;
+  max-width: none;
+}
+
+.mb-art > span > img {
+  width: 100%;
+  height: 100%;
+}
+
+.mb-sphere {
+  left: 0;
+  top: 0;
+  width: 163.759px;
+  height: 163.759px;
+}
+
+.mb-sphere-inner {
+  left: 12.67px;
+  top: 12.67px;
+  width: 138.415px;
+  height: 138.415px;
+}
+
+.mb-art .mb-sphere-inner > img {
+  left: -17.34%;
+  top: -8.67%;
+  width: 134.68%;
+  height: 134.68%;
+}
+
+.mb-construction {
+  left: 46.79px;
+  top: 36.07px;
+  width: 92.277px;
+  height: 92.277px;
+}
+
+.mb-tower {
+  left: 37.76px;
+  top: 41.28px;
+  width: 73px;
+  height: 86px;
+}
+
+.mb-art .mb-tower > img {
+  left: -9.59%;
+  top: 0.2%;
+  width: 116.91%;
+  height: 118.4%;
+}
+
+.mb-sphere-shade {
+  left: 12.2px;
+  top: 13.87px;
+  width: 118.081px;
+  height: 138.415px;
+}
+
+.mb-art .mb-sphere-shade > img {
+  left: -5.93%;
+  top: 0%;
+  width: 110.45%;
+  height: 111.56%;
+}
+
+.mb-badge {
+  top: 134.87px;
+  width: 43.385px;
+  height: 43.385px;
+}
+
+.mb-badge.dark {
+  left: 84.13px;
+}
+
+.mb-badge.light {
+  left: 48.17px;
+}
+
+.mb-art .mb-badge > img {
+  left: -39.18%;
+  top: -25.35%;
+  width: 178.36%;
+  height: 178.35999999999999%;
+}
+
+
+.mb-badge-icon {
+  left: 92.17px;
+  top: 143.7px;
+  width: 26.513px;
+  height: 26.513px;
+}
+
+.mb-badge-w {
+  left: 56.06px;
+  top: 141.94px;
+  width: 27.609px;
+  height: 29.282px;
+}
+
+.mb-crane-arm {
+  left: 47.43px;
+  top: 16.48px;
+  width: 30.25px;
+  height: 16.192px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mb-crane-arm > span {
+  position: relative !important;
+  width: 28.771px;
+  height: 11.988px;
+  transform: rotate(171.32deg);
+}
+
+.mb-art .mb-crane-arm > span > img {
+  left: -13.9%;
+  top: -33.37%;
+  width: 127.80000000000001%;
+  height: 166.74%;
+}
+
+.mb-crane-hook {
+  left: 35.98px;
+  top: 31.67px;
+  width: 13.914px;
+  height: 9.83px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mb-crane-hook > span {
+  position: relative !important;
+  width: 12.844px;
+  height: 5.352px;
+  transform: rotate(157.67deg);
+}
+
+.mb-art .mb-crane-hook > span > img {
+  left: -31.14%;
+  top: -74.74%;
+  width: 162.27999999999997%;
+  height: 249.48000000000002%;
+}
+
+.mb-area-nav .area-tab-body {
+  font-family: var(--font);
+  font-weight: 400;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+}
+
+.hn-single-carrier {
+  position: absolute;
+  top: 16px;
+  right: 24px;
+}
+
+/* Inkasso Forderungen card in the profile */
+.ik-fee-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ik-new .pp-label,
+.ik-new .pp-val {
+  font-weight: 500;
+  color: var(--wino-black-dark);
 }

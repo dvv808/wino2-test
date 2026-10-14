@@ -9,12 +9,13 @@ import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { MailAddressModal } from "./MailAddressModal";
 import { clearFocusFee, peekFocusFee } from "./focusFee";
+import { invoiceLine, paymentLine, PaymentCell } from "./StatusStep";
 import { PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
   { key: "payment", label: "Status zur Zahlung", filter: true },
-  { key: "reminder", label: "Zahlungserinnerung", filter: true },
+  { key: "reminder", label: "Status Rechnungsversand", filter: true },
   { key: "address", label: "Anschrift", filter: true },
   { key: "channel", label: "Versandart", filter: true },
   { key: "amount", label: "Zu zahlender Honorarbetrag", filter: true },
@@ -42,12 +43,6 @@ function addressLines(address: string) {
   return { street: street.trim(), city: rest.join(",").trim() };
 }
 
-function paymentLabel(fee: Fee) {
-  if (fee.paymentStatus === "paid") return "Bezahlt nach Zahlungserinnerung";
-  if (fee.paid > 0 && fee.paid < fee.amount) return "Zu wenig bezahlt";
-  return "Zahlungsziel überschritten";
-}
-
 function mailAddress(fee: Fee, partner: Partner | undefined) {
   return fee.mailTo ?? partner?.email ?? "";
 }
@@ -56,9 +51,10 @@ type Row = { fee: Fee; partner: Partner | undefined; text: Record<ColumnKey, str
 
 export function ReminderStep() {
   const { finanzenMonth, openPartnerInkasso } = useWorkflow();
-  const { state, sendPaymentReminders, clearPaymentReminder, simulateOverdue } = useHonorar();
+  const { state, sendPaymentReminders, clearPaymentReminder, expireDueDates, printPostReminders } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [askSend, setAskSend] = useState(false);
+  const [askPostPrint, setAskPostPrint] = useState(false);
   const [stat, setStat] = useState<StatFilter>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [addressFeeId, setAddressFeeId] = useState<string | null>(null);
@@ -103,11 +99,15 @@ export function ReminderStep() {
   const candidates = reminderCandidates(state, finanzenMonth);
   // Invoices that were reminded and then paid stay in the list as "Bezahlt".
   const paidFees = feesOfMonth(state, finanzenMonth).filter(
-    (fee) => fee.paymentStatus === "paid" && Boolean(fee.reminderSentAt),
+    (fee) => fee.paymentMethod === "Rechnung" && fee.paymentStatus === "paid" && Boolean(fee.reminderSentAt),
   );
   const fees = [...candidates, ...paidFees];
   const isPost = (partner: Partner | undefined) => !partner || partner.deliveryMethod === "print";
   const pendingMail = candidates.filter((fee) => !fee.reminderSentAt && !isPost(partnerOf(state, fee.partnerId)));
+  const pendingPost = candidates.filter((fee) => !fee.reminderSentAt && isPost(partnerOf(state, fee.partnerId)));
+  // Reminders are only allowed once the due date has passed for every open invoice.
+  // A month shares one Zahlungsziel: one overdue Rechnung fee means the whole month is "nach Zahlungsziel".
+  const expired = candidates.some((fee) => fee.paymentStatus !== "open_before_due");
   const pending = candidates.filter((fee) => !fee.reminderSentAt);
   const reminded = candidates.length - pending.length;
 
@@ -125,8 +125,8 @@ export function ReminderStep() {
           partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
           address: partner?.address ?? "",
           channel: isPost(partner) ? "Post" : `Mail ${mailAddress(fee, partner)}`,
-          payment: paymentLabel(fee),
-          reminder: fee.reminderSentAt ? `Zahlungserinnerung versendet ${when(fee.reminderSentAt)}` : "Keine Erinnerung",
+          payment: paymentLine(fee, undefined, expired),
+          reminder: invoiceLine(fee),
           amount: `${money(fee.amount)} ${fee.tariff}`,
           paid: `${money(fee.paid)} ${fee.tariff}`,
         };
@@ -207,16 +207,15 @@ export function ReminderStep() {
                     </span>
                     <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
                   </div>
-                  <div className="hn-st-note">
-                    <Icon src={fee.paymentStatus === "paid" || fee.reminderSentAt ? a.confirm : a.onhold} size={16} />
-                    <span>{fee.paymentStatus !== "paid" && fee.reminderSentAt ? "Zahlungserinnerung versendet" : paymentLabel(fee)}</span>
-                  </div>
+                  <PaymentCell fee={fee} credit={undefined} compact={expired} />
                   {byPost ? (
                     <div className="hn-st-captured">
                       <span className="hn-post-sent">
+                        <small className="hn-st-invoice-line">{invoiceLine(fee)}</small>
                         <label className="hn-tickbox bare">
                           <input
                             type="checkbox"
+                            disabled={!expired && !fee.reminderSentAt}
                             checked={Boolean(fee.reminderSentAt)}
                             onChange={(event) =>
                               event.target.checked
@@ -236,11 +235,13 @@ export function ReminderStep() {
                     <div className="hn-st-note">
                       <Icon src={fee.reminderSentAt ? a.confirm : a.onhold} size={16} />
                       <span className="hn-st-fail-copy">
-                        {fee.reminderSentAt ? "Zahlungserinnerung versendet" : "Keine Erinnerung"}
-                        {fee.reminderSentAt ? <small>{when(fee.reminderSentAt)}</small> : null}
-                        {fee.reminderSentAt ? null : (
-                          <small>
+                        {invoiceLine(fee)}
+                        <small>
+                          {fee.reminderSentAt ? (
+                            `Zahlungserinnerung versendet ${when(fee.reminderSentAt)}`
+                          ) : (
                             <button
+                              disabled={!expired}
                               type="button"
                               onClick={() => {
                                 sendPaymentReminders(finanzenMonth, [fee.id]);
@@ -249,7 +250,10 @@ export function ReminderStep() {
                             >
                               Erinnerung senden
                             </button>
-                            <br />
+                          )}
+                        </small>
+                        {fee.reminderSentAt ? null : (
+                          <small>
                             <button type="button" onClick={() => setAddressFeeId(fee.id)}>
                               Erinnerung an andere E-Mail-Adresse senden
                             </button>
@@ -305,6 +309,27 @@ export function ReminderStep() {
 
   return (
     <section className="freigaben hn-panel hn-status">
+      {pending.length > 0 ? (
+        <div className="hn-step-warn">
+          <div className={expired ? "info-box success" : "info-box"}>
+            <Icon src={a.infoFull} size={24} />
+            <p>
+              {expired
+                ? "Zahlungserinnerungen können jetzt ausgesendet werden, da die Frist überschritten ist (Offen nach Zahlungsziel)."
+                : "Zahlungserinnerungen sind nach Ablauf der Frist möglich auszusenden (Offen vor Zahlungsziel)."}
+              {expired ? null : (
+                <>
+                  {" "}
+                  <button type="button" className="hn-link" onClick={() => expireDueDates(finanzenMonth)}>
+                    Simuliere Zahlungsfrist abgelaufen
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="hn-dispatch-bar">
         <div>
           <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
@@ -313,10 +338,20 @@ export function ReminderStep() {
           </p>
           <h2 className="hn-h2 hn-status-title">Zahlungserinnerungen</h2>
         </div>
-        {pendingMail.length > 0 ? (
-          <button type="button" className="hn-send" onClick={() => setAskSend(true)}>
-            Alle Zahlungserinnerungen schicken
-          </button>
+        {fees.length > 0 ? (
+          <div className="hn-send-actions">
+            <button type="button" className="hn-send" disabled={!expired && pendingMail.length > 0} onClick={() => setAskSend(true)}>
+              Alle Zahlungserinnerungen per Mail schicken
+            </button>
+            <button
+              type="button"
+              className="hn-send"
+              disabled={(!expired && pendingPost.length > 0) || pendingPost.length === 0}
+              onClick={() => setAskPostPrint(true)}
+            >
+              Post-Erinnerungen drucken
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -325,8 +360,6 @@ export function ReminderStep() {
           icon={a.navMail}
           title="Keine überfälligen Rechnungen"
           lead="Hier erscheinen alle Rechnungen, die nicht rechtzeitig bezahlt wurden"
-          link="Zahlungserinnerungen simulieren"
-          onLink={() => simulateOverdue(finanzenMonth)}
         />
       ) : (
         <>
@@ -383,6 +416,7 @@ export function ReminderStep() {
                   <button
                     type="button"
                     role="menuitem"
+                    disabled={!expired}
                     onClick={() => {
                       sendPaymentReminders(finanzenMonth, [menuFee.id]);
                       setToast("Zahlungserinnerung versendet.");
@@ -449,6 +483,39 @@ export function ReminderStep() {
         </>
       )}
 
+      {askPostPrint ? (
+        <div className="wmodal" role="dialog" aria-label="Post-Erinnerungen drucken">
+          <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskPostPrint(false)} />
+          <div className="wmodal-body send-ask">
+            <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskPostPrint(false)}>
+              <img src={a.iconCloseDark} alt="" width={16} height={16} />
+            </button>
+            <h2>Post-Erinnerungen drucken?</h2>
+            <p>
+              {pendingPost.length} Zahlungserinnerungen per Post werden an den Drucker gesendet und gedruckt.
+              Vergewissere dich, dass du alle Postversand Erinnerungen in der Tabelle als versendet markierst.
+            </p>
+            <footer className="wmodal-foot send-ask">
+              <button type="button" className="btn-secondary" onClick={() => setAskPostPrint(false)}>
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  sendPaymentReminders(finanzenMonth, pendingPost.map((fee) => fee.id));
+                  printPostReminders(finanzenMonth);
+                  setAskPostPrint(false);
+                  setToast("Post-Erinnerungen erfolgreich an den Drucker gesendet.");
+                }}
+              >
+                Drucken
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+
       {askSend ? (
         <div className="wmodal" role="dialog" aria-label="Zahlungserinnerungen verschicken.">
           <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskSend(false)} />
@@ -457,18 +524,31 @@ export function ReminderStep() {
               <img src={a.iconCloseDark} alt="" width={16} height={16} />
             </button>
             <h2>Zahlungserinnerungen verschicken.</h2>
-            <p>
-              Achtung, alle Partner mit einer nicht rechtzeitig bezahlten Rechnung und Mailversand ({pendingMail.length})
-              erhalten eine Zahlungserinnerung. Postversand hakst du selbst ab.
-            </p>
-            <footer className="wmodal-foot send-ask">
-              <button type="button" className="btn-secondary" onClick={() => setAskSend(false)}>
-                Abbrechen
-              </button>
-              <button type="button" className="btn-primary" onClick={sendAll}>
-                Senden
-              </button>
-            </footer>
+            {pendingMail.length === 0 ? (
+              <>
+                <p>Alle Zahlungserinnerungen per Mail wurden bereits verschickt. Postversand hakst du selbst ab.</p>
+                <footer className="wmodal-foot send-ask">
+                  <button type="button" className="btn-primary" onClick={() => setAskSend(false)}>
+                    Verstanden
+                  </button>
+                </footer>
+              </>
+            ) : (
+              <>
+                <p>
+                  Achtung, alle Partner mit einer nicht rechtzeitig bezahlten Rechnung und Mailversand ({pendingMail.length})
+                  erhalten eine Zahlungserinnerung. Postversand hakst du selbst ab.
+                </p>
+                <footer className="wmodal-foot send-ask">
+                  <button type="button" className="btn-secondary" onClick={() => setAskSend(false)}>
+                    Abbrechen
+                  </button>
+                  <button type="button" className="btn-primary" onClick={sendAll}>
+                    Senden
+                  </button>
+                </footer>
+              </>
+            )}
           </div>
         </div>
       ) : null}

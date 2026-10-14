@@ -1,4 +1,4 @@
-/** Hand-over from Offene Posten to Sammelfaktura: which invoice should open its credit overlay. */
+/** Hand-over from Offene Posten to Einzelfaktura: which invoice should open its credit overlay. */
 export type PendingCredit = { feeId: string; withDueDate: boolean };
 
 let pending: PendingCredit | null = null;

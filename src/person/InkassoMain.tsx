@@ -3,6 +3,7 @@ import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { VerlaufCaption } from "../chrome";
 import { DataCard } from "./cards";
+import { InkassoForderungenCard } from "./InkassoForderungen";
 import type { Card, Row } from "./stammdaten";
 
 /**
@@ -106,6 +107,7 @@ export function InkassoMain() {
         </header>
         <div className="pp-cards">
           <DataCard card={card} onEdit={editHonorar} />
+          <InkassoForderungenCard />
         </div>
       </section>
     </main>

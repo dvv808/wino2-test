@@ -71,6 +71,7 @@ const FINANZEN_STEP_SLUGS: Record<HonorarStepKey, string> = {
   status: "status",
   data: "daten",
   carrier: "datentraeger",
+  abbucher: "abbucher",
   dispatch: "versand",
   reminders: "erinnerungen",
 };
@@ -93,6 +94,8 @@ export type Route = {
   finanzenMonth?: string;
   finanzenStep?: HonorarStepKey;
   finanzenPartnerId?: string;
+  /** Year dashboard of the Sammelfaktura; empty means the overview of all years. */
+  finanzenYear?: string;
 };
 
 function partnerOf(parts: string[]): PartnerId {
@@ -113,6 +116,7 @@ export function routeToHash({
   finanzenMonth,
   finanzenStep,
   finanzenPartnerId,
+  finanzenYear,
 }: Route): string {
   if (view === "stammdaten") {
     const area = AREA_SLUGS[stammdatenArea ?? "personendaten"];
@@ -126,7 +130,9 @@ export function routeToHash({
     if (partnerId === "ashley" && personArea !== "stammdaten") return `#/${root}/${ASHLEY_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
+  if (view === "meinBereich") return "#/mein-bereich";
   if (view === "finanzen") {
+    if (finanzenPage === "sammelfaktura") return `#/${FINANZEN}/sammelfaktura${finanzenYear ? `/${finanzenYear}` : ""}`;
     if (finanzenPage === "openItems") return `#/${FINANZEN}/offene-posten`;
     if (finanzenPage === "singleInvoices") return `#/${FINANZEN}/einzelfaktura`;
     if (finanzenPage === "inkasso") return `#/${FINANZEN}/inkasso/${finanzenPartnerId ?? ""}`;
@@ -145,8 +151,13 @@ export function routeToHash({
 
 export function hashToRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  if (parts[0] === "mein-bereich") return { view: "meinBereich" };
   if (parts[0] === "bestandsmanager" && parts[1] === "finanzen") {
     const rest = parts.slice(2);
+    if (rest[0] === "sammelfaktura") {
+      const year = /^\d{4}$/.test(rest[1] ?? "") ? rest[1] : "";
+      return { view: "finanzen", finanzenPage: "sammelfaktura", finanzenYear: year };
+    }
     if (rest[0] === "offene-posten") return { view: "finanzen", finanzenPage: "openItems" };
     if (rest[0] === "einzelfaktura") return { view: "finanzen", finanzenPage: "singleInvoices" };
     if (rest[0] === "mein-bereich") return { view: "finanzen", finanzenPage: "meinBereich" };

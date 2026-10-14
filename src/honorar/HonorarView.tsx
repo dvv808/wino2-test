@@ -9,6 +9,7 @@ import { DispatchStep } from "./DispatchStep";
 import { HistoryDrawer } from "./HistoryDrawer";
 import { InkassoPage } from "./InkassoPage";
 import { OpenItemsPage } from "./OpenItemsPage";
+import { SammelfakturaPage } from "./SammelfakturaPage";
 import { HonorarSidebar } from "./Sidebar";
 import { SingleInvoicesPage } from "./SingleInvoicesPage";
 import { ReminderStep } from "./ReminderStep";
@@ -26,7 +27,11 @@ export function FinanzenModuleNav() {
 
   return (
     <div className="module-nav">
-      <button type="button" className="module-pill" onClick={() => openManager()}>
+      <button
+        type="button"
+        className="module-pill"
+        onClick={() => openManager()}
+      >
         <Icon src={a.tickList} size={24} />
         Dashboard &amp; Listen
       </button>
@@ -56,11 +61,19 @@ export function FinanzenModuleNav() {
           Aufgaben
         </button>
       </div>
-      <button type="button" className="module-pill" onClick={() => setTestMode(!state.testMode)}>
+      <button
+        type="button"
+        className="module-pill"
+        onClick={() => setTestMode(!state.testMode)}
+      >
         <Icon src={a.settings} size={24} />
         Settings
       </button>
-      <button type="button" className="module-pill" onClick={() => window.dispatchEvent(new Event("honorar-verlauf"))}>
+      <button
+        type="button"
+        className="module-pill"
+        onClick={() => window.dispatchEvent(new Event("honorar-verlauf"))}
+      >
         <Icon src={a.navHistory} size={24} />
         Verlauf
       </button>
@@ -90,10 +103,25 @@ export function FinanzenModuleNav() {
 
 export function HonorarView() {
   const { state } = useHonorar();
-  const { finanzenPage, finanzenMonth, finanzenStep, finanzenProfileOpen, personName, openPerson, closeFinanzenProfile } =
-    useWorkflow();
+  const {
+    finanzenPage,
+    finanzenMonth,
+    finanzenStep,
+    finanzenYear,
+    finanzenProfileOpen,
+    personName,
+    openPerson,
+    closeFinanzenProfile,
+  } = useWorkflow();
   const [history, setHistory] = useState(false);
-  const monthEntries = state.history.filter((entry) => entry.refType === "month" && entry.refId === finanzenMonth);
+  const dashboard = finanzenPage === "sammelfaktura";
+  const monthEntries = state.history.filter(
+    (entry) =>
+      entry.refType === "month" &&
+      (dashboard
+        ? entry.refId.startsWith(finanzenYear)
+        : entry.refId === finanzenMonth),
+  );
 
   useEffect(() => {
     function open() {
@@ -108,7 +136,11 @@ export function HonorarView() {
       <div className="shell">
         <BestandMainNav
           {...(finanzenProfileOpen
-            ? { partner: personName, onOpenPartner: openPerson, onClosePartner: closeFinanzenProfile }
+            ? {
+                partner: personName,
+                onOpenPartner: openPerson,
+                onClosePartner: closeFinanzenProfile,
+              }
             : {})}
         />
         <FinanzenAreaNav />
@@ -117,11 +149,25 @@ export function HonorarView() {
           <HonorarSidebar />
           <div className="hn-main">
             {finanzenPage === "month" ? <HonorarStepper /> : null}
-            {finanzenPage === "month" && finanzenStep === "status" ? <StatusStep /> : null}
-            {finanzenPage === "month" && finanzenStep === "data" ? <DataStep /> : null}
-            {finanzenPage === "month" && finanzenStep === "carrier" ? <CarrierStep /> : null}
-            {finanzenPage === "month" && finanzenStep === "dispatch" ? <DispatchStep /> : null}
-            {finanzenPage === "month" && finanzenStep === "reminders" ? <ReminderStep /> : null}
+            {finanzenPage === "month" && finanzenStep === "status" ? (
+              <StatusStep />
+            ) : null}
+            {finanzenPage === "month" && finanzenStep === "data" ? (
+              <DataStep />
+            ) : null}
+            {finanzenPage === "month" && finanzenStep === "carrier" ? (
+              <CarrierStep />
+            ) : null}
+            {finanzenPage === "month" && finanzenStep === "abbucher" ? (
+              <StatusStep mode="abbucher" />
+            ) : null}
+            {finanzenPage === "month" && finanzenStep === "dispatch" ? (
+              <DispatchStep />
+            ) : null}
+            {finanzenPage === "month" && finanzenStep === "reminders" ? (
+              <ReminderStep />
+            ) : null}
+            {finanzenPage === "sammelfaktura" ? <SammelfakturaPage /> : null}
             {finanzenPage === "openItems" ? <OpenItemsPage /> : null}
             {finanzenPage === "singleInvoices" ? <SingleInvoicesPage /> : null}
             {finanzenPage === "inkasso" ? <InkassoPage /> : null}
@@ -131,7 +177,15 @@ export function HonorarView() {
       </div>
       <TestPanel />
       {history ? (
-        <HistoryDrawer title={monthYearLabel(finanzenMonth)} entries={monthEntries} onClose={() => setHistory(false)} />
+        <HistoryDrawer
+          title={
+            dashboard
+              ? `Sammelfaktura ${finanzenYear}`.trim()
+              : monthYearLabel(finanzenMonth)
+          }
+          entries={monthEntries}
+          onClose={() => setHistory(false)}
+        />
       ) : null}
     </div>
   );
@@ -139,14 +193,30 @@ export function HonorarView() {
 
 function FinanzenAreaNav() {
   const { openManager, openFinanzen } = useWorkflow();
-  const areas = ["Dashboard", "HRM", "Bestand", "Finanzen", "Berichte", "Marketing", "Honorare"];
+  const areas = [
+    "Dashboard",
+    "HRM",
+    "Bestand",
+    "Finanzen",
+    "Berichte",
+    "Marketing",
+    "Honorare",
+  ];
   return (
     <nav className="area-nav">
       {areas.map((area) => {
         const active = area === "Finanzen";
         return (
           <span className={active ? "area-tab active" : "area-tab"} key={area}>
-            {active ? <img className="tab-ear left" src={a.appTabLeft} alt="" width={10} height={10} /> : null}
+            {active ? (
+              <img
+                className="tab-ear left"
+                src={a.appTabLeft}
+                alt=""
+                width={10}
+                height={10}
+              />
+            ) : null}
             <button
               type="button"
               className="area-tab-body"
@@ -157,7 +227,15 @@ function FinanzenAreaNav() {
             >
               {area}
             </button>
-            {active ? <img className="tab-ear flip" src={a.appTabRight} alt="" width={10} height={10} /> : null}
+            {active ? (
+              <img
+                className="tab-ear flip"
+                src={a.appTabRight}
+                alt=""
+                width={10}
+                height={10}
+              />
+            ) : null}
           </span>
         );
       })}

@@ -76,12 +76,11 @@ function rowText(fee: Fee, partner: Partner | undefined, bmdCreated: boolean): R
 
 export function DispatchStep() {
   const { finanzenMonth, openPartnerInkasso, openFinanzenStep } = useWorkflow();
-  const { state, importCaptureData, clearMonthFees, sendInvoices, sendFeeMail, setPostSent, handPostToDispatch, logPostDownload } = useHonorar();
+  const { state, importCaptureData, clearMonthFees, sendInvoices, sendFeeMail, setPostSent, printPostInvoices } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
   const [askSend, setAskSend] = useState(false);
   const [askPost, setAskPost] = useState(false);
-  const [postTarget, setPostTarget] = useState<"download" | "dept">("download");
   const [stat, setStat] = useState<StatFilter>(null);
   const [openGroups, setOpenGroups] = useState({ failed: true, post: true, mail: true });
   const [invoiceFeeId, setInvoiceFeeId] = useState<string | null>(null);
@@ -107,7 +106,8 @@ export function DispatchStep() {
     };
   }, [menu]);
 
-  const fees = feesOfMonth(state, finanzenMonth);
+  // Abbucher never goes through the invoice dispatch (mail/post) - the debit is settled directly in Infinity.
+  const fees = feesOfMonth(state, finanzenMonth).filter((fee) => fee.paymentMethod !== "Abbucher");
   const month = monthOf(state, finanzenMonth);
   const carrierReady =
     Boolean(month?.closed) ||
@@ -142,17 +142,6 @@ export function DispatchStep() {
   const postFees = fees.filter((fee) => partnerOf(state, fee.partnerId)?.deliveryMethod === "print");
   const mailSent = mailFees.length > 0 && mailFees.every((fee) => fee.invoiceStatus === "sent");
 
-  function downloadPost() {
-    const lines = postFees.map((fee) => `${partnerOf(state, fee.partnerId)?.name ?? fee.partnerId};${INVOICE_FILE}`);
-    const blob = new Blob([`Partner;Rechnungsdokument\n${lines.join("\n")}\n`], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `Post_Rechnungen_${finanzenMonth}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  }
-
   const menuFee = menu ? fees.find((entry) => entry.id === menu.feeId) : undefined;
   const menuPartner = menuFee ? partnerOf(state, menuFee.partnerId) : undefined;
   const menuIsMail = menuPartner ? menuPartner.deliveryMethod !== "print" : false;
@@ -162,24 +151,16 @@ export function DispatchStep() {
 
   const postEntry = [...state.history]
     .reverse()
-    .find(
-      (entry) =>
-        entry.refType === "month" &&
-        entry.refId === finanzenMonth &&
-        (entry.action === "Post-Rechnungen an Postversand übergeben" || entry.action === "Post-Rechnungen heruntergeladen"),
-    );
+    .find((entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action === "Post-Rechnungen gedruckt");
   const postAllSent = postFees.length > 0 && postFees.every((fee) => fee.invoiceStatus === "sent");
   const lastPostSent = postFees.map((fee) => fee.sentAt ?? "").sort().pop();
   const postDone = postEntry
     ? {
-        title:
-          postEntry.action === "Post-Rechnungen heruntergeladen"
-            ? "Post Rechnungen heruntergeladen."
-            : "Post Rechnungen an Postversand übergeben.",
+        title: "Post-Rechnungen gedruckt.",
         meta: createdLine(postEntry.timestamp, postEntry.user),
       }
     : postAllSent
-      ? { title: "Post Rechnungen versendet.", meta: lastPostSent ? `Versendet am ${formatDate(lastPostSent)}` : "" }
+      ? { title: "Post-Rechnungen versendet.", meta: lastPostSent ? `Versendet am ${formatDate(lastPostSent)}` : "" }
       : null;
 
   function download() {
@@ -247,7 +228,7 @@ export function DispatchStep() {
           <p className="hn-month">
             <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
           </p>
-          <h2 className="hn-h2 hn-status-title">Rechnungsversand</h2>
+          <h2 className="hn-h2 hn-status-title">Rechnungsversand (Rechnungen)</h2>
         </div>
         {carrierReady && fees.length > 0 ? (
           <div className="hn-send-actions">
@@ -265,7 +246,7 @@ export function DispatchStep() {
               disabled={!bmdCreated || postFees.length === 0}
               onClick={() => setAskPost(true)}
             >
-              Alle Post Rechnungen herunterladen oder an Postversand übergeben
+              Post-Rechnungen drucken
             </button>
           </div>
         ) : null}
@@ -515,31 +496,17 @@ export function DispatchStep() {
             </div>
           ) : null}
           {askPost ? (
-            <div className="wmodal" role="dialog" aria-label="Post Rechnungen">
+            <div className="wmodal" role="dialog" aria-label="Post-Rechnungen drucken">
               <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskPost(false)} />
               <div className="wmodal-body send-ask">
                 <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskPost(false)}>
                   <img src={a.iconCloseDark} alt="" width={16} height={16} />
                 </button>
-                <h2>Post Rechnungen</h2>
+                <h2>Post-Rechnungen drucken?</h2>
                 <p>
-                  {postFees.length} {postFees.length === 1 ? "Rechnung wird" : "Rechnungen werden"} per Post verschickt.
-                  Was möchtest du tun?
+                  {postFees.length} Post-Rechnungen werden an den Drucker gesendet und gedruckt. Vergewissere dich,
+                  dass du alle Postversand Rechnungen in der Tabelle als versendet markierst.
                 </p>
-                <div className="hn-send-options" role="radiogroup" aria-label="Post Rechnungen">
-                  {(
-                    [
-                      ["download", "Alle herunterladen"],
-                      ["dept", "An Postversand-Abteilung übergeben"],
-                    ] as const
-                  ).map(([id, label]) => (
-                    <label key={id} className="hn-send-option">
-                      <input type="radio" name="post-target" checked={postTarget === id} onChange={() => setPostTarget(id)} />
-                      <span className="hn-send-radio" aria-hidden />
-                      {label}
-                    </label>
-                  ))}
-                </div>
                 <footer className="wmodal-foot send-ask">
                   <button type="button" className="btn-secondary" onClick={() => setAskPost(false)}>
                     Abbrechen
@@ -548,18 +515,12 @@ export function DispatchStep() {
                     type="button"
                     className="btn-primary"
                     onClick={() => {
-                      if (postTarget === "download") {
-                        downloadPost();
-                        logPostDownload(finanzenMonth);
-                        setToast("Post Rechnungen erfolgreich heruntergeladen.");
-                      } else {
-                        handPostToDispatch(finanzenMonth);
-                        setToast("Post Rechnungen erfolgreich an Postversand übergeben.");
-                      }
+                      printPostInvoices(finanzenMonth);
                       setAskPost(false);
+                      setToast("Post-Rechnungen erfolgreich an den Drucker gesendet.");
                     }}
                   >
-                    {postTarget === "download" ? "Herunterladen" : "Übergeben"}
+                    Drucken
                   </button>
                 </footer>
               </div>

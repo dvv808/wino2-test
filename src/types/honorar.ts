@@ -1,4 +1,4 @@
-export type PaymentMethod = "Abbucher" | "Überweisung";
+export type PaymentMethod = "Abbucher" | "Rechnung";
 export type Tariff = "Single" | "Business";
 
 export type InvoiceStatus = "not_created" | "created" | "sent" | "send_failed";
@@ -20,9 +20,9 @@ export type CorrectionStatus = "draft" | "in_approval" | "reset" | "approved";
 
 export type HonorarRole = "backoffice" | "advisor" | "head" | "approver";
 
-export type HonorarStepKey = "status" | "data" | "carrier" | "dispatch" | "reminders";
+export type HonorarStepKey = "status" | "data" | "carrier" | "abbucher" | "dispatch" | "reminders";
 
-export type FinanzenPage = "month" | "openItems" | "singleInvoices" | "inkasso" | "meinBereich";
+export type FinanzenPage = "month" | "sammelfaktura" | "openItems" | "singleInvoices" | "inkasso" | "meinBereich";
 
 export interface Partner {
   id: string;
@@ -70,6 +70,8 @@ export interface Fee {
   createdBy: string;
   openItemId?: string;
   hiddenOpen?: boolean;
+  /** Settled through Inkasso (Gutschrift or new Zahlungsziel): counts as done in Offene Posten. */
+  settledVia?: "credit" | "due_date";
 }
 
 export interface Month {

@@ -9,8 +9,8 @@ import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { clearPendingCredit, peekPendingCredit } from "./pendingCredit";
 import { INVOICE_FILE, InvoiceModal } from "./InvoiceModal";
-import { setFocusFee } from "./focusFee";
-import { PartnerAvatar, ProfileDueMenu, StatCards, type StatFilter } from "./ui";
+import { clearFocusFee, peekFocusFee, setFocusFee } from "./focusFee";
+import { PartnerAvatar, ProfileDueMenu, StatCards, StepEmpty, type StatFilter } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
@@ -20,7 +20,7 @@ const COLUMNS = [
   { key: "method", label: "Zahlart / Leist.-zeitraum", filter: true },
   { key: "invoice", label: "Original-Rechnung", filter: true },
   { key: "amount", label: "Zu zahlender Honorarbetrag", filter: true },
-  { key: "credit", label: "Gutschrift zu Sammelfaktura", filter: true },
+  { key: "credit", label: "Gutschrift zu Einzelfaktura", filter: true },
   { key: "balance", label: "Total Saldo Honorarbetrag", filter: true },
   { key: "captured", label: "Erfasst Begründung", filter: true },
 ] as const;
@@ -113,6 +113,23 @@ export function SingleInvoicesPage() {
   const [creditId, setCreditId] = useState<string | null>(null);
   const [withDueDate, setWithDueDate] = useState(false);
   const [stat, setStat] = useState<StatFilter>(null);
+  const [askCarrier, setAskCarrier] = useState(false);
+  const [focusId, setFocusId] = useState<string | null>(() => peekFocusFee());
+
+  useEffect(() => {
+    if (!focusId) return;
+    const frame = window.requestAnimationFrame(() =>
+      document.querySelector(".hn-st-row.focus")?.scrollIntoView({ block: "center", behavior: "smooth" }),
+    );
+    const timer = window.setTimeout(() => {
+      clearFocusFee();
+      setFocusId(null);
+    }, 6000);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [focusId]);
 
   // Coming from Offene Posten ("Zahlungsziel ändern"): open the credit overlay with the date field.
   useEffect(() => {
@@ -153,7 +170,7 @@ export function SingleInvoicesPage() {
           payment: [
             hasCredit(invoice) ? `Gutschrift gewährt (${money(invoice.credit ?? 0)} €)` : "",
             invoice.dueDate ? `Neues Zahlungsziel ${dueDay(month, invoice)}` : "",
-            grant ? "" : "Sammelfaktura/Gutschrift",
+            grant ? "" : "Einzelfaktura/Gutschrift",
             unpaid ? "Rechnung nicht bezahlt" : "Bezahlt Abgeschlossen",
           ]
             .filter(Boolean)
@@ -181,12 +198,47 @@ export function SingleInvoicesPage() {
   const dueSum = rows.reduce((sum, row) => sum + row.invoice.amount, 0);
   const balanceSum = rows.reduce((sum, row) => sum + invoiceBalance(row.invoice, row.fee), 0);
   const creditInvoice = state.singleInvoices.find((invoice) => invoice.id === creditId);
+  const carrierCount = state.singleInvoices.length;
+
+  /** Creates both files BMD needs: the customer data and the booking record of the Einzelfaktura. */
+  function createCarriers() {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const lines = state.singleInvoices.map((invoice) => {
+      const fee = state.fees.find((entry) => entry.id === invoice.feeId);
+      const partner = fee ? partnerOf(state, fee.partnerId) : undefined;
+      const credit = invoice.credit !== undefined ? ` gutschrift="${invoice.credit.toFixed(2)}"` : "";
+      return `  <Einzelfaktura partner="${partner?.name ?? invoice.feeId}" betrag="${invoice.amount.toFixed(2)}"${credit}/>`;
+    });
+    [
+      { file: `Kundendatentraeger_Einzelfaktura_${stamp}.xml`, tag: "Kundendatentraeger" },
+      { file: `Buchungsdatensatz_Einzelfaktura_${stamp}.xml`, tag: "Buchungsdatensatz" },
+    ].forEach(({ file, tag }) => {
+      const blob = new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n<${tag}>\n${lines.join("\n")}\n</${tag}>\n`], {
+        type: "application/xml",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+    setAskCarrier(false);
+  }
 
   return (
     <section className="freigaben hn-panel hn-status">
+      <button
+        type="button"
+        className="btn-primary hn-single-carrier"
+        disabled={carrierCount === 0}
+        onClick={() => setAskCarrier(true)}
+      >
+        Datenträger erzeugen
+      </button>
       <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
       <p className="hn-month">{finanzenMonth.slice(0, 4)}</p>
-      <h2 className="hn-h2 hn-status-title">Sammelfaktura</h2>
+      <h2 className="hn-h2 hn-status-title">Einzelfaktura</h2>
 
       <StatCards
         open={openCount}
@@ -207,7 +259,31 @@ export function SingleInvoicesPage() {
         </button>
       </div>
 
-      <div className="hn-status-table single" role="table" aria-label="Sammelfaktura">
+      {askCarrier ? (
+        <div className="wmodal" role="dialog" aria-label="Datenträger erzeugen?">
+          <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskCarrier(false)} />
+          <div className="wmodal-body carrier-ask">
+            <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskCarrier(false)}>
+              <img src={a.iconCloseDark} alt="" width={16} height={16} />
+            </button>
+            <h2>Datenträger erzeugen?</h2>
+            <p>
+              Es {carrierCount === 1 ? "wird 1 Einzelfaktura" : `werden ${carrierCount} Einzelfakturen`} verarbeitet.
+              Du erhältst zwei Dateien: den Kundendatenträger (Kundendaten) und den Buchungsdatensatz.
+            </p>
+            <footer className="wmodal-foot carrier-ask">
+              <button type="button" className="btn-secondary" onClick={() => setAskCarrier(false)}>
+                Abbrechen
+              </button>
+              <button type="button" className="btn-primary" onClick={createCarriers}>
+                Erzeugen
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="hn-status-table single" role="table" aria-label="Einzelfaktura">
         <div className="hn-st-head" role="row">
           {COLUMNS.map((column) => (
             <div className="hn-st-th" role="columnheader" key={column.key}>
@@ -229,43 +305,54 @@ export function SingleInvoicesPage() {
           ))}
         </div>
 
-        <div className="hn-st-sum" role="row">
-          <div className="hn-st-sum-label">Alle Honorare</div>
-          <div />
-          <div />
-          <div />
-          <div />
-          <div />
-          <div className="hn-st-total">
-            <strong>{money(dueSum)}</strong>
-            <small>Summe Total</small>
+        {rows.length === 0 ? null : (
+          <div className="hn-st-sum" role="row">
+            <div className="hn-st-sum-label">Alle Honorare</div>
+            <div />
+            <div />
+            <div />
+            <div />
+            <div />
+            <div className="hn-st-total">
+              <strong>{money(dueSum)}</strong>
+              <small>Summe Total</small>
+            </div>
+            <div />
+            <div className="hn-st-total">
+              <strong>{money(balanceSum)}</strong>
+              <small>Summe Total</small>
+            </div>
+            <div />
           </div>
-          <div />
-          <div className="hn-st-total">
-            <strong>{money(balanceSum)}</strong>
-            <small>Summe Total</small>
-          </div>
-          <div />
-        </div>
+        )}
 
-        {rows.map(({ invoice, fee, partner, grant, reminder }, index) => (
-          <InvoiceRow
-            key={invoice.id}
-            invoice={invoice}
-            fee={fee}
-            partner={partner}
-            grant={grant}
-            reminder={reminder}
-            lead={index === 0}
-            onCredit={() => setCreditId(invoice.id)}
-            onReminder={() => {
-              if (!fee) return;
-              setFocusFee(fee.id);
-              openFinanzen("month", fee.month, "reminders");
-            }}
-            onDocument={() => fee && setInvoiceFeeId(fee.id)}
+        {rows.length === 0 ? (
+          <StepEmpty
+            icon={a.docList}
+            title="Keine Einzelfaktura vorhanden"
+            lead="Sobald bei Offene Posten oder einer Faktura etwas angepasst wird (Gutschrift, neues Zahlungsziel), erscheint der Eintrag hier und ist bereit, als Datenträger heruntergeladen und in BMD hochgeladen zu werden."
           />
-        ))}
+        ) : (
+          rows.map(({ invoice, fee, partner, grant, reminder }, index) => (
+            <InvoiceRow
+              key={invoice.id}
+              invoice={invoice}
+              fee={fee}
+              partner={partner}
+              grant={grant}
+              reminder={reminder}
+              lead={index === 0}
+              focused={Boolean(fee && fee.id === focusId)}
+              onCredit={() => setCreditId(invoice.id)}
+              onReminder={() => {
+                if (!fee) return;
+                setFocusFee(fee.id);
+                openFinanzen("month", fee.month, "reminders");
+              }}
+              onDocument={() => fee && setInvoiceFeeId(fee.id)}
+            />
+          ))
+        )}
       </div>
 
       {invoiceFeeId
@@ -312,6 +399,7 @@ function InvoiceRow({
   grant,
   reminder,
   lead,
+  focused,
   onCredit,
   onReminder,
   onDocument,
@@ -322,6 +410,7 @@ function InvoiceRow({
   grant: GrantMeta | null;
   reminder: ReminderInfo;
   lead?: boolean;
+  focused?: boolean;
   onCredit: () => void;
   onReminder: () => void;
   onDocument: () => void;
@@ -335,7 +424,7 @@ function InvoiceRow({
     invoice.credit != null && balance === 0 ? "hn-st-money settled" : "hn-st-money due";
 
   return (
-    <div className="hn-st-row" role="row">
+    <div className={focused ? "hn-st-row focus" : "hn-st-row"} role="row">
       <div className={lead ? "hn-st-partner hn-st-lead" : "hn-st-partner"}>
         <span className="partner-avatar">
           <PartnerAvatar company={partner?.type === "company"} />
@@ -388,7 +477,7 @@ function InvoiceRow({
         {grant ? null : (
           <button type="button" className="hn-credit-btn" onClick={onCredit}>
             <img src={a.hnCopyLight} alt="" width={14} height={14} />
-            Sammelfaktura/Gutschrift
+            Einzelfaktura/Gutschrift
           </button>
         )}
       </div>
@@ -457,7 +546,7 @@ function InvoiceRow({
   );
 }
 
-function CreditModal({
+export function CreditModal({
   invoice,
   fee,
   partner,
@@ -504,7 +593,7 @@ function CreditModal({
         <header className="review-titlebar">
           <span className="review-titlebar-label">
             <Icon src={a.hnRefresh} size={16} />
-            Sammelfaktura / Gutschrift erstellen
+            Einzelfaktura / Gutschrift erstellen
           </span>
           <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onCancel}>
             <img src={a.iconCloseDark} alt="" width={12} height={12} />
@@ -515,7 +604,7 @@ function CreditModal({
             <span className="hn-credit-tile">
               <img src={a.hnRefresh} alt="" width={24} height={24} />
             </span>
-            <h2 id="hn-credit-title">Sammelfaktura / Gutschrift erstellen</h2>
+            <h2 id="hn-credit-title">Einzelfaktura / Gutschrift erstellen</h2>
           </div>
           <article className="hn-credit-card">
             <div className="hn-credit-who">

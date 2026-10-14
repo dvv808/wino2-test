@@ -9,13 +9,13 @@ import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { setFocusFee } from "./focusFee";
 import { setPendingCredit } from "./pendingCredit";
-import { PaymentCell, paymentLine } from "./StatusStep";
+import { invoiceLine, PaymentCell, paymentLine, reminderLine } from "./StatusStep";
 import { ConfirmModal, PartnerAvatar, StatCards, type StatFilter } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
   { key: "payment", label: "Status zur Zahlung", filter: true },
-  { key: "reminder", label: "Zahlungserinnerung", filter: true },
+  { key: "reminder", label: "Status Rechnungsversand", filter: true },
   { key: "due", label: "Fälligkeit", filter: true },
   { key: "method", label: "Zahlart / Leist.-zeitraum", filter: true },
   { key: "amount", label: "Zu zahlender Honorarbetrag", filter: true },
@@ -40,17 +40,20 @@ function partnerMeta(partner: Partner) {
   return [partner.birthDate, partner.nickname ? `(vulgo ${partner.nickname})` : ""].filter(Boolean).join(" ");
 }
 
-export function OpenItemsPage() {
+/** `followToSingleInvoice`: after a Gutschrift the user lands in Einzelfaktura, like after "Zahlungsziel ändern". */
+export function OpenItemsPage({ followToSingleInvoice = false }: { followToSingleInvoice?: boolean } = {}) {
   const { finanzenMonth, openFinanzen, openPartnerInkasso } = useWorkflow();
   const { state, moveFeeToSingleInvoice, hideOpenFee } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [stat, setStat] = useState<StatFilter>(null);
+  // "Offen" is selected by default, so the table starts out showing only open items.
+  const [stat, setStat] = useState<StatFilter>("open");
   const [menu, setMenu] = useState<{ feeId: string | null; top: number; left: number } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [openGroups, setOpenGroups] = useState({ open: true, done: true });
+  // Rows are grouped by Zahlart (Abbucher / Rechnung), the same way Status zu Rechnungen groups them.
+  const [openGroups, setOpenGroups] = useState({ abbucher: true, rechnung: true });
   const menuRef = useRef<HTMLDivElement>(null);
 
   const creditOf = (fee: Fee) => {
@@ -59,8 +62,10 @@ export function OpenItemsPage() {
   };
   const openFees = hidden ? [] : state.fees.filter((fee) => isOpenItemFee(state, fee));
   // Closed items: invoices that were paid late (after a reminder or after two months).
-  const doneFees = state.fees.filter((fee) => fee.paymentStatus === "paid" && fee.paidLate);
+  const doneFees = state.fees.filter((fee) => (fee.paymentStatus === "paid" && fee.paidLate) || fee.settledVia);
   const fees = stat === "open" ? openFees : stat === "done" ? doneFees : [...openFees, ...doneFees];
+  const openCount = openFees.length;
+  const closedCount = doneFees.length;
 
   useEffect(() => {
     if (!menu) return;
@@ -78,19 +83,20 @@ export function OpenItemsPage() {
       document.removeEventListener("keydown", onKey);
     };
   }, [menu]);
-  const openCount = openFees.length;
-  const closedCount = doneFees.length;
   const baseRows = useMemo(() => {
     return fees
       .map((fee) => {
         const partner = partnerOf(state, fee.partnerId);
-        const item = state.openItems.find((entry) => entry.feeId === fee.id);
         const text: Record<ColumnKey, string> = {
           partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
           due: monthLabel(fee.month),
           method: `${fee.paymentMethod} ${servicePeriod(fee.month)}`,
-          payment: paymentLine(fee, creditOf(fee)),
-          reminder: item?.status === "reminder_sent" || fee.reminderSentAt || fee.paidLate === "reminder" ? "Zahlungserinnerung versendet" : "Keine Erinnerung",
+          payment: paymentLine(fee, creditOf(fee), true),
+          // Abbucher never has an invoice dispatch; a Rechnung in Offene Posten has always been reminded by now.
+          reminder:
+            fee.paymentMethod === "Abbucher"
+              ? "Kein Rechnungsversand"
+              : `${invoiceLine(fee, partner)} ${reminderLine(fee, partner) || "Zahlungserinnerung versendet"}`.trim(),
           amount: `${money(fee.amount)} ${fee.tariff}`,
           paid: `${money(fee.paid)} ${fee.tariff}`,
           captured: `${capturedWhen(fee.createdAt)} ${fee.createdBy}`,
@@ -103,8 +109,8 @@ export function OpenItemsPage() {
     [baseRows, filters],
   );
   const sum = totals(rows.map((row) => row.fee));
-  const openRows = rows.filter((row) => row.fee.paymentStatus !== "paid");
-  const doneRows = rows.filter((row) => row.fee.paymentStatus === "paid");
+  const abbucherRows = rows.filter((row) => row.fee.paymentMethod === "Abbucher");
+  const rechnungRows = rows.filter((row) => row.fee.paymentMethod === "Rechnung");
   const selectedOpenIds = openFees.filter((fee) => selected.has(fee.id)).map((fee) => fee.id);
   const allSelected = rows.length > 0 && rows.every((row) => selected.has(row.fee.id));
 
@@ -158,31 +164,38 @@ export function OpenItemsPage() {
                 <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
               </div>
               <PaymentCell fee={fee} credit={creditOf(fee)} compact />
-              <div
-                className={fee.paymentStatus === "paid" || fee.paymentStatus === "open_before_due" ? "hn-st-note" : "hn-st-note link"}
-                {...(fee.paymentStatus === "paid" || fee.paymentStatus === "open_before_due"
-                  ? {}
-                  : {
-                      role: "button",
-                      tabIndex: 0,
-                      title: "Zu Zahlungserinnerungen",
-                      onClick: () => {
-                        setFocusFee(fee.id);
-                        openFinanzen("month", fee.month, "reminders");
-                      },
-                      onKeyDown: (event: React.KeyboardEvent) => {
-                        if (event.key !== "Enter") return;
-                        setFocusFee(fee.id);
-                        openFinanzen("month", fee.month, "reminders");
-                      },
-                    })}
-              >
-                <Icon src={text.reminder === "Keine Erinnerung" ? a.onhold : a.confirm} size={16} />
-                <span>{text.reminder}</span>
-                {fee.paymentStatus === "paid" ? (
-                  <img className="hn-st-info" src={a.infoFull} alt="" width={16} height={16} title="Bezahlt, aber nicht rechtzeitig" />
-                ) : null}
-              </div>
+              {fee.paymentMethod === "Abbucher" ? (
+                // A direct debit never goes through the invoice dispatch, so this is neither clickable nor an icon status.
+                <div className="hn-st-note muted">
+                  <span>{text.reminder}</span>
+                </div>
+              ) : (
+                <div
+                  className={fee.paymentStatus === "paid" || fee.paymentStatus === "open_before_due" ? "hn-st-note" : "hn-st-note link"}
+                  {...(fee.paymentStatus === "paid" || fee.paymentStatus === "open_before_due"
+                    ? {}
+                    : {
+                        role: "button",
+                        tabIndex: 0,
+                        title: "Zu Zahlungserinnerungen",
+                        onClick: () => {
+                          setFocusFee(fee.id);
+                          openFinanzen("month", fee.month, "reminders");
+                        },
+                        onKeyDown: (event: React.KeyboardEvent) => {
+                          if (event.key !== "Enter") return;
+                          setFocusFee(fee.id);
+                          openFinanzen("month", fee.month, "reminders");
+                        },
+                      })}
+                >
+                  <Icon src={fee.reminderSentAt || fee.paymentStatus === "paid" ? a.confirm : a.onhold} size={16} />
+                  <span>{text.reminder}</span>
+                  {fee.paymentStatus === "paid" ? (
+                    <img className="hn-st-info" src={a.infoFull} alt="" width={16} height={16} title="Bezahlt, aber nicht rechtzeitig" />
+                  ) : null}
+                </div>
+              )}
               <div>{text.due}</div>
               <div className="hn-st-stack">
                 <span>{fee.paymentMethod}</span>
@@ -218,7 +231,7 @@ export function OpenItemsPage() {
           );
         };
 
-  const renderGroup = (key: "open" | "done", label: string, list: typeof rows) => {
+  const renderGroup = (key: "abbucher" | "rechnung", label: string, list: typeof rows) => {
     if (list.length === 0) return null;
     const open = openGroups[key];
     const everything = list.every((row) => selected.has(row.fee.id));
@@ -251,7 +264,7 @@ export function OpenItemsPage() {
       <p className="hn-month">{finanzenMonth.slice(0, 4)}</p>
       <h2 className="hn-h2 hn-status-title">Offene Posten</h2>
 
-      <StatCards open={openCount} done={closedCount} unit="Zahlungen" value={stat} onChange={setStat} />
+<StatCards open={openCount} done={closedCount} unit="Zahlungen" value={stat} onChange={setStat} />
 
       <div className="hn-status-tools">
         {selected.size > 0 ? (
@@ -324,8 +337,8 @@ export function OpenItemsPage() {
           <div />
         </div>
 
-        {renderGroup("open", "Offen", openRows)}
-        {renderGroup("done", "Abgeschlossen", doneRows)}
+        {renderGroup("abbucher", "Abbucher", abbucherRows)}
+        {renderGroup("rechnung", "Rechnung", rechnungRows)}
       </div>
 
       {menu ? (
@@ -336,6 +349,10 @@ export function OpenItemsPage() {
             onClick={() => {
               if (menu.feeId) moveFeeToSingleInvoice(menu.feeId);
               else selectedOpenIds.forEach((id) => moveFeeToSingleInvoice(id));
+              if (followToSingleInvoice) {
+                if (menu.feeId) setPendingCredit({ feeId: menu.feeId, withDueDate: false });
+                openFinanzen("singleInvoices");
+              }
               setSelected(new Set());
               setMenu(null);
             }}
@@ -345,7 +362,7 @@ export function OpenItemsPage() {
               <img className="user" src={a.hnMenuUser} alt="" width={8.85974} height={9.09676} />
             </span>
             Gutschrift zu<br />
-            Sammelfaktura erstellen
+            Einzelfaktura erstellen
           </button>
           {menu.feeId ? (
             <button
@@ -370,8 +387,9 @@ export function OpenItemsPage() {
               type="button"
               role="menuitem"
               onClick={() => {
+                const partnerId = state.fees.find((entry) => entry.id === menu.feeId)?.partnerId;
                 setMenu(null);
-                openPartnerInkasso();
+                openPartnerInkasso("julia", partnerId);
               }}
             >
               <span className="hn-menu-ico">

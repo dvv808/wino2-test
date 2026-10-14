@@ -1,5 +1,5 @@
 import * as a from "../assets/index";
-import { LogoButton, ProfileMenu } from "../chrome";
+import { LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 
@@ -83,6 +83,7 @@ export function BestandMainNav({
             <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
           </div>
         ) : null}
+        <MeinBereichTab />
       </div>
       <div className="main-nav-right">
         <button type="button" className="search-btn" aria-label="Suche">

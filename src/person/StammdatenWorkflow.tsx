@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as a from "../assets/index";
-import { AppsNav, FileIdentity, LogoButton, ProfileMenu } from "../chrome";
+import { AppsNav, FileIdentity, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
@@ -270,6 +270,7 @@ export function StammdatenWorkflow() {
               </button>
               <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
             </div>
+            <MeinBereichTab />
           </div>
           <div className="main-nav-right">
             <button type="button" className="search-btn" aria-label="Suche">

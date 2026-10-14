@@ -16,10 +16,21 @@ export function feesOfMonth(state: HonorarState, monthId: string) {
   return state.fees.filter((fee) => fee.month === monthId);
 }
 
-/** Invoices of a month that were not paid in time. */
+/** Direct debits (Abbucher) of a month. */
+export function abbucherFees(state: HonorarState, monthId: string) {
+  return feesOfMonth(state, monthId).filter((fee) => fee.paymentMethod === "Abbucher");
+}
+
+/** The Infinity sync is done once no direct debit of the month is waiting for its result any more. */
+export function abbucherSynced(state: HonorarState, monthId: string) {
+  const fees = abbucherFees(state, monthId);
+  return fees.length > 0 && fees.every((fee) => fee.paymentStatus !== "open_before_due");
+}
+
+/** Invoices (Zahlart Rechnung) of a month that were not paid in time. A failed direct debit is never a reminder case. */
 export function reminderCandidates(state: HonorarState, monthId: string) {
   return feesOfMonth(state, monthId).filter(
-    (fee) => fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op",
+    (fee) => fee.paymentMethod === "Rechnung" && fee.invoiceStatus === "sent" && fee.paymentStatus !== "paid",
   );
 }
 
@@ -28,9 +39,22 @@ export function reminderCandidates(state: HonorarState, monthId: string) {
  * overdue fees of any month, and fees of earlier months that are still waiting for their (new) due date.
  */
 export function isOpenItemFee(state: HonorarState, fee: Fee) {
-  if (fee.hiddenOpen || fee.paymentStatus === "paid") return false;
+  if (fee.hiddenOpen || fee.settledVia || fee.paymentStatus === "paid") return false;
   if (fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op") return true;
   return fee.invoiceStatus === "sent" && fee.month < state.today.slice(0, 7);
+}
+
+/**
+ * A month's Rechnung fees share one Zahlungsziel: as soon as one open invoice of the month is past its due
+ * date (unpaid, handed to Inkasso, or already reminded), the whole month reads "Offen nach Zahlungsziel" -
+ * never a mix of "vor" and "nach" within the same month.
+ */
+export function rechnungOverdue(fees: Fee[]) {
+  return fees.some(
+    (fee) =>
+      fee.paymentMethod === "Rechnung" &&
+      (fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op" || Boolean(fee.reminderSentAt)),
+  );
 }
 
 export function previousFees(state: HonorarState, monthId: string) {

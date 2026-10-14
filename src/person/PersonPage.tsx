@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as a from "../assets/index";
 import { Icon, IdCardIcon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { LogoButton, FileIdentity, ProfileMenu, VerlaufCaption, WorkflowDock } from "../chrome";
+import { LogoButton, FileIdentity, ProfileMenu, VerlaufCaption, WorkflowDock, MeinBereichTab } from "../chrome";
 import { ManagementAreaIcon } from "../manager/BestandChrome";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
@@ -303,6 +303,7 @@ export function PersonPage() {
               </span>
               <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
             </div>
+            <MeinBereichTab />
           </div>
           <div className="main-nav-right">
             <button type="button" className="search-btn" aria-label="Suche">

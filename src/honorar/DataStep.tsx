@@ -58,12 +58,77 @@ function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, stri
   };
 }
 
+type DataRow = { fee: Fee; partner: Partner | undefined; text: Record<ColumnKey, string> };
+
+/** Groups the rows by Zahlart (Abbucher / Rechnung), the same way Status zu Rechnungen does. */
+function DataGroup({ label, open, onToggle, rows }: { label: string; open: boolean; onToggle: () => void; rows: DataRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <div className="hn-st-group" role="row">
+        <div className="hn-st-group-bar">
+          <button type="button" className={open ? undefined : "closed"} aria-expanded={open} onClick={onToggle}>
+            <Icon src={a.chevronDown} size={18} />
+            {label}
+          </button>
+        </div>
+      </div>
+      {open
+        ? rows.map(({ fee, partner, text }) => {
+            const locked = missingFields(fee, partner).length > 0;
+            const address = addressLines(partner?.address ?? "");
+            return (
+              <div className="hn-st-row" role="row" key={fee.id}>
+                <div className="hn-st-partner">
+                  <span className="partner-avatar">
+                    <PartnerAvatar company={partner?.type === "company"} />
+                    {partner?.type === "company" ? <img className="winter" src={a.winterMark} alt="" /> : null}
+                  </span>
+                  <span className="partner-copy">
+                    <strong>
+                      {partner?.name}
+                      {locked ? <img className="hn-lock" src={a.hnLock} alt="" width={16} height={16} /> : null}
+                    </strong>
+                    {partner ? <small>{partnerMeta(partner)}</small> : null}
+                  </span>
+                  <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
+                </div>
+                <div className="hn-st-stack">
+                  <span>{address.street}</span>
+                  {address.city ? <span>{address.city}</span> : null}
+                </div>
+                <div>{text.method}</div>
+                <div className="hn-st-period">{text.period}</div>
+                <div className="hn-st-stack">
+                  <span>{partner?.name}</span>
+                  {partner?.bankAccount ? <span>{partner.bankAccount}</span> : null}
+                </div>
+                <div className="hn-st-money">
+                  <strong>{money(fee.amount)}</strong>
+                  <small>{fee.tariff}</small>
+                </div>
+                <div className="hn-st-captured">
+                  <span>
+                    {capturedWhen(fee.createdAt)}
+                    <small>{fee.createdBy}</small>
+                  </span>
+                  <ProfileDueMenu />
+                </div>
+              </div>
+            );
+          })
+        : null}
+    </>
+  );
+}
+
 export function DataStep() {
   const { finanzenMonth } = useWorkflow();
   const { state, importCaptureData, clearMonthFees, setStepDone } = useHonorar();
   const dataDone = Boolean(monthOf(state, finanzenMonth)?.steps.data);
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
+  const [openGroups, setOpenGroups] = useState({ abbucher: true, rechnung: true });
 
   const fees = feesOfMonth(state, finanzenMonth);
   const baseRows = useMemo(() => {
@@ -78,6 +143,8 @@ export function DataStep() {
     [baseRows, filters],
   );
   const sum = totals(rows.map((row) => row.fee));
+  const abbucherRows = rows.filter((row) => row.fee.paymentMethod === "Abbucher");
+  const rechnungRows = rows.filter((row) => row.fee.paymentMethod === "Rechnung");
 
   function download() {
     const header = ["Partner", "Anschrift", "Zahlart", "Leistungszeitraum", "Bankverbindung", "Zu zahlender Honorarbetrag", "Erfasst"];
@@ -171,49 +238,18 @@ export function DataStep() {
           <div />
         </div>
 
-        {rows.map(({ fee, partner, text }) => {
-          const locked = missingFields(fee, partner).length > 0;
-          const address = addressLines(partner?.address ?? "");
-          return (
-            <div className="hn-st-row" role="row" key={fee.id}>
-              <div className="hn-st-partner">
-                <span className="partner-avatar">
-                  <PartnerAvatar company={partner?.type === "company"} />
-                  {partner?.type === "company" ? <img className="winter" src={a.winterMark} alt="" /> : null}
-                </span>
-                <span className="partner-copy">
-                  <strong>
-                    {partner?.name}
-                    {locked ? <img className="hn-lock" src={a.hnLock} alt="" width={16} height={16} /> : null}
-                  </strong>
-                  {partner ? <small>{partnerMeta(partner)}</small> : null}
-                </span>
-                <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
-              </div>
-              <div className="hn-st-stack">
-                <span>{address.street}</span>
-                {address.city ? <span>{address.city}</span> : null}
-              </div>
-              <div>{text.method}</div>
-              <div className="hn-st-period">{text.period}</div>
-              <div className="hn-st-stack">
-                <span>{partner?.name}</span>
-                {partner?.bankAccount ? <span>{partner.bankAccount}</span> : null}
-              </div>
-              <div className="hn-st-money">
-                <strong>{money(fee.amount)}</strong>
-                <small>{fee.tariff}</small>
-              </div>
-              <div className="hn-st-captured">
-                <span>
-                  {capturedWhen(fee.createdAt)}
-                  <small>{fee.createdBy}</small>
-                </span>
-                <ProfileDueMenu />
-              </div>
-            </div>
-          );
-        })}
+        <DataGroup
+          label="Abbucher"
+          open={openGroups.abbucher}
+          onToggle={() => setOpenGroups((current) => ({ ...current, abbucher: !current.abbucher }))}
+          rows={abbucherRows}
+        />
+        <DataGroup
+          label="Rechnung"
+          open={openGroups.rechnung}
+          onToggle={() => setOpenGroups((current) => ({ ...current, rechnung: !current.rechnung }))}
+          rows={rechnungRows}
+        />
       </div>
       {confirmClear ? (
         <ConfirmModal

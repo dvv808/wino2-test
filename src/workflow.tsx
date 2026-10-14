@@ -53,7 +53,7 @@ export type SignMode = "upload" | "digital";
  * The workflow and the Bestandsmanager are two separate workspaces. From the
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen";
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
 /** Only these two steps need a Freigabe from the Bestandsmanager. */
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
@@ -230,12 +230,20 @@ function useWorkflowState() {
   const [pdfOpen, setPdfOpen] = useState(false);
 
   const [view, setView] = useState<View>(initialRoute.view);
+  /** The view that was open before "Mein Bereich"; its tab stays open next to it. */
+  /** Whose Forderungen the Inkasso area lists: the Honorar partner the user came from ("" = the first open one). */
+  const [inkassoPartnerId, setInkassoPartnerId] = useState("");
+  const [meinBereichFrom, setMeinBereichFrom] = useState<View | null>(null);
+  /** "Mein Bereich" is a tab of its own that stays open next to the others until it is closed. */
+  const [meinBereichOpen, setMeinBereichOpen] = useState(initialRoute.view === "meinBereich");
+  const [meinBereichNav, setMeinBereichNav] = useState({ area: "Mein Bereich", page: "Dashboard" });
   /** A partner profile opened from the Forderungen tables stays as a second tab next to the Management tab. */
   const [finanzenProfileOpen, setFinanzenProfileOpen] = useState(false);
   const [finanzenPage, setFinanzenPage] = useState<FinanzenPage>(initialRoute.finanzenPage ?? "month");
   const [finanzenMonth, setFinanzenMonth] = useState(initialRoute.finanzenMonth ?? "2027-04");
   const [finanzenStep, setFinanzenStep] = useState<HonorarStepKey>(initialRoute.finanzenStep ?? "status");
   const [finanzenPartnerId, setFinanzenPartnerId] = useState(initialRoute.finanzenPartnerId ?? "");
+  const [finanzenYear, setFinanzenYear] = useState(initialRoute.finanzenYear ?? "");
   const [personModule, setPersonModule] = useState<PersonModule>(
     () => initialRoute.personModule ?? "profil",
   );
@@ -378,6 +386,7 @@ function useWorkflowState() {
       finanzenMonth,
       finanzenStep,
       finanzenPartnerId,
+      finanzenYear,
     });
     if (window.location.hash === next) {
       hashWritten.current = true;
@@ -400,6 +409,7 @@ function useWorkflowState() {
     finanzenMonth,
     finanzenStep,
     finanzenPartnerId,
+    finanzenYear,
   ]);
 
   useEffect(() => {
@@ -420,6 +430,7 @@ function useWorkflowState() {
         if (route.finanzenMonth) setFinanzenMonth(route.finanzenMonth);
         if (route.finanzenStep) setFinanzenStep(route.finanzenStep);
         setFinanzenPartnerId(route.finanzenPartnerId ?? "");
+        setFinanzenYear(route.finanzenYear ?? "");
       }
     }
     window.addEventListener("hashchange", applyHash);
@@ -588,8 +599,9 @@ function useWorkflowState() {
   }
 
   /** From the Honorar tables: the partner's profile, Inkasso area (Zahlungsziel lives there). */
-  function openPartnerInkasso(id: PartnerId = "julia") {
+  function openPartnerInkasso(id: PartnerId = "julia", honorarPartnerId = "") {
     setFilePartnerId(id);
+    setInkassoPartnerId(honorarPartnerId);
     setPersonModule("profil");
     setPersonArea("inkasso");
     setVersionHistoryOpen(false);
@@ -940,10 +952,37 @@ function useWorkflowState() {
     setView("manager");
   }
 
+  /** The personal area behind the profile menu ("Mein Bereich"). */
+  function openMeinBereich() {
+    if (view !== "meinBereich") setMeinBereichFrom(view);
+    setMeinBereichOpen(true);
+    setFreigabeId(null);
+    setReviewStep(null);
+    setView("meinBereich");
+  }
+
+  /** Back to the tab that was open before, which keeps its pages; "Mein Bereich" stays open. */
+  function leaveMeinBereich() {
+    setView(meinBereichFrom && meinBereichFrom !== "meinBereich" ? meinBereichFrom : "manager");
+  }
+
+  /** Closes the "Mein Bereich" tab. */
+  function closeMeinBereich() {
+    setMeinBereichOpen(false);
+    if (view === "meinBereich") leaveMeinBereich();
+  }
+
   function openFinanzen(page: FinanzenPage = "month", month = finanzenMonth, step: HonorarStepKey = "status") {
     setFinanzenPage(page);
     setFinanzenMonth(month);
     setFinanzenStep(step);
+    setView("finanzen");
+  }
+
+  /** The Sammelfaktura dashboard: all years, or one year when given. */
+  function openSammelfaktura(year = "") {
+    setFinanzenPage("sammelfaktura");
+    setFinanzenYear(year);
     setView("finanzen");
   }
 
@@ -1053,9 +1092,19 @@ function useWorkflowState() {
     decideRequest,
     leaveManager,
     openManager,
+    inkassoPartnerId,
+    meinBereichFrom,
+    meinBereichOpen,
+    meinBereichNav,
+    setMeinBereichNav,
+    leaveMeinBereich,
+    closeMeinBereich,
+    openMeinBereich,
     openFinanzen,
     openFinanzenStep,
     openFinanzenInkasso,
+    openSammelfaktura,
+    finanzenYear,
     finanzenPage,
     finanzenMonth,
     setFinanzenMonth,
