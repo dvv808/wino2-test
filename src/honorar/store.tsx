@@ -63,6 +63,7 @@ function loadState(): HonorarState {
           ]
         : seed.singleInvoices,
       history: keepListHistory(seed.history, parsed),
+      notices: parsed.notices ?? seed.notices,
     };
   } catch {
     return seed;
@@ -81,14 +82,15 @@ function useHonorarState() {
   }, [state]);
 
   const user = ROLE_USER[state.role];
-  const apply = (fn: (prev: HonorarState) => HonorarState) => setState(fn);
+  const apply = (fn: (prev: HonorarState) => HonorarState) =>
+    setState((prev) => t.announceNewOpenItems(prev, fn(prev)));
   const asUser = (fn: (prev: HonorarState, actor: string) => HonorarState) =>
     apply((prev) => fn(prev, ROLE_USER[prev.role]));
 
   return {
     state,
     user,
-    reset: () => apply((prev) => createSeedState(prev.testMode)),
+    reset: () => setState((prev) => createSeedState(prev.testMode)),
     setRole: (role: HonorarRole) => apply((prev) => t.setRole(prev, role)),
     setToday: (today: string) => apply((prev) => t.setToday(prev, today)),
     setTestMode: (on: boolean) => apply((prev) => t.setTestMode(prev, on)),
@@ -169,6 +171,9 @@ function useHonorarState() {
     sendSingleInvoice: (invoiceId: string) => asUser((prev, actor) => t.sendSingleInvoice(prev, invoiceId, actor)),
     simulateLastWorkingDay: () => apply((prev) => t.simulateLastWorkingDay(prev)),
     markNoticesRead: () => apply((prev) => t.markNoticesRead(prev)),
+    markNoticeRead: (noticeId: string) => apply((prev) => t.markNoticeRead(prev, noticeId)),
+    notifyAdvisor: (feeId: string, reason: string) =>
+      asUser((prev, actor) => t.notifyAdvisor(prev, feeId, reason, actor)),
   };
 }
 

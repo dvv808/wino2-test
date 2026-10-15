@@ -9,7 +9,7 @@ import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { MailAddressModal } from "./MailAddressModal";
 import { clearFocusFee, peekFocusFee } from "./focusFee";
-import { invoiceLine, paymentLine, PaymentCell } from "./StatusStep";
+import { invoiceLine, paymentInfo, paymentLine, PaymentCell } from "./StatusStep";
 import { PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
 
 const COLUMNS = [
@@ -51,7 +51,7 @@ type Row = { fee: Fee; partner: Partner | undefined; text: Record<ColumnKey, str
 
 export function ReminderStep() {
   const { finanzenMonth, openPartnerInkasso } = useWorkflow();
-  const { state, sendPaymentReminders, clearPaymentReminder, expireDueDates, printPostReminders } = useHonorar();
+  const { state, sendPaymentReminders, clearPaymentReminder, expireDueDates, printPostReminders, notifyAdvisor } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [askSend, setAskSend] = useState(false);
   const [askPostPrint, setAskPostPrint] = useState(false);
@@ -452,6 +452,7 @@ export function ReminderStep() {
                 type="button"
                 role="menuitem"
                 onClick={() => {
+                  notifyAdvisor(menuFee.id, paymentInfo(menuFee, undefined, true).main);
                   setToast(`${menuPartner?.advisor ?? "Der Berater"} wurde kontaktiert.`);
                   setMenu(null);
                 }}

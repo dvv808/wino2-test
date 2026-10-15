@@ -3,12 +3,13 @@ import type {
   CorrectionKind,
   Fee,
   HistoryEntry,
+  HonorarNotice,
   HonorarRole,
   HonorarState,
   PaymentReason,
 } from "../../types/honorar";
-import { addDays, servicePeriod, uid } from "./format";
-import { actionNeeded, partnerOf, previousFees } from "./queries";
+import { addDays, money, servicePeriod, uid } from "./format";
+import { actionNeeded, isOpenItemFee, partnerOf, previousFees } from "./queries";
 
 function stamp(state: HonorarState) {
   return `${state.today}T12:00:00`;
@@ -925,18 +926,70 @@ export function simulateLastWorkingDay(state: HonorarState): HonorarState {
     const partner = partnerOf(state, item.partnerId);
     return item.status !== "done" && partner?.advisor === "Mike Bennett";
   }).length;
-  const notices = [
-    ...state.notices,
-    {
-      id: uid("note"),
-      text: `Offene Posten prüfen: ${count} offen in deinem Bereich`,
-      createdAt: stamp(state),
-      read: false,
-    },
-  ];
-  return { ...state, notices };
+  return addNotice(state, {
+    kind: "openItems",
+    title: "Offene Posten prüfen",
+    subject: `${count} offen in deinem Bereich`,
+    text: "Bitte prüfe deine Offenen Posten vor dem Monatsende.",
+  });
+}
+
+/** Notices carry the wall-clock time so the widget can show when they arrived. */
+function noticeStamp(state: HonorarState) {
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  return `${state.today}T${time}:00`;
+}
+
+export function addNotice(
+  state: HonorarState,
+  notice: Omit<HonorarNotice, "id" | "createdAt" | "read">,
+): HonorarState {
+  return {
+    ...state,
+    notices: [...state.notices, { ...notice, id: uid("note"), createdAt: noticeStamp(state), read: false }],
+  };
+}
+
+/** "Berater Nachricht schicken": the advisor of the partner gets a message in the widget. */
+export function notifyAdvisor(state: HonorarState, feeId: string, reason: string, user: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  const partner = fee ? partnerOf(state, fee.partnerId) : undefined;
+  if (!fee || !partner) return state;
+  const notified = addNotice(state, {
+    kind: "advisor",
+    title: `Nachricht an ${partner.advisor}`,
+    subject: partner.name,
+    text: `${reason}. Bitte kontaktiere den Kunden.`,
+    feeId,
+  });
+  return withHistory(notified, [history(state, user, "fee", feeId, `Nachricht an ${partner.advisor} geschickt`)]);
+}
+
+/** Called after every store change: Offene Posten that did not exist before are announced in the widget. */
+export function announceNewOpenItems(prev: HonorarState, next: HonorarState): HonorarState {
+  if (prev === next) return next;
+  const known = new Set(prev.fees.filter((fee) => isOpenItemFee(prev, fee)).map((fee) => fee.id));
+  const added = next.fees.filter((fee) => isOpenItemFee(next, fee) && !known.has(fee.id));
+  if (added.length === 0) return next;
+  const names = added.map((fee) => partnerOf(next, fee.partnerId)?.name ?? "Unbekannt");
+  const total = added.reduce((sum, fee) => sum + Math.max(0, fee.amount - fee.paid), 0);
+  return addNotice(next, {
+    kind: "openItems",
+    title: added.length === 1 ? "Neuer Offener Posten" : "Neue Offene Posten",
+    subject: added.length === 1 ? names[0] : `${names[0]} +${added.length - 1} weitere`,
+    text: `${added.length === 1 ? "Ein Posten ist" : `${added.length} Posten sind`} neu in Offene Posten, offen: ${money(total)} €.`,
+    feeId: added.length === 1 ? added[0].id : undefined,
+  });
 }
 
 export function markNoticesRead(state: HonorarState): HonorarState {
   return { ...state, notices: state.notices.map((notice) => ({ ...notice, read: true })) };
+}
+
+export function markNoticeRead(state: HonorarState, noticeId: string): HonorarState {
+  return {
+    ...state,
+    notices: state.notices.map((notice) => (notice.id === noticeId ? { ...notice, read: true } : notice)),
+  };
 }

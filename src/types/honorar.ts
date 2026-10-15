@@ -137,6 +137,11 @@ export interface HonorarNotice {
   text: string;
   createdAt: string;
   read: boolean;
+  /** Notices saved before the widget existed have no kind and show as "openItems". */
+  kind?: "openItems" | "advisor";
+  title?: string;
+  subject?: string;
+  feeId?: string;
 }
 
 export interface HonorarState {

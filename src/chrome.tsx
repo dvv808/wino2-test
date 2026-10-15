@@ -127,9 +127,8 @@ function ProfileAreaIcon({
 
 /** Header avatar. Opens the Figma profile menu; item actions come later. */
 export function ProfileMenu() {
-  const { openManager, openMeinBereich } = useWorkflow();
+  const { openManager, openMeinBereich, widgetOn, setWidgetOn } = useWorkflow();
   const [open, setOpen] = useState(false);
-  const [widgetOn, setWidgetOn] = useState(true);
   const [popBox, setPopBox] = useState<{ top: number; right: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -200,12 +199,13 @@ export function ProfileMenu() {
             </span>
             <button
               type="button"
-              className="profile-pop-toggle"
+              role="switch"
+              className={widgetOn ? "profile-pop-toggle on" : "profile-pop-toggle"}
               aria-label="Widget einschalten"
-              aria-pressed={widgetOn}
-              onClick={() => setWidgetOn((current) => !current)}
+              aria-checked={widgetOn}
+              onClick={() => setWidgetOn(!widgetOn)}
             >
-              <img src={widgetOn ? a.profileToggleOn : a.profileToggleOff} alt="" />
+              <span className="profile-pop-knob" />
             </button>
           </div>
           <div className="profile-pop-rule" />

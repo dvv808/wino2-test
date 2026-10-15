@@ -20,6 +20,7 @@ import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
 import { VersionLayer } from "./person/VersionHistory";
 import { Icon } from "./ui";
+import { WidgetBar } from "./widget/WidgetBar";
 import {
   STEPS,
   WorkflowProvider,
@@ -310,6 +311,7 @@ export default function App() {
     <WorkflowProvider>
       <HonorarProvider>
         <Screen />
+        <WidgetBar />
       </HonorarProvider>
     </WorkflowProvider>
   );

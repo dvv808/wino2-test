@@ -76,7 +76,7 @@ function rowText(fee: Fee, partner: Partner | undefined, bmdCreated: boolean): R
 
 export function DispatchStep() {
   const { finanzenMonth, openPartnerInkasso, openFinanzenStep } = useWorkflow();
-  const { state, importCaptureData, clearMonthFees, sendInvoices, sendFeeMail, setPostSent, printPostInvoices } = useHonorar();
+  const { state, importCaptureData, clearMonthFees, sendInvoices, sendFeeMail, setPostSent, printPostInvoices, notifyAdvisor } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
   const [askSend, setAskSend] = useState(false);
@@ -418,6 +418,7 @@ export function DispatchStep() {
                 type="button"
                 role="menuitem"
                 onClick={() => {
+                  notifyAdvisor(menuFee.id, "Rückfrage zum Rechnungsversand");
                   setToast(`${menuPartner?.advisor ?? "Der Berater"} wurde kontaktiert.`);
                   setMenu(null);
                 }}

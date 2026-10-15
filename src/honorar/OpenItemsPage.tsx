@@ -9,7 +9,7 @@ import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { setFocusFee } from "./focusFee";
 import { setPendingCredit } from "./pendingCredit";
-import { invoiceLine, PaymentCell, paymentLine, reminderLine } from "./StatusStep";
+import { DispatchStatus, invoiceLine, PaymentCell, paymentInfo, paymentLine, reminderLine } from "./StatusStep";
 import { ConfirmModal, PartnerAvatar, StatCards, type StatFilter } from "./ui";
 
 const COLUMNS = [
@@ -43,7 +43,7 @@ function partnerMeta(partner: Partner) {
 /** `followToSingleInvoice`: after a Gutschrift the user lands in Einzelfaktura, like after "Zahlungsziel ändern". */
 export function OpenItemsPage({ followToSingleInvoice = false }: { followToSingleInvoice?: boolean } = {}) {
   const { finanzenMonth, openFinanzen, openPartnerInkasso } = useWorkflow();
-  const { state, moveFeeToSingleInvoice, hideOpenFee } = useHonorar();
+  const { state, moveFeeToSingleInvoice, hideOpenFee, notifyAdvisor } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -164,38 +164,19 @@ export function OpenItemsPage({ followToSingleInvoice = false }: { followToSingl
                 <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
               </div>
               <PaymentCell fee={fee} credit={creditOf(fee)} compact />
-              {fee.paymentMethod === "Abbucher" ? (
-                // A direct debit never goes through the invoice dispatch, so this is neither clickable nor an icon status.
-                <div className="hn-st-note muted">
-                  <span>{text.reminder}</span>
-                </div>
-              ) : (
-                <div
-                  className={fee.paymentStatus === "paid" || fee.paymentStatus === "open_before_due" ? "hn-st-note" : "hn-st-note link"}
-                  {...(fee.paymentStatus === "paid" || fee.paymentStatus === "open_before_due"
-                    ? {}
-                    : {
-                        role: "button",
-                        tabIndex: 0,
-                        title: "Zu Zahlungserinnerungen",
-                        onClick: () => {
-                          setFocusFee(fee.id);
-                          openFinanzen("month", fee.month, "reminders");
-                        },
-                        onKeyDown: (event: React.KeyboardEvent) => {
-                          if (event.key !== "Enter") return;
-                          setFocusFee(fee.id);
-                          openFinanzen("month", fee.month, "reminders");
-                        },
-                      })}
-                >
-                  <Icon src={fee.reminderSentAt || fee.paymentStatus === "paid" ? a.confirm : a.onhold} size={16} />
-                  <span>{text.reminder}</span>
-                  {fee.paymentStatus === "paid" ? (
-                    <img className="hn-st-info" src={a.infoFull} alt="" width={16} height={16} title="Bezahlt, aber nicht rechtzeitig" />
-                  ) : null}
-                </div>
-              )}
+              <DispatchStatus
+                fee={fee}
+                partner={partner}
+                clickable={fee.paymentMethod === "Rechnung" && fee.paymentStatus !== "paid" && fee.paymentStatus !== "open_before_due"}
+                onInvoice={() => {
+                  setFocusFee(fee.id);
+                  openFinanzen("month", fee.month, "dispatch");
+                }}
+                onReminder={() => {
+                  setFocusFee(fee.id);
+                  openFinanzen("month", fee.month, "reminders");
+                }}
+              />
               <div>{text.due}</div>
               <div className="hn-st-stack">
                 <span>{fee.paymentMethod}</span>
@@ -405,6 +386,7 @@ export function OpenItemsPage({ followToSingleInvoice = false }: { followToSingl
               onClick={() => {
                 const fee = state.fees.find((entry) => entry.id === menu.feeId);
                 const advisor = fee ? partnerOf(state, fee.partnerId)?.advisor : undefined;
+                if (fee) notifyAdvisor(fee.id, paymentInfo(fee, undefined, true).main);
                 setToast(`${advisor ?? "Der Berater"} wurde kontaktiert.`);
                 setMenu(null);
               }}

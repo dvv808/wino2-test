@@ -150,6 +150,7 @@ export const STEPS: { id: StepId; label: string; n?: string }[] = [
 ];
 
 const STEP_IDS = STEPS.map((step) => step.id);
+const WIDGET_KEY = "wino.widget.v1";
 
 export const APPROVAL_STEPS: ApprovalStep[] = ["docs", "sign"];
 
@@ -237,6 +238,11 @@ function useWorkflowState() {
   /** "Mein Bereich" is a tab of its own that stays open next to the others until it is closed. */
   const [meinBereichOpen, setMeinBereichOpen] = useState(initialRoute.view === "meinBereich");
   const [meinBereichNav, setMeinBereichNav] = useState({ area: "Mein Bereich", page: "Dashboard" });
+  /** The right-hand widget bar, switched on from the profile menu. */
+  const [widgetOn, setWidgetOn] = useState(() => localStorage.getItem(WIDGET_KEY) === "1");
+  useEffect(() => {
+    localStorage.setItem(WIDGET_KEY, widgetOn ? "1" : "0");
+  }, [widgetOn]);
   /** A partner profile opened from the Forderungen tables stays as a second tab next to the Management tab. */
   const [finanzenProfileOpen, setFinanzenProfileOpen] = useState(false);
   const [finanzenPage, setFinanzenPage] = useState<FinanzenPage>(initialRoute.finanzenPage ?? "month");
@@ -1097,6 +1103,8 @@ function useWorkflowState() {
     meinBereichOpen,
     meinBereichNav,
     setMeinBereichNav,
+    widgetOn,
+    setWidgetOn,
     leaveMeinBereich,
     closeMeinBereich,
     openMeinBereich,

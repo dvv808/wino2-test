@@ -48,6 +48,88 @@ export function reminderLine(fee: Fee, partner?: Partner) {
   return fee.paymentMethod === "Rechnung" && fee.reminderSentAt ? `Zahlungserinnerung${via} versendet am ${formatDay(fee.reminderSentAt)}` : "";
 }
 
+function EventLine({
+  kind,
+  icon,
+  text,
+  clickable,
+  onClick,
+}: {
+  kind: "invoice" | "reminder";
+  icon: string;
+  text: string;
+  clickable?: boolean;
+  onClick?: () => void;
+}) {
+  const className = `hn-st-event ${kind}${clickable ? " link" : ""}`;
+  if (clickable && onClick) {
+    return (
+      <div
+        className={className}
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onClick();
+        }}
+      >
+        <Icon src={icon} size={16} />
+        <span>{text}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={className}>
+      <Icon src={icon} size={16} />
+      <span>{text}</span>
+    </div>
+  );
+}
+
+/** Invoice dispatch and reminder as two separate lines, so they do not read as the same event. */
+export function DispatchStatus({
+  fee,
+  partner,
+  clickable = false,
+  onInvoice,
+  onReminder,
+}: {
+  fee: Fee;
+  partner?: Partner;
+  clickable?: boolean;
+  onInvoice?: () => void;
+  onReminder?: () => void;
+}) {
+  if (fee.paymentMethod === "Abbucher") {
+    return (
+      <div className="hn-st-note muted">
+        <span>Kein Rechnungsversand</span>
+      </div>
+    );
+  }
+  const reminder = reminderLine(fee, partner);
+  return (
+    <div className="hn-st-events">
+      <EventLine
+        kind="invoice"
+        icon={fee.invoiceStatus === "sent" ? a.confirm : a.onhold}
+        text={invoiceLine(fee, partner)}
+        clickable={clickable && Boolean(onInvoice)}
+        onClick={onInvoice}
+      />
+      {reminder ? (
+        <EventLine
+          kind="reminder"
+          icon={a.requestSmall}
+          text={reminder}
+          clickable={clickable && Boolean(onReminder)}
+          onClick={onReminder}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 export type PaymentInfo = { main: string; notes: string[]; credit?: string; tone: "open" | "paid" | "fail" };
 
 /** `overdue`: the fee is being handled as past its due date (step 5 / Offene Posten), so open fees read "nach Zahlungsziel". */
@@ -103,6 +185,7 @@ export function paymentLine(fee: Fee, credit: number | undefined, overdue = fals
 export function PaymentCell({ fee, credit, compact = false }: { fee: Fee; credit: number | undefined; compact?: boolean }) {
   // The compact variant is used in step 5 and Offene Posten, where open fees are already past their due date.
   const info = paymentInfo(fee, credit, compact);
+  const { notifyAdvisor } = useHonorar();
   const [notified, setNotified] = useState(false);
   const notes = info.notes;
   return (
@@ -117,7 +200,13 @@ export function PaymentCell({ fee, credit, compact = false }: { fee: Fee; credit
         {notes.map((note) => (
           <small key={note}>
             {note === "Berater Nachricht schicken" ? (
-              <button type="button" onClick={() => setNotified(true)}>
+              <button
+                type="button"
+                onClick={() => {
+                  notifyAdvisor(fee.id, info.main);
+                  setNotified(true);
+                }}
+              >
                 {note}
               </button>
             ) : (
@@ -433,27 +522,14 @@ function Group({
                   </span>
                   <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
                 </div>
-                {hideInvoice ? null : fee.paymentMethod === "Abbucher" ? (
-                  <div className="hn-st-note muted">
-                    <span>{invoiceLine(fee)}</span>
-                  </div>
-                ) : (
-                  // Click leads to where it happened: the reminder step once a reminder is out, else the dispatch step.
-                  <div
-                    className="hn-st-note link"
-                    role="link"
-                    tabIndex={0}
-                    onClick={() => openFinanzenStep(fee.reminderSentAt ? "reminders" : "dispatch")}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") openFinanzenStep(fee.reminderSentAt ? "reminders" : "dispatch");
-                    }}
-                  >
-                    <Icon src={fee.invoiceStatus === "sent" ? a.confirm : a.onhold} size={16} />
-                    <span className="hn-st-fail-copy">
-                      {invoiceLine(fee, partner)}
-                      {reminderLine(fee, partner) ? <small>{reminderLine(fee, partner)}</small> : null}
-                    </span>
-                  </div>
+                {hideInvoice ? null : (
+                  <DispatchStatus
+                    fee={fee}
+                    partner={partner}
+                    clickable={fee.paymentMethod === "Rechnung"}
+                    onInvoice={() => openFinanzenStep("dispatch")}
+                    onReminder={() => openFinanzenStep("reminders")}
+                  />
                 )}
                 <PaymentCell fee={fee} credit={credit} compact={fee.paymentMethod === "Rechnung" && rechnungExpired} />
                 <div>{text.method}</div>
