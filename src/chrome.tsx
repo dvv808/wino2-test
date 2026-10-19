@@ -60,6 +60,7 @@ export function LogoButton() {
         ? `${FILE_PARTNERS.ashley.name} (${kindLabel("interessent")})`
         : `${FILE_PARTNERS.ashley.name} (Einfache Person)`,
     },
+    { id: "lunixo" as const, label: `${FILE_PARTNERS.lunixo.name} (${kindLabel("interessent")})` },
   ];
 
   return (
@@ -395,8 +396,11 @@ export function FileIdentity({
   const contacts = usingLive ? live.contacts : file.contacts;
   const extra = usingLive ? Math.max(contacts.length - 2, 0) : file.moreContacts;
   const shown = contacts.slice(0, 2);
-  const interessent = forceInteressent || filePartnerId === "julia" || ashleyConverted;
-  const blank = filePartnerId === "ashley";
+  const kind = file.kind;
+  const isCompany = file.fileKind === "company";
+  const interessent =
+    forceInteressent || filePartnerId === "julia" || (filePartnerId === "ashley" && ashleyConverted) || kind === "interessent";
+  const blank = filePartnerId !== "julia";
   const compact = /\bcompact\b/.test(className);
   const street = address?.[0] ?? "";
   const city = address?.[1] ?? "";
@@ -414,7 +418,7 @@ export function FileIdentity({
         {blank ? (
           <>
             <img src={a.avatarBg} alt="" />
-            <img className="glyph" src={a.clientBlank} alt="" />
+            <img className="glyph" src={isCompany ? a.companyBlank : a.clientBlank} alt="" />
           </>
         ) : (
           <img src={a.avatar} alt="" />
@@ -422,6 +426,8 @@ export function FileIdentity({
       </span>
       <div className="pp-id-copy">
         {interessent ? <span className="chip">Interessent</span> : null}
+        {!interessent && kind === "kunde" ? <span className="chip kunde">Kunde</span> : null}
+        {!interessent && kind === "einfach" ? <span className="chip einfach">Einfache Person</span> : null}
         <strong>{personName}</strong>
         {born ? <span className="pp-id-born">{born}</span> : null}
         {hasAddress ? (

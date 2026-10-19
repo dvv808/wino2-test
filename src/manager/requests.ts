@@ -1,5 +1,6 @@
 import * as a from "../assets/index";
-import { ADVISOR, MANAGER } from "../approvalTabs";
+import { ADVISOR, MANAGER, SUPERVISOR } from "../approvalTabs";
+import { FILE_PARTNERS, type PartnerId } from "../person/partners";
 import {
   STAMMDATEN_AREAS,
   stammdatenDraftItems,
@@ -7,6 +8,7 @@ import {
   type StammdatenAreaId,
 } from "../person/stammdaten";
 import type { Approval, ApprovalStep, PostedComment, RequestStamp } from "../workflow";
+import { JULIA_STAMMDATEN_DIFF, LUNIXO_WICO_DIFF, type StammdatenDiff } from "./stammdatenDiff";
 
 export type RequestStatus = "offen" | "abgelehnt" | "abgeschlossen";
 export type PartnerType = "Mitarbeiter" | "Interessent" | "Kunde";
@@ -57,7 +59,25 @@ export type RequestRow = {
   /** Sub-row copy when the row is not a Freigabe step. */
   stepLabel?: string;
   stepPosition?: string;
+  /** Maklervereinbarung is the default; Stammdaten rows live on their own tab. */
+  kind?: "makler" | "stammdaten";
+  /** Who authored the change — an employee, or WICO as an outside source. */
+  source?: "person" | "wico";
+  /** Partner file opened by „Zum Workflow“. */
+  partnerId?: PartnerId;
+  /** Winmakler vs Wino 2 comparison shown on the Freigabe and in Stammdaten. */
+  diff?: StammdatenDiff;
 };
+
+export const WICO_SOURCE = { name: "WICO", role: "Externe Quelle", photo: a.gisa };
+
+export function isStammdatenRequest(row: RequestRow) {
+  return row.kind === "stammdaten";
+}
+
+export function isWicoRequest(row: RequestRow) {
+  return row.source === "wico";
+}
 
 export const SCHRITT: Record<ApprovalStep, string> = {
   docs: "Dokumente freigeben",
@@ -266,6 +286,101 @@ export const ADVISOR_REQUESTS: RequestRow[] = [
 
 export function reviewerOf(row: RequestRow) {
   return row.reviewer ?? MANAGER;
+}
+
+const JULIA_FILE: RequestRow["partner"] = {
+  name: FILE_PARTNERS.julia.name,
+  meta: FILE_PARTNERS.julia.born,
+  kind: "person",
+};
+
+function stammdatenStep(area: StammdatenAreaId) {
+  const index = STAMMDATEN_AREAS.findIndex((entry) => entry.id === area);
+  const total = STAMMDATEN_AREAS.length;
+  const label = STAMMDATEN_AREAS[index]?.label.replace(/\n/g, " ") ?? area;
+  return {
+    stepLabel: label,
+    stepPosition: `Schritt: ${index < 0 ? 1 : index + 1}/${total}`,
+  };
+}
+
+/**
+ * Stammdaten change requests for the Bestandsmanager. Lucy Dullon edited a
+ * person file; WICO pushed Firmenbuch data for Lunixo.
+ */
+export const STAMMDATEN_REQUESTS: RequestRow[] = [
+  {
+    id: "julia-stammdaten-kontakte",
+    group: "julia-stammdaten",
+    partner: JULIA_FILE,
+    partnerId: "julia",
+    types: ["Kunde"],
+    art: "Stammdaten",
+    schritt: "Kontakte",
+    requester: SUPERVISOR,
+    reviewer: MANAGER,
+    date: "22.10.2027",
+    time: "13:33",
+    status: "offen",
+    commentCount: 1,
+    note: "Zentraler Kontakt und Postadresse wurden angepasst.",
+    kind: "stammdaten",
+    source: "person",
+    stammdatenArea: "kontakte",
+    stammdatenCardId: "kontakt-julia",
+    ...stammdatenStep("kontakte"),
+    diff: JULIA_STAMMDATEN_DIFF,
+  },
+  {
+    id: "julia-stammdaten-adressen",
+    group: "julia-stammdaten",
+    partner: JULIA_FILE,
+    partnerId: "julia",
+    types: ["Kunde"],
+    art: "Stammdaten",
+    schritt: "Adressen",
+    requester: SUPERVISOR,
+    reviewer: MANAGER,
+    date: "06.09.2027",
+    time: "09:12",
+    status: "offen",
+    commentCount: 1,
+    note: "Postadresse weicht von Winmakler ab.",
+    kind: "stammdaten",
+    source: "person",
+    stammdatenArea: "adressen",
+    stammdatenCardId: "adresse-haupt",
+    ...stammdatenStep("adressen"),
+    diff: JULIA_STAMMDATEN_DIFF,
+  },
+  {
+    id: "lunixo-stammdaten-wico",
+    group: "lunixo-stammdaten",
+    partner: LUNIXO,
+    partnerId: "lunixo",
+    types: ["Interessent"],
+    art: "Stammdaten",
+    schritt: "Wirtschaftsdaten",
+    requester: WICO_SOURCE,
+    reviewer: MANAGER,
+    date: "15.10.2027",
+    time: "08:04",
+    status: "offen",
+    commentCount: 1,
+    note: "WICO hat die Firmenbuchdaten aktualisiert.",
+    kind: "stammdaten",
+    source: "wico",
+    stammdatenArea: "wirtschaftsdaten",
+    stammdatenCardId: "wirtschaft-firmenbuch",
+    ...stammdatenStep("wirtschaftsdaten"),
+    diff: LUNIXO_WICO_DIFF,
+  },
+];
+
+export function stammdatenDiffFor(partnerId: PartnerId, area: StammdatenAreaId) {
+  return STAMMDATEN_REQUESTS.find(
+    (row) => row.partnerId === partnerId && row.stammdatenArea === area && row.diff,
+  )?.diff;
 }
 
 /** Splits the flat request list into one entry per Maklervereinbarung. */

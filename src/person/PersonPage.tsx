@@ -10,6 +10,8 @@ import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { WorkflowsPage } from "./WorkflowsPage";
 import { FILE_PARTNERS } from "./partners";
+import { familyKindLabel, familyMember } from "./family";
+import { confirmedLinksFor, otherMemberOf, useFamilyLinks } from "./familyLinks";
 import {
   ASHLEY_PLAUSI,
   NAV_GROUPS,
@@ -246,6 +248,20 @@ export function PersonPage() {
     backToFinanzen,
     closeFinanzenProfile,
   } = useWorkflow();
+  const { links, removeLink } = useFamilyLinks();
+  const familyCards: Card[] = confirmedLinksFor(links, filePartnerId).map((link) => {
+    const other = familyMember(otherMemberOf(link, filePartnerId));
+    return {
+      id: link.id,
+      title: link.label || "Nicht definiert",
+      blocks: [{ kind: "person", tag: familyKindLabel(other.kind), name: other.name, sub: other.born || "-" }],
+    };
+  });
+  const sectionsShown = displaySections.map((section) =>
+    section.id === "verknuepfung" && familyCards.length
+      ? { ...section, title: `Verknüpfungen (${familyCards.length})`, cards: familyCards }
+      : section,
+  );
   const [pendingDelete, setPendingDelete] = useState<{ area: ReturnType<typeof areaForSection>; card: Card } | null>(
     null,
   );
@@ -348,7 +364,7 @@ export function PersonPage() {
 
             <IdentityStrip />
 
-            {displaySections.map((section) => {
+            {sectionsShown.map((section) => {
               const area = areaForSection(section.id);
               const empty = !section.cards.length || Boolean(section.cards[0]?.empty);
               return (
@@ -390,7 +406,8 @@ export function PersonPage() {
           title={pendingDelete.card.title || "Eintrag"}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => {
-            deleteStammdatenCard(pendingDelete.area, pendingDelete.card.id);
+            if (pendingDelete.area === "verknuepfung") removeLink(pendingDelete.card.id);
+            else deleteStammdatenCard(pendingDelete.area, pendingDelete.card.id);
             setPendingDelete(null);
           }}
         />

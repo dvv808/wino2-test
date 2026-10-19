@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="xMidYMid meet" overflow="visible" style="display: block;" width="27.9992" height="27.9992" viewBox="0 0 27.9992 27.9992" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="ks-add-plus">
+<circle cx="13.9995" cy="13.9996" r="13.9995" fill="url(#ks-plus-paint0)"/>
+<g id="Plus Icon">
+<path id="Vector 794" d="M8.10511 13.9896H20.631" stroke="white" stroke-linecap="round"/>
+<path id="Vector 795" d="M14.3682 7.72984L14.3682 20.2557" stroke="white" stroke-linecap="round"/>
+</g>
+</g>
+<defs>
+<linearGradient id="ks-plus-paint0" x1="13.9995" y1="5.72205e-05" x2="13.9995" y2="27.9992" gradientUnits="userSpaceOnUse">
+<stop stop-color="#313537"/>
+<stop offset="1" stop-color="#444F56"/>
+</linearGradient>
+</defs>
+</svg>

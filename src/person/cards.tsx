@@ -8,6 +8,12 @@ function valueKey(value: Value) {
   return value.text;
 }
 
+function chipClass(tag: string) {
+  if (tag === "Kunde") return "chip kunde";
+  if (tag === "Einfache Person") return "chip einfach";
+  return "chip";
+}
+
 function ValueCell({ value, className }: { value: Value; className?: string }) {
   const cls = ["pp-val", className].filter(Boolean).join(" ");
 
@@ -164,7 +170,7 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
           <img className="glyph" src={a.personSmall} alt="" width={21} height={21} />
         </span>
         <span className="pp-person-copy">
-          {block.tag ? <span className="chip">{block.tag}</span> : null}
+          {block.tag ? <span className={chipClass(block.tag)}>{block.tag}</span> : null}
           {changed && was ? (
             <span className="pp-val-diff stacked">
               <strong className="pp-val was">{was.name}</strong>
@@ -305,6 +311,7 @@ export function DataCard({
   onEdit,
   onDelete,
   onAdd,
+  full,
 }: {
   card: Card;
   selected?: boolean;
@@ -312,14 +319,16 @@ export function DataCard({
   onEdit?: () => void;
   onDelete?: () => void;
   onAdd?: () => void;
+  full?: boolean;
 }) {
   if (card.empty) return <EmptyCard empty={card.empty} onAdd={onAdd} />;
 
   const previous = card.previous;
   const titleChanged = Boolean(previous?.title && previous.title !== card.title);
+  const clamp = Boolean(card.clampTo) && !full;
   const className = [
     "pp-card",
-    card.clampTo ? "clamped" : "",
+    clamp ? "clamped" : "",
     selected ? "selected" : "",
     card.draft ? "draft" : "",
   ]
@@ -358,13 +367,13 @@ export function DataCard({
         )}
       </header>
 
-      <div className="pp-card-body" style={card.clampTo ? { maxHeight: card.clampTo - 90 } : undefined}>
+      <div className="pp-card-body" style={clamp && card.clampTo ? { maxHeight: card.clampTo - 90 } : undefined}>
         {(card.blocks ?? []).map((block, index) => (
           <BlockView block={block} previous={previous?.blocks?.[index]} key={index} />
         ))}
       </div>
 
-      {card.clampTo ? (
+      {clamp ? (
         <footer className="pp-card-more">
           <a href="#daten">Alle Daten anzeigen</a>
         </footer>

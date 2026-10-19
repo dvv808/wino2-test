@@ -5,17 +5,22 @@ import {
   STEP_LABEL,
   STEP_POSITION,
   groupRequestRows,
+  isStammdatenRequest,
+  isWicoRequest,
   statusOfGroup,
   stepOf,
   type RequestRow,
   type RequestStatus,
 } from "./requests";
 
-const TABS = [
-  { label: "Dashboard", icon: a.dashboard },
-  { label: "Freigaben", icon: a.request },
-  { label: "Bestandsübersicht", icon: a.abteilung },
-  { label: "Dynamische Listen", icon: a.tickList },
+export type BestandListenTab = "dashboard" | "freigaben" | "stammdaten" | "bestand" | "listen";
+
+const TABS: { id: BestandListenTab; label: string; icon: string }[] = [
+  { id: "dashboard", label: "Dashboard", icon: a.dashboard },
+  { id: "freigaben", label: "Freigaben", icon: a.request },
+  { id: "stammdaten", label: "Stammdaten", icon: a.stammdaten },
+  { id: "bestand", label: "Bestandsübersicht", icon: a.abteilung },
+  { id: "listen", label: "Dynamische Listen", icon: a.tickList },
 ];
 
 const COLUMNS = [
@@ -82,11 +87,12 @@ export function StatusPill({ status, short }: { status: RequestStatus; short?: b
 }
 
 /** The requester's avatar, name and role, shared by the parent row and sub-rows. */
-function Requester({ row }: { row: RequestRow }) {
+export function Requester({ row }: { row: RequestRow }) {
+  const wico = isWicoRequest(row);
   return (
     <>
-      <span className="requester-avatar">
-        <img src={row.requester.photo} alt="" />
+      <span className={wico ? "requester-avatar glyph" : "requester-avatar"}>
+        {wico ? <Icon src={a.gisa} size={16} /> : <img src={row.requester.photo} alt="" />}
       </span>
       <span className="requester-copy">
         <strong>{row.requester.name}</strong>
@@ -110,7 +116,9 @@ function SubRow({
   last: boolean;
   onStart: (row: RequestRow) => void;
 }) {
-  const step = stepOf(row);
+  const step = row.stepLabel ? undefined : stepOf(row);
+  const label = row.stepLabel ?? (step ? STEP_LABEL[step] : row.schritt);
+  const position = row.stepPosition ?? (step ? STEP_POSITION[step] : undefined);
   const edge = last ? " last" : "";
 
   return (
@@ -119,8 +127,8 @@ function SubRow({
 
       <div className="subcell art-cell">
         <p>
-          {STEP_LABEL[step]}
-          <small>{STEP_POSITION[step]}</small>
+          {label}
+          {position ? <small>{position}</small> : null}
         </p>
       </div>
 
@@ -254,9 +262,11 @@ function WorkflowRow({
         {done ? (
           <>
             <Requester row={lead} />
-            <button type="button" className="cell-open" aria-label="Mitarbeiter öffnen">
-              <Icon src={a.openTab} size={15} />
-            </button>
+            {isWicoRequest(lead) ? null : (
+              <button type="button" className="cell-open" aria-label="Mitarbeiter öffnen">
+                <Icon src={a.openTab} size={15} />
+              </button>
+            )}
           </>
         ) : null}
       </div>
@@ -306,19 +316,27 @@ function WorkflowRow({
 
 export function FreigabenPanel({
   rows,
+  tab,
+  onTab,
   onStart,
   onView,
   onDelete,
 }: {
   rows: RequestRow[];
+  tab: BestandListenTab;
+  onTab: (tab: BestandListenTab) => void;
   onStart: (row: RequestRow) => void;
   onView: (row: RequestRow) => void;
   onDelete: (row: RequestRow) => void;
 }) {
-  const groups = groupRequestRows(rows);
+  const visible = rows.filter((row) =>
+    tab === "stammdaten" ? isStammdatenRequest(row) : !isStammdatenRequest(row),
+  );
+  const groups = groupRequestRows(visible);
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const count = (status: RequestStatus) =>
     groups.filter((group) => statusOfGroup(group) === status).length;
+  const showTable = tab === "freigaben" || tab === "stammdaten";
 
   function toggle(key: string) {
     setCollapsed((current) =>
@@ -334,18 +352,21 @@ export function FreigabenPanel({
       </h1>
 
       <div className="freigaben-tabs">
-        {TABS.map((tab) => (
+        {TABS.map((entry) => (
           <button
             type="button"
-            className={tab.label === "Freigaben" ? "fg-tab active" : "fg-tab"}
-            key={tab.label}
+            className={entry.id === tab ? "fg-tab active" : "fg-tab"}
+            key={entry.id}
+            onClick={() => onTab(entry.id)}
           >
-            <Icon src={tab.icon} size={24} />
-            {tab.label}
+            <Icon src={entry.icon} size={24} />
+            {entry.label}
           </button>
         ))}
       </div>
 
+      {showTable ? (
+        <>
       <div className="freigaben-stats">
         <StatCard label="Offen" value={count("offen")} icon={a.onhold} />
         <StatCard label="Zurückgesetzt" value={count("abgelehnt")} icon={a.revertDark} />
@@ -402,6 +423,10 @@ export function FreigabenPanel({
           );
         })}
       </div>
+        </>
+      ) : (
+        <p className="atab-empty center">Dieser Bereich folgt.</p>
+      )}
     </section>
   );
 }

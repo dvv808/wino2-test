@@ -262,7 +262,7 @@ export const MANAGER = {
   photo: a.reqAnna,
 };
 
-const SUPERVISOR = { name: "Dullon Lucy", role: "Leitung", photo: a.empLucy };
+export const SUPERVISOR = { name: "Dullon Lucy", role: "Leitung", photo: a.empLucy };
 
 export function PersonAvatar({
   person,

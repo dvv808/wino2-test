@@ -17,13 +17,36 @@ import { AppsNav, ContentNav, type ContentPane } from "../chrome";
 import { CommentPrompt } from "../CommentPrompt";
 import { DocumentRail, PdfViewer } from "../documents";
 import { DateField, Icon, InfoBox, PersonSelect } from "../ui";
-import { useWorkflow } from "../workflow";
+import { useWorkflow, type PostedComment } from "../workflow";
 import { BestandAreaNav, BestandMainNav } from "./BestandChrome";
-import { StatusPill } from "./FreigabenPanel";
-import { SCHRITT, type RequestRow } from "./requests";
+import { Requester, StatusPill } from "./FreigabenPanel";
+import { StammdatenChangeCard } from "./StammdatenChangeCard";
+import { isStammdatenRequest, isWicoRequest, SCHRITT, type RequestRow } from "./requests";
+
+const STAMMDATEN_TASKS = [
+  {
+    title: "Wer hat geändert",
+    text: "Prüfe, ob die Änderung von einer Mitarbeiterin oder von WICO stammt.",
+  },
+  {
+    title: "Was wurde geändert",
+    text: "Vergleiche die Winmakler-Werte mit den neuen Wino-2-Werten.",
+  },
+];
+
+function localStamp() {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return {
+    date: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
+    time: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+  };
+}
 
 function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
   const { partner } = row;
+  const stammdaten = isStammdatenRequest(row);
+  const wico = isWicoRequest(row);
 
   return (
     <div className="fg-meta">
@@ -55,13 +78,19 @@ function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
       <div className="fg-meta-cell">
         <span className="fg-meta-label">Angefordert von</span>
         <div className="fg-meta-person">
-          <span className="fg-meta-avatar">
-            <img className="photo" src={row.requester.photo} alt="" />
-          </span>
-          <span className="fg-meta-copy">
-            <strong>{row.requester.name}</strong>
-            <small>{row.requester.role}</small>
-          </span>
+          {wico ? (
+            <Requester row={row} />
+          ) : (
+            <>
+              <span className="fg-meta-avatar">
+                <img className="photo" src={row.requester.photo} alt="" />
+              </span>
+              <span className="fg-meta-copy">
+                <strong>{row.requester.name}</strong>
+                <small>{row.requester.role}</small>
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -88,9 +117,9 @@ function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
       <div className="fg-meta-cell">
         <span className="fg-meta-label">Schritt</span>
         <p className="fg-meta-stamp">
-          {signed ? "5 von 5" : "4 von 5"}
+          {stammdaten ? row.stepPosition ?? row.schritt : signed ? "5 von 5" : "4 von 5"}
           <br />
-          {signed ? "Signatur" : "Dokumentenfreigabe"}
+          {stammdaten ? row.stepLabel ?? row.schritt : signed ? "Signatur" : "Dokumentenfreigabe"}
         </p>
       </div>
     </div>
@@ -98,15 +127,19 @@ function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
 }
 
 function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
+  const stammdaten = isStammdatenRequest(row);
+
   if (row.status === "abgeschlossen") {
     return (
       <div className="rev-banner success">
         <div className="rev-banner-line">
           <Icon src={a.checkGreen} size={24} />
           <p>
-            <strong>Dokument freigegeben</strong>
+            <strong>{stammdaten ? "Änderung freigegeben" : "Dokument freigegeben"}</strong>
             <br />
-            Der Bestandsmanager hat dieses Dokument freigegeben.
+            {stammdaten
+              ? "Der Bestandsmanager hat diese Stammdaten-Änderung freigegeben."
+              : "Der Bestandsmanager hat dieses Dokument freigegeben."}
           </p>
         </div>
       </div>
@@ -135,8 +168,9 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
         <p>
           <strong>Freigabe ausstehend</strong>
           <br />
-          Der Bestandsmanager muss diese{" "}
-          {signed ? "Signatur noch genehmigen" : "Dokument noch genehmigen"}.
+          {stammdaten
+            ? "Der Bestandsmanager muss diese Stammdaten-Änderung noch genehmigen."
+            : `Der Bestandsmanager muss diese ${signed ? "Signatur noch genehmigen" : "Dokument noch genehmigen"}.`}
         </p>
       </div>
     </div>
@@ -202,14 +236,17 @@ export function FreigabePage({
     addComment,
     editComment,
     removeComment,
+    openStammdaten,
   } = useWorkflow();
   const [pane, setPane] = useState<ContentPane>("freigabe");
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
+  const [stammdatenPosted, setStammdatenPosted] = useState<PostedComment[]>([]);
+  const stammdaten = isStammdatenRequest(row);
   const signed = row.schritt === SCHRITT.sign;
   const decided = row.status !== "offen";
   const step = signed ? "sign" : "docs";
-  const tasks = MANAGER_TASKS[step];
+  const tasks = stammdaten ? STAMMDATEN_TASKS : MANAGER_TASKS[step];
   const sentAt = { date: row.date, time: row.time };
   const comments = buildComments({
     note: row.note,
@@ -217,7 +254,7 @@ export function FreigabePage({
     noteAt: sentAt,
     decision: row.comment,
     decisionAt: decidedAt[step] ?? sentAt,
-    posted: posted[step],
+    posted: stammdaten ? stammdatenPosted : posted[step],
   });
   const timeline = approvalTimeline({
     requester: row.requester,
@@ -255,7 +292,7 @@ export function FreigabePage({
                 <p>
                   <strong>Freigabe prüfen:</strong>
                   <span>
-                    {row.art} – {row.schritt}
+                    {row.art} – {row.stepLabel ?? row.schritt}
                   </span>
                 </p>
               </div>
@@ -277,13 +314,25 @@ export function FreigabePage({
               </div>
             </header>
 
-            <div className="review-main fg-body">
-              <DocumentRail title={signed ? "Signaturen" : "Dokumentenfreigabe"} />
+            <div className={stammdaten ? "review-main fg-body sd-review" : "review-main fg-body"}>
+              {stammdaten ? null : (
+                <DocumentRail title={signed ? "Signaturen" : "Dokumentenfreigabe"} />
+              )}
               <div className="review-card">
                 <section className="review-content">
                   <StatusBanner row={row} signed={signed} />
 
-                  <DocHeading label={signed ? "Signaturfreigabe" : "Dokumentenfreigabe"} />
+                  {stammdaten ? (
+                    <div className="doc-heading">
+                      <strong>{row.partner.name}</strong>
+                      <span>
+                        <Icon src={a.stammdaten} size={18} />
+                        Stammdaten-Freigabe
+                      </span>
+                    </div>
+                  ) : (
+                    <DocHeading label={signed ? "Signaturfreigabe" : "Dokumentenfreigabe"} />
+                  )}
 
                   <ApprovalTabsBar
                     active={tab}
@@ -303,9 +352,32 @@ export function FreigabePage({
                       <KommentareTab
                         comments={comments}
                         author={MANAGER}
-                        onPost={(text) => addComment(step, MANAGER, text)}
-                        onEdit={(index, text) => editComment(step, index, text)}
-                        onRemove={(index) => removeComment(step, index)}
+                        onPost={(text) => {
+                          if (stammdaten) {
+                            setStammdatenPosted((current) => [
+                              ...current,
+                              { person: MANAGER, text, at: localStamp() },
+                            ]);
+                            return;
+                          }
+                          addComment(step, MANAGER, text);
+                        }}
+                        onEdit={(index, text) => {
+                          if (stammdaten) {
+                            setStammdatenPosted((current) =>
+                              current.map((entry, i) => (i === index ? { ...entry, text } : entry)),
+                            );
+                            return;
+                          }
+                          editComment(step, index, text);
+                        }}
+                        onRemove={(index) => {
+                          if (stammdaten) {
+                            setStammdatenPosted((current) => current.filter((_, i) => i !== index));
+                            return;
+                          }
+                          removeComment(step, index);
+                        }}
                       />
                     )}
                     {tab === "verlauf" && <VerlaufTab extra={timeline} />}
@@ -314,7 +386,11 @@ export function FreigabePage({
                 </section>
 
                 <section className="review-viewer">
-                  <PdfViewer signature={signed && signMode === "digital" ? signature : null} />
+                  {stammdaten && row.diff ? (
+                    <StammdatenChangeCard diff={row.diff} />
+                  ) : (
+                    <PdfViewer signature={signed && signMode === "digital" ? signature : null} />
+                  )}
                 </section>
               </div>
             </div>
@@ -324,6 +400,17 @@ export function FreigabePage({
                 Zurück zur Liste
               </button>
               <div className="review-foot-actions">
+                {stammdaten && row.partnerId && row.stammdatenArea ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() =>
+                      openStammdaten(row.stammdatenArea!, row.stammdatenCardId, row.partnerId)
+                    }
+                  >
+                    Zum Workflow
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn-danger"

@@ -15,6 +15,8 @@ import { ManagerView } from "./manager/ManagerView";
 import { HonorarProvider } from "./honorar/store";
 import { HonorarView } from "./honorar/HonorarView";
 import { MeinBereichView } from "./mein-bereich/MeinBereichView";
+import { CompanyGroupsProvider } from "./person/companyGroups";
+import { FamilyLinksProvider } from "./person/familyLinks";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
@@ -310,8 +312,12 @@ export default function App() {
   return (
     <WorkflowProvider>
       <HonorarProvider>
-        <Screen />
-        <WidgetBar />
+        <FamilyLinksProvider>
+          <CompanyGroupsProvider>
+            <Screen />
+            <WidgetBar />
+          </CompanyGroupsProvider>
+        </FamilyLinksProvider>
       </HonorarProvider>
     </WorkflowProvider>
   );

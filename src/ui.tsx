@@ -286,6 +286,7 @@ export function DateField({
   onYear,
   disabled,
   prefix,
+  hideYear,
 }: {
   day: string;
   month: string;
@@ -295,6 +296,7 @@ export function DateField({
   onYear: (value: string) => void;
   disabled?: boolean;
   prefix?: string;
+  hideYear?: boolean;
 }) {
   return (
     <div className="date-row editable">
@@ -306,12 +308,14 @@ export function DateField({
         disabled={disabled}
         onChange={(e) => onMonth(e.target.value)}
       />
-      <input
-        className="date-box year"
-        value={year}
-        disabled={disabled}
-        onChange={(e) => onYear(e.target.value)}
-      />
+      {hideYear ? null : (
+        <input
+          className="date-box year"
+          value={year}
+          disabled={disabled}
+          onChange={(e) => onYear(e.target.value)}
+        />
+      )}
       <button type="button" className="cal-btn small" aria-label="Kalender" disabled={disabled}>
         <Icon src={a.calendar} size={16} />
       </button>

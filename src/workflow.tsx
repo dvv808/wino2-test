@@ -16,6 +16,7 @@ import {
   areaTitle,
   cardPayload,
   cloneAshleySections,
+  cloneLunixoSections,
   cloneSections,
   publishedSnapshot,
   sectionData,
@@ -32,6 +33,7 @@ import {
 import {
   INITIAL_VERSIONS,
   ASHLEY_VERSIONS,
+  blankFileVersions,
   EDITOR_ADVISOR,
   currentVersion,
   historyFromStammdatenSave,
@@ -167,6 +169,13 @@ type PartnerFile = {
   stammdatenPublished: Section[] | null;
 };
 
+const FAMILY_FILES: [PartnerId, string, string][] = [
+  ["karl", "Karl", "Atkinson"],
+  ["johanna", "Johanna", "Atkinson"],
+  ["ash", "Ash", "Atkinson"],
+  ["marcus", "Marcus", "Atkinson-Sullivan"],
+];
+
 function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
   return {
     julia: {
@@ -183,7 +192,26 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
       stammdatenBaseline: null,
       stammdatenPublished: null,
     },
-  };
+    lunixo: {
+      sections: cloneLunixoSections(),
+      versions: blankFileVersions("Lunixo", "AG", "partner-lunixo", "lunixo-v1"),
+      viewingVersionId: "lunixo-v1",
+      stammdatenBaseline: null,
+      stammdatenPublished: null,
+    },
+    ...Object.fromEntries(
+      FAMILY_FILES.map(([id, vorname, nachname]) => [
+        id,
+        {
+          sections: cloneAshleySections(vorname, nachname, `partner-${id}`),
+          versions: blankFileVersions(vorname, nachname, `partner-${id}`, `${id}-v1`),
+          viewingVersionId: `${id}-v1`,
+          stammdatenBaseline: null,
+          stammdatenPublished: null,
+        },
+      ]),
+    ),
+  } as Record<PartnerId, PartnerFile>;
 }
 
 function useWorkflowState() {
@@ -668,11 +696,18 @@ function useWorkflowState() {
     return section?.cards.find((card) => !card.empty)?.id ?? null;
   }
 
-  function openStammdaten(area: StammdatenAreaId, cardId?: string) {
-    setStammdatenBaseline((current) => current ?? structuredClone(sections));
-    setStammdatenPublished((current) => current ?? publishedSnapshot(sections));
+  function openStammdaten(area: StammdatenAreaId, cardId?: string, partnerId?: PartnerId) {
+    if (partnerId) {
+      setFilePartnerId(partnerId);
+      setPersonModule("profil");
+      setPersonArea(partnerId === "ashley" ? "maklermandat" : "stammdaten");
+    }
+    const source = partnerId ? partnerFiles[partnerId].sections : sections;
+    setStammdatenBaseline((current) => current ?? structuredClone(source));
+    setStammdatenPublished((current) => current ?? publishedSnapshot(source));
     setStammdatenArea(area);
-    setStammdatenCardId(cardId ?? firstCardId(area));
+    setStammdatenCardId(cardId ?? firstCardId(area, source));
+    setFreigabeId(null);
     setView("stammdaten");
   }
 

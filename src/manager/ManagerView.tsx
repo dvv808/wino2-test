@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useWorkflow } from "../workflow";
 import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrome";
 import { DeleteWarning } from "./DeleteWarning";
-import { FreigabenPanel } from "./FreigabenPanel";
+import { FreigabenPanel, type BestandListenTab } from "./FreigabenPanel";
 import { FreigabePage } from "./FreigabePage";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
 import {
   ADVISOR_REQUESTS,
   DEMO_REQUESTS,
+  STAMMDATEN_REQUESTS,
   liveMaklerRows,
   type RequestRow,
   type RequestStatus,
@@ -39,6 +40,7 @@ export function ManagerView() {
   /** Workflows deleted from the list, and the one waiting on the warning prompt. */
   const [deleted, setDeleted] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<RequestRow | null>(null);
+  const [listenTab, setListenTab] = useState<BestandListenTab>("freigaben");
 
   const liveRows = liveMaklerRows({
     approvalOf,
@@ -54,6 +56,7 @@ export function ManagerView() {
     ...(liveRows.every((row) => row.pending) ? [] : liveRows),
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...ADVISOR_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
+    ...STAMMDATEN_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
   ].filter((row) => !deleted.includes(row.group));
 
   /** A shared link can name a request that this session never created. */
@@ -92,6 +95,8 @@ export function ManagerView() {
           <MitarbeiterSidebar />
           <FreigabenPanel
             rows={rows}
+            tab={listenTab}
+            onTab={setListenTab}
             onStart={(row) => openFreigabe(row.id)}
             onView={(row) => openFreigabe(row.id)}
             onDelete={setDeleting}

@@ -1,4 +1,5 @@
 import * as a from "../assets/index";
+import { companyWirtschaftCards } from "./companyWirtschaft";
 import { FILE_PARTNERS, type FileContact } from "./partners";
 
 /**
@@ -95,7 +96,7 @@ export const STAMMDATEN_AREAS: { id: StammdatenAreaId; label: string; icon: stri
   { id: "adressen", label: "Adressen", icon: a.house },
   { id: "bankverbindungen", label: "Bankverbindung", icon: a.bank },
   { id: "systemdaten", label: "Systemdaten", icon: a.systemRing },
-  { id: "verknuepfung", label: "Verknüpfung", icon: a.abteilung },
+  { id: "verknuepfung", label: "Verknüpfung", icon: a.verknuepfung },
   { id: "externe", label: "Externe\nQuellen", icon: a.gisa },
 ];
 
@@ -668,13 +669,13 @@ export const SECTIONS: Section[] = [
   },
   {
     id: "verknuepfung",
-    icon: a.abteilung,
+    icon: a.verknuepfung,
     title: "Verknüpfung",
     cards: [
       {
         id: "verknuepfung-empty",
         empty: {
-          icon: a.abteilung,
+          icon: a.verknuepfung,
           title: "Noch keine Verknüpfung angelegt",
           lead: "Du kannst",
           link: "neue Verknüpfungen hier anlegen",
@@ -960,6 +961,128 @@ export const INITIAL_WIRTSCHAFT: WirtschaftForm = {
   vertretungsArt: "gemeinsam",
   vertretungsbefugnis: "vertritt seit 01.03.2025 gemeinsam mit einem/einer weiteren Geschäftsführer/in",
 };
+
+export const INITIAL_PERSON_WICO_ID = "2813";
+
+export type PersonWicoRecord = {
+  id: string;
+  name: string;
+  wirtschaft: WirtschaftForm;
+  gewerbe: GewerbeEntry[];
+  verein: VereinEntry[];
+};
+
+const PERSON_WICO_ALT_ID = "3041";
+
+const PERSON_WICO_ALT: PersonWicoRecord = {
+  id: PERSON_WICO_ALT_ID,
+  name: "Ashley Johnson",
+  wirtschaft: {
+    eigentuemerUnternehmen: "Atkinson Consulting OG",
+    eigentuemerArt: "Gesellschafter",
+    anteile: "50%",
+    eingetragenTag: "12",
+    eingetragenMonat: "08",
+    eingetragenJahr: "2010",
+    vertreterUnternehmen: "Atkinson Consulting OG",
+    funktion: "Geschäftsführer",
+    funktionsbeschreibung: "Gesamtverantwortung",
+    vertretungsArt: "einzeln",
+    vertretungsbefugnis: "vertritt selbstständig",
+  },
+  gewerbe: [
+    {
+      unternehmen: "Atkinson Consulting OG",
+      funktion: "Gewerbeinhaber",
+      strasse: "Getreidegasse",
+      nummer: "8",
+      zusatz: "-",
+      plz: "5020",
+      ort: "Salzburg",
+      land: "Österreich",
+      wortlaut: WORTLAUT,
+      gisa: "33445566",
+      tag: "12",
+      monat: "08",
+      jahr: "2010",
+    },
+  ],
+  verein: [
+    {
+      verein: "Rotary Club Salzburg",
+      funktion: "Mitglied",
+      tag: "01",
+      monat: "06",
+      jahr: "2015",
+    },
+  ],
+};
+
+function copyWico<T>(value: T): T {
+  return structuredClone(value);
+}
+
+function fabricatePersonWico(id: string): PersonWicoRecord {
+  const digits = id.replace(/\D/g, "") || "10000001";
+  return {
+    id,
+    name: `Person ${id}`,
+    wirtschaft: {
+      eigentuemerUnternehmen: `Betrieb ${id}`,
+      eigentuemerArt: "Gesellschafter",
+      anteile: "100%",
+      eingetragenTag: "01",
+      eingetragenMonat: "01",
+      eingetragenJahr: "2015",
+      vertreterUnternehmen: `Betrieb ${id}`,
+      funktion: "Geschäftsführer",
+      funktionsbeschreibung: "Gesamtverantwortung",
+      vertretungsArt: "einzeln",
+      vertretungsbefugnis: "vertritt selbstständig",
+    },
+    gewerbe: [
+      {
+        ...EMPTY_GEWERBE,
+        unternehmen: `Betrieb ${id}`,
+        funktion: "Gewerbeinhaber",
+        strasse: "Hauptstrasse",
+        nummer: "1",
+        zusatz: "-",
+        plz: "1010",
+        ort: "Wien",
+        wortlaut: WORTLAUT,
+        gisa: digits.slice(0, 8),
+        tag: "01",
+        monat: "01",
+        jahr: "2015",
+      },
+    ],
+    verein: [
+      {
+        verein: `Verein ${id}`,
+        funktion: "Mitglied",
+        tag: "01",
+        monat: "01",
+        jahr: "2016",
+      },
+    ],
+  };
+}
+
+export function lookupPersonWico(id: string): PersonWicoRecord {
+  const key = id.trim();
+  if (key === INITIAL_PERSON_WICO_ID) {
+    return copyWico({
+      id: INITIAL_PERSON_WICO_ID,
+      name: "Julia Atkinson",
+      wirtschaft: INITIAL_WIRTSCHAFT,
+      gewerbe: INITIAL_GEWERBE,
+      verein: INITIAL_VEREIN,
+    });
+  }
+  if (key === PERSON_WICO_ALT_ID) return copyWico(PERSON_WICO_ALT);
+  return copyWico(fabricatePersonWico(key || "neu"));
+}
 
 export function partnerForm(card: Card): PartnerForm {
   const born = splitDate(rowValue(card, "Geburtsdatum"));
@@ -1296,7 +1419,7 @@ export const NAV_GROUPS = [
       { label: "Adressen", icon: a.house, target: "adressen" },
       { label: "Bankverbindung (2)", icon: a.bank, target: "bankverbindungen" },
       { label: "Systemdaten", icon: a.systemRing, target: "systemdaten" },
-      { label: "Verknüpfung", icon: a.abteilung, target: "verknuepfung" },
+      { label: "Verknüpfung", icon: a.verknuepfung, target: "verknuepfung" },
     ],
   },
   {
@@ -1312,7 +1435,7 @@ export const NAV_GROUPS = [
 /** The Plausibilitäts-Check panel in the page header. */
 export const PLAUSI = [
   { label: "Adressen", state: "Abgeschlossen", icon: a.house, done: true },
-  { label: "Verknüpfung", state: "Offen", icon: a.abteilung, done: false },
+  { label: "Verknüpfung", state: "Offen", icon: a.verknuepfung, done: false },
   { label: "Bankdaten", state: "Abgeschlossen", icon: a.bank, done: true },
   { label: "Anhänge", state: "Offen", icon: a.paperclip, done: false },
 ];
@@ -1326,8 +1449,13 @@ function emptyLinkCard(id: string, icon: string, title: string, link: string): C
   };
 }
 
-/** Ashley's file: name + system data only. Everything else is still empty. */
-export function cloneAshleySections(): Section[] {
+/** A new file: name + system data only. Everything else is still empty. */
+export function cloneAshleySections(
+  vorname = "Ashley",
+  nachname = "Johnson",
+  cardId = "partner-ashley",
+  personTyp = "Privatperson",
+): Section[] {
   return structuredClone([
     {
       id: "personendaten",
@@ -1335,11 +1463,11 @@ export function cloneAshleySections(): Section[] {
       title: "Allgemeine Personendaten",
       cards: [
         applyPartner(
-          { id: "partner-ashley" },
+          { id: cardId },
           {
             ...EMPTY_PARTNER,
-            vorname: "Ashley",
-            nachname: "Johnson",
+            vorname,
+            nachname,
           },
         ),
       ],
@@ -1399,7 +1527,7 @@ export function cloneAshleySections(): Section[] {
               kind: "rows",
               caption: "Allgemein",
               rows: [
-                { label: "Personentyp", value: "Privatperson" },
+                { label: "Personentyp", value: personTyp },
                 { label: "Partnertyp", value: "-" },
               ],
             },
@@ -1426,12 +1554,12 @@ export function cloneAshleySections(): Section[] {
     },
     {
       id: "verknuepfung",
-      icon: a.abteilung,
+      icon: a.verknuepfung,
       title: "Verknüpfung",
       cards: [
         emptyLinkCard(
           "verknuepfung-empty",
-          a.abteilung,
+          a.verknuepfung,
           "Noch keine Verknüpfung angelegt",
           "neue Verknüpfungen hier anlegen",
         ),
@@ -1468,4 +1596,14 @@ export function cloneAshleySections(): Section[] {
       ],
     },
   ]);
+}
+
+/** Lunixo AG starts with the company Wirtschaftsdaten cards from the Figma screens. */
+export function cloneLunixoSections(): Section[] {
+  const sections = cloneAshleySections("Lunixo", "AG", "partner-lunixo", "Unternehmen");
+  return sections.map((section) =>
+    section.id === "wirtschaftsdaten"
+      ? { ...section, cards: structuredClone(companyWirtschaftCards()) }
+      : section,
+  );
 }

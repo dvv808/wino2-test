@@ -353,24 +353,33 @@ export const INITIAL_VERSIONS: PersonVersion[] = [
   },
 ];
 
-/** Ashley starts as a new file: version 1, partner created, nothing else. */
-export const ASHLEY_VERSIONS: PersonVersion[] = [
-  {
-    id: "a01",
-    number: 1,
-    legal: true,
-    kind: "added",
-    date: "15.09.2026",
-    time: "09:04",
-    field: "Partner added",
-    to: "Ashley Johnson",
-    placeLabel: "Stammdaten · Partnerdaten",
-    place: { app: "stammdaten", area: "personendaten", cardId: "partner-ashley" },
-    editor: EDITOR_ADVISOR,
-    vorname: "Ashley",
-    nachname: "Johnson",
-  },
-];
+/** A new file starts at version 1: partner created, nothing else. */
+export function blankFileVersions(
+  vorname: string,
+  nachname: string,
+  cardId: string,
+  id: string,
+): PersonVersion[] {
+  return [
+    {
+      id,
+      number: 1,
+      legal: true,
+      kind: "added",
+      date: "15.09.2026",
+      time: "09:04",
+      field: "Partner added",
+      to: `${vorname} ${nachname}`,
+      placeLabel: "Stammdaten · Partnerdaten",
+      place: { app: "stammdaten", area: "personendaten", cardId },
+      editor: EDITOR_ADVISOR,
+      vorname,
+      nachname,
+    },
+  ];
+}
+
+export const ASHLEY_VERSIONS: PersonVersion[] = blankFileVersions("Ashley", "Johnson", "partner-ashley", "a01");
 
 export function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("de-AT");

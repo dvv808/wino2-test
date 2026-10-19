@@ -1,5 +1,7 @@
-export type PartnerId = "julia" | "ashley";
-export type PartnerKind = "interessent" | "einfach";
+export type PartnerId = "julia" | "ashley" | "karl" | "johanna" | "ash" | "marcus" | "lunixo";
+export type PartnerKind = "interessent" | "kunde" | "einfach";
+/** Privatperson files are "person"; business partners (not linkable into a family yet) are "company". */
+export type FileKind = "person" | "company";
 
 export type FileContact = {
   kind: "phone" | "mail";
@@ -19,6 +21,13 @@ export type FilePartner = {
   info?: string;
   contacts: FileContact[];
   moreContacts: number;
+  /** Set for the family members; Julia and Ashley derive it from the file state. */
+  kind?: PartnerKind;
+  /** Defaults to "person"; set to "company" for business partners like Lunixo AG. */
+  fileKind?: FileKind;
+  /** Firmenbuchnummer, shown for company files. */
+  fn?: string;
+  website?: string;
 };
 
 export const JULIA: FilePartner = {
@@ -47,9 +56,50 @@ export const ASHLEY: FilePartner = {
   moreContacts: 0,
 };
 
+function familyPartner(
+  id: PartnerId,
+  slug: string,
+  name: string,
+  born: string,
+  fileId: string,
+  kind: PartnerKind,
+): FilePartner {
+  return { id, slug, name, born, fileId, kind, contacts: [], moreContacts: 0 };
+}
+
+export const KARL = familyPartner("karl", "karl-atkinson", "Karl Atkinson", "12.09.1965", "3112", "interessent");
+export const JOHANNA = familyPartner("johanna", "johanna-atkinson", "Johanna Atkinson", "03.10.1964", "3113", "kunde");
+export const ASH = familyPartner("ash", "ash-atkinson", "Ash Atkinson", "22.11.2014", "3114", "einfach");
+export const MARCUS = familyPartner(
+  "marcus",
+  "marcus-atkinson-sullivan",
+  "Marcus Atkinson-Sullivan",
+  "13.11.1994",
+  "3115",
+  "interessent",
+);
+
+export const LUNIXO: FilePartner = {
+  id: "lunixo",
+  slug: "lunixo-ag",
+  name: "Lunixo AG",
+  fileId: "4001",
+  fileKind: "company",
+  kind: "interessent",
+  fn: "232312",
+  website: "www.lunixo.com",
+  contacts: [],
+  moreContacts: 0,
+};
+
 export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
   julia: JULIA,
   ashley: ASHLEY,
+  karl: KARL,
+  johanna: JOHANNA,
+  ash: ASH,
+  marcus: MARCUS,
+  lunixo: LUNIXO,
 };
 
 export const PARTNER_BY_SLUG = new Map<string, PartnerId>(

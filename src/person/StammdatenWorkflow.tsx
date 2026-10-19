@@ -1,21 +1,44 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { AppsNav, FileIdentity, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
+import { KonzernstrukturPanel } from "./Konzernstruktur";
+import { FILE_PARTNERS } from "./partners";
 import { SaveConfirm } from "./SaveConfirm";
+import { VerknuepfungPanel } from "./Verknuepfung";
 import {
   AddressFields,
   AnhaengeFields,
   BankFields,
+  CompanyFirmenbuchFields,
+  CompanyGisaFields,
+  CompanyOrganeFields,
   ContactFields,
+  WicoDatenFields,
   GewerbeFields,
   PartnerFields,
   VereinFields,
   WirtschaftFields,
 } from "./forms";
+import {
+  applyCompanyFiles,
+  applyCompanyFirmenbuch,
+  applyCompanyGisa,
+  applyCompanyOrgane,
+  INITIAL_COMPANY_FILES,
+  INITIAL_COMPANY_FIRMENBUCH,
+  INITIAL_COMPANY_GISA,
+  INITIAL_COMPANY_ORGANE,
+  INITIAL_WICO_ID,
+  lookupWico,
+  type CompanyFirmenbuchForm,
+  type CompanyGisaForm,
+  type CompanyOrganeForm,
+  type WicoRecord,
+} from "./companyWirtschaft";
 import {
   BLANK_AREAS,
   EMPTY_ADDRESS,
@@ -23,9 +46,11 @@ import {
   EMPTY_CONTACT,
   EMPTY_PARTNER,
   INITIAL_GEWERBE,
+  INITIAL_PERSON_WICO_ID,
   INITIAL_VEREIN,
   INITIAL_WIRTSCHAFT,
   INITIAL_WIRTSCHAFT_FILES,
+  lookupPersonWico,
   MULTI_CARD_AREAS,
   STAMMDATEN_AREAS,
   addressForm,
@@ -50,6 +75,7 @@ import {
   type FileEntry,
   type GewerbeEntry,
   type PartnerForm,
+  type PersonWicoRecord,
   type VereinEntry,
   type WirtschaftForm,
 } from "./stammdaten";
@@ -95,6 +121,7 @@ export function StammdatenWorkflow() {
   const {
     displaySections,
     personName,
+    filePartnerId,
     stammdatenArea,
     stammdatenCardId,
     selectStammdatenCard,
@@ -122,7 +149,8 @@ export function StammdatenWorkflow() {
   );
   const selected = cards.find((card) => card.id === stammdatenCardId) ?? cards[0] ?? null;
   const blank = BLANK_AREAS.includes(stammdatenArea);
-  const canAdd = MULTI_CARD_AREAS.includes(stammdatenArea);
+  const isCompany = FILE_PARTNERS[filePartnerId].fileKind === "company";
+  const canAdd = MULTI_CARD_AREAS.includes(stammdatenArea) && !(isCompany && stammdatenArea === "wirtschaftsdaten");
 
   const [partner, setPartner] = useState<PartnerForm>(EMPTY_PARTNER);
   const [contact, setContact] = useState<ContactForm>(EMPTY_CONTACT);
@@ -132,18 +160,45 @@ export function StammdatenWorkflow() {
   const [gewerbe, setGewerbe] = useState<GewerbeEntry[]>(INITIAL_GEWERBE);
   const [verein, setVerein] = useState<VereinEntry[]>(INITIAL_VEREIN);
   const [wirtschaftFiles, setWirtschaftFiles] = useState<FileEntry[]>(INITIAL_WIRTSCHAFT_FILES);
+  const [companyFirmenbuch, setCompanyFirmenbuch] = useState<CompanyFirmenbuchForm>(INITIAL_COMPANY_FIRMENBUCH);
+  const [companyOrgane, setCompanyOrgane] = useState<CompanyOrganeForm>(INITIAL_COMPANY_ORGANE);
+  const [companyGisa, setCompanyGisa] = useState<CompanyGisaForm>(INITIAL_COMPANY_GISA);
+  const [companyFiles, setCompanyFiles] = useState<FileEntry[]>(INITIAL_COMPANY_FILES);
+  const defaultWicoId = isCompany ? INITIAL_WICO_ID : INITIAL_PERSON_WICO_ID;
+  const [wicoDraft, setWicoDraft] = useState(defaultWicoId);
+  const [wicoId, setWicoId] = useState(defaultWicoId);
+  const [wicoSyncing, setWicoSyncing] = useState(false);
+  const [wicoSnapshot, setWicoSnapshot] = useState<WicoRecord>(() => lookupWico(INITIAL_WICO_ID));
+  const [personWico, setPersonWico] = useState<PersonWicoRecord>(() => lookupPersonWico(INITIAL_PERSON_WICO_ID));
   const [pendingDelete, setPendingDelete] = useState<Card | null>(null);
   const [confirmSave, setConfirmSave] = useState(false);
   const [snack, setSnack] = useState<{ id: number; message: string; undo?: () => void } | null>(null);
+  const wicoTimer = useRef(0);
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
 
   useEffect(() => {
-    if (stammdatenArea === "wirtschaftsdaten") {
-      setWirtschaft(INITIAL_WIRTSCHAFT);
-      setGewerbe(INITIAL_GEWERBE);
-      setVerein(INITIAL_VEREIN);
-      setWirtschaftFiles(INITIAL_WIRTSCHAFT_FILES);
+    if (stammdatenArea !== "wirtschaftsdaten") return;
+    if (isCompany) {
+      setCompanyFirmenbuch(INITIAL_COMPANY_FIRMENBUCH);
+      setCompanyOrgane(INITIAL_COMPANY_ORGANE);
+      setCompanyGisa(INITIAL_COMPANY_GISA);
+      setCompanyFiles(INITIAL_COMPANY_FILES);
+      setWicoDraft(INITIAL_WICO_ID);
+      setWicoId(INITIAL_WICO_ID);
+      setWicoSyncing(false);
+      setWicoSnapshot(lookupWico(INITIAL_WICO_ID));
+      return;
     }
-  }, [stammdatenArea]);
+    setWirtschaft(INITIAL_WIRTSCHAFT);
+    setGewerbe(INITIAL_GEWERBE);
+    setVerein(INITIAL_VEREIN);
+    setWirtschaftFiles(INITIAL_WIRTSCHAFT_FILES);
+    setWicoDraft(INITIAL_PERSON_WICO_ID);
+    setWicoId(INITIAL_PERSON_WICO_ID);
+    setWicoSyncing(false);
+    setPersonWico(lookupPersonWico(INITIAL_PERSON_WICO_ID));
+  }, [stammdatenArea, isCompany]);
 
   useEffect(() => {
     if (!selected) return;
@@ -225,6 +280,106 @@ export function StammdatenWorkflow() {
     if (card) patchStammdatenCard(stammdatenArea, applyWirtschaftFiles(card, files, true));
   }
 
+  function updateCompanyFirmenbuch(form: CompanyFirmenbuchForm) {
+    if (isHistorical) return;
+    setCompanyFirmenbuch(form);
+    const card = cards.find((entry) => entry.id === "wirtschaft-firmenbuch");
+    if (card) patchStammdatenCard(stammdatenArea, applyCompanyFirmenbuch(card, form, true));
+  }
+
+  function updateCompanyOrgane(form: CompanyOrganeForm) {
+    if (isHistorical) return;
+    setCompanyOrgane(form);
+    const card = cards.find((entry) => entry.id === "wirtschaft-organe");
+    if (card) patchStammdatenCard(stammdatenArea, applyCompanyOrgane(card, form, true));
+  }
+
+  function updateCompanyGisa(form: CompanyGisaForm) {
+    if (isHistorical) return;
+    setCompanyGisa(form);
+    const card = cards.find((entry) => entry.id === "wirtschaft-gisa");
+    if (card) patchStammdatenCard(stammdatenArea, applyCompanyGisa(card, form, true));
+  }
+
+  function updateCompanyFiles(files: FileEntry[]) {
+    if (isHistorical) return;
+    setCompanyFiles(files);
+    const card = cards.find((entry) => entry.id === "wirtschaft-anhaenge");
+    if (card) patchStammdatenCard(stammdatenArea, applyCompanyFiles(card, files, true));
+  }
+
+  function applyWicoRecord(record: WicoRecord) {
+    setWicoId(record.id);
+    setWicoDraft(record.id);
+    setWicoSnapshot(record);
+    setCompanyFirmenbuch(record.firmenbuch);
+    setCompanyOrgane(record.organe);
+    setCompanyGisa(record.gisa);
+    const current = cardsRef.current;
+    const firmenbuch = current.find((entry) => entry.id === "wirtschaft-firmenbuch");
+    const organe = current.find((entry) => entry.id === "wirtschaft-organe");
+    const gisa = current.find((entry) => entry.id === "wirtschaft-gisa");
+    if (firmenbuch) patchStammdatenCard(stammdatenArea, applyCompanyFirmenbuch(firmenbuch, record.firmenbuch, true));
+    if (organe) patchStammdatenCard(stammdatenArea, applyCompanyOrgane(organe, record.organe, true));
+    if (gisa) patchStammdatenCard(stammdatenArea, applyCompanyGisa(gisa, record.gisa, true));
+  }
+
+  function applyPersonWico(record: PersonWicoRecord) {
+    setWicoId(record.id);
+    setWicoDraft(record.id);
+    setPersonWico(record);
+    setWirtschaft(record.wirtschaft);
+    setGewerbe(record.gewerbe);
+    setVerein(record.verein);
+    const current = cardsRef.current;
+    const firmenbuch = current.find((entry) => entry.id === "wirtschaft-firmenbuch");
+    const gewerbeCard = current.find((entry) => entry.id === "wirtschaft-gewerbe");
+    const vereinCard = current.find((entry) => entry.id === "wirtschaft-verein");
+    if (firmenbuch) patchStammdatenCard(stammdatenArea, applyWirtschaft(firmenbuch, record.wirtschaft, true));
+    if (gewerbeCard) patchStammdatenCard(stammdatenArea, applyGewerbe(gewerbeCard, record.gewerbe, true));
+    if (vereinCard) patchStammdatenCard(stammdatenArea, applyVerein(vereinCard, record.verein, true));
+  }
+
+  function runWicoSync(id: string) {
+    if (isCompany) {
+      const record = lookupWico(id);
+      applyWicoRecord(record);
+      setWicoSyncing(false);
+      setSnack({ id: Date.now(), message: `WICO-Daten für ${record.name} übernommen.` });
+      return;
+    }
+    const record = lookupPersonWico(id);
+    applyPersonWico(record);
+    setWicoSyncing(false);
+    setSnack({ id: Date.now(), message: `WICO-Daten für ${record.name} übernommen.` });
+  }
+
+  function scheduleWicoSync(id: string) {
+    if (isHistorical) return;
+    const next = id.trim();
+    window.clearTimeout(wicoTimer.current);
+    if (!next || next === wicoId) {
+      setWicoSyncing(false);
+      return;
+    }
+    setWicoSyncing(true);
+    wicoTimer.current = window.setTimeout(() => runWicoSync(next), 700);
+  }
+
+  function flushWicoSync() {
+    if (isHistorical) return;
+    const next = wicoDraft.trim();
+    window.clearTimeout(wicoTimer.current);
+    if (!next || next === wicoId) {
+      setWicoSyncing(false);
+      return;
+    }
+    setWicoSyncing(true);
+    runWicoSync(next);
+  }
+
+  useEffect(() => () => window.clearTimeout(wicoTimer.current), []);
+
   function notifyRemoved(message: string, undo: () => void) {
     setSnack({ id: Date.now(), message, undo });
   }
@@ -236,14 +391,22 @@ export function StammdatenWorkflow() {
 
   const formTitle =
     selected?.id === "wirtschaft-firmenbuch"
-      ? "Firmenbuch"
-      : selected?.id === "wirtschaft-gewerbe"
-        ? "Gewerberegister (GISA)"
-        : selected?.id === "wirtschaft-verein"
-          ? "Vereinsregister"
-          : selected?.id === "wirtschaft-anhaenge"
-            ? "Anhänge"
-            : previewTitle;
+      ? isCompany
+        ? "Stammdaten laut Firmenbuch"
+        : "Firmenbuch"
+      : selected?.id === "wirtschaft-organe"
+        ? "Organe & Beteiligungen"
+        : selected?.id === "wirtschaft-gisa"
+          ? "Stammdaten laut GISA"
+          : selected?.id === "wirtschaft-gewerbe"
+            ? "Gewerberegister (GISA)"
+            : selected?.id === "wirtschaft-verein"
+              ? "Vereinsregister"
+              : selected?.id === "wirtschaft-anhaenge"
+                ? "Anhänge"
+                : previewTitle;
+
+  const showWico = stammdatenArea === "wirtschaftsdaten" && selected?.id !== "wirtschaft-anhaenge";
 
   return (
     <div className={isHistorical ? "app person stammdaten-wf historical" : "app person stammdaten-wf"}>
@@ -300,11 +463,39 @@ export function StammdatenWorkflow() {
             </div>
 
             <main className="sw-main">
-            {blank ? (
+            {stammdatenArea === "verknuepfung" ? (
+              isCompany ? (
+                <KonzernstrukturPanel currentCompanyId={filePartnerId} />
+              ) : (
+                <VerknuepfungPanel memberId={filePartnerId} initialId={stammdatenCardId} />
+              )
+            ) : blank ? (
               <p className="sw-blank">Dieser Bereich folgt.</p>
             ) : (
               <>
-                <form className="sw-form" onSubmit={(event) => event.preventDefault()}>
+                <div className="sw-forms">
+                {showWico ? (
+                  <form
+                    className="sw-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      flushWicoSync();
+                    }}
+                  >
+                    <fieldset className="sw-fieldset" disabled={isHistorical}>
+                      <WicoDatenFields
+                        value={wicoDraft}
+                        syncing={wicoSyncing}
+                        onChange={(value) => {
+                          setWicoDraft(value);
+                          scheduleWicoSync(value);
+                        }}
+                        onSync={flushWicoSync}
+                      />
+                    </fieldset>
+                  </form>
+                ) : null}
+                <form className={wicoSyncing ? "sw-form syncing" : "sw-form"} onSubmit={(event) => event.preventDefault()}>
                   <h1>{formTitle}</h1>
                   {stammdatenArea === "personendaten" && (
                     <>
@@ -328,20 +519,61 @@ export function StammdatenWorkflow() {
                       </fieldset>
                     </>
                   )}
-                  {stammdatenArea === "wirtschaftsdaten" && selected?.id === "wirtschaft-gewerbe" && (
-                    <GewerbeFields entries={gewerbe} onChange={updateGewerbe} onRemoved={notifyRemoved} />
+                  {stammdatenArea === "wirtschaftsdaten" && isCompany && selected?.id === "wirtschaft-firmenbuch" && (
+                    <CompanyFirmenbuchFields
+                      form={companyFirmenbuch}
+                      wico={wicoSnapshot.firmenbuch}
+                      onChange={updateCompanyFirmenbuch}
+                    />
                   )}
-                  {stammdatenArea === "wirtschaftsdaten" && selected?.id === "wirtschaft-verein" && (
-                    <VereinFields entries={verein} onChange={updateVerein} onRemoved={notifyRemoved} />
+                  {stammdatenArea === "wirtschaftsdaten" && isCompany && selected?.id === "wirtschaft-organe" && (
+                    <CompanyOrganeFields
+                      form={companyOrgane}
+                      wico={wicoSnapshot.organe}
+                      onChange={updateCompanyOrgane}
+                      onRemoved={notifyRemoved}
+                    />
                   )}
-                  {stammdatenArea === "wirtschaftsdaten" && selected?.id === "wirtschaft-anhaenge" && (
+                  {stammdatenArea === "wirtschaftsdaten" && isCompany && selected?.id === "wirtschaft-gisa" && (
+                    <CompanyGisaFields
+                      form={companyGisa}
+                      wico={wicoSnapshot.gisa}
+                      onChange={updateCompanyGisa}
+                      onRemoved={notifyRemoved}
+                    />
+                  )}
+                  {stammdatenArea === "wirtschaftsdaten" && isCompany && selected?.id === "wirtschaft-anhaenge" && (
+                    <AnhaengeFields files={companyFiles} onChange={updateCompanyFiles} onRemoved={notifyRemoved} />
+                  )}
+                  {stammdatenArea === "wirtschaftsdaten" && !isCompany && selected?.id === "wirtschaft-gewerbe" && (
+                    <GewerbeFields
+                      entries={gewerbe}
+                      wico={personWico.gewerbe}
+                      onChange={updateGewerbe}
+                      onRemoved={notifyRemoved}
+                    />
+                  )}
+                  {stammdatenArea === "wirtschaftsdaten" && !isCompany && selected?.id === "wirtschaft-verein" && (
+                    <VereinFields
+                      entries={verein}
+                      wico={personWico.verein}
+                      onChange={updateVerein}
+                      onRemoved={notifyRemoved}
+                    />
+                  )}
+                  {stammdatenArea === "wirtschaftsdaten" && !isCompany && selected?.id === "wirtschaft-anhaenge" && (
                     <AnhaengeFields files={wirtschaftFiles} onChange={updateWirtschaftFiles} onRemoved={notifyRemoved} />
                   )}
                   {stammdatenArea === "wirtschaftsdaten" &&
+                    !isCompany &&
                     selected?.id !== "wirtschaft-gewerbe" &&
                     selected?.id !== "wirtschaft-verein" &&
                     selected?.id !== "wirtschaft-anhaenge" && (
-                      <WirtschaftFields form={wirtschaft} onChange={updateWirtschaft} />
+                      <WirtschaftFields
+                        form={wirtschaft}
+                        wico={personWico.wirtschaft}
+                        onChange={updateWirtschaft}
+                      />
                     )}
                   {stammdatenArea === "kontakte" && (
                     <ContactFields form={contact} onChange={updateContact} onRemoved={notifyRemoved} />
@@ -353,6 +585,7 @@ export function StammdatenWorkflow() {
                     <BankFields form={bank} onChange={updateBank} />
                   )}
                 </form>
+                </div>
 
                 <aside className="sw-preview">
                   <header className="sw-preview-head">
@@ -379,6 +612,7 @@ export function StammdatenWorkflow() {
                       <DataCard
                         key={card.id}
                         card={card}
+                        full
                         selected={card.id === selected?.id}
                         onSelect={() => selectStammdatenCard(card.id)}
                         onEdit={() => selectStammdatenCard(card.id)}
