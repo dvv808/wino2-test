@@ -40,14 +40,24 @@ export function Field({
   label,
   children,
   wico,
+  required,
 }: {
   label: string;
   children: ReactNode;
   wico?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block">
-      <span className="field-label">{label}</span>
+      <span className="field-label">
+        {label}
+        {required ? (
+          <span className="field-required" aria-hidden>
+            {" "}
+            *
+          </span>
+        ) : null}
+      </span>
       {children}
       <WicoNote value={wico} />
     </label>
@@ -58,16 +68,20 @@ export function Text({
   value,
   onChange,
   placeholder,
+  required,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <input
       className="text-field"
       value={value}
       placeholder={placeholder}
+      required={required}
+      aria-required={required || undefined}
       onChange={(event) => onChange(event.target.value)}
     />
   );
@@ -140,11 +154,18 @@ export function PartnerSearch({
   value,
   onChange,
   options = CONTACT_PARTNERS,
+  placeholder = "Partner suchen",
+  icon = a.personSmall,
+  allowCreate = true,
 }: {
   value: string;
   onChange: (value: string) => void;
   /** Names to pick from; defaults to all system partners. */
   options?: string[];
+  placeholder?: string;
+  icon?: string;
+  /** When false, typed names that are not in `options` cannot be created. */
+  allowCreate?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -181,7 +202,7 @@ export function PartnerSearch({
 
   function createPartner() {
     const name = query.trim();
-    if (!name) return;
+    if (!name || !allowCreate) return;
     const existing = names.find((entry) => entry.toLowerCase() === name.toLowerCase());
     if (existing) {
       pick(existing);
@@ -205,11 +226,11 @@ export function PartnerSearch({
   return (
     <div className="dropdown sw-partner" ref={wrapRef}>
       <span className="sw-search">
-        <EntityIcon src={a.personSmall} />
+        <EntityIcon src={icon} />
         <input
           className="text-field"
           value={open ? query : value}
-          placeholder="Partner suchen"
+          placeholder={placeholder}
           onFocus={() => {
             setQuery("");
             setOpen(true);
@@ -256,16 +277,18 @@ export function PartnerSearch({
                 <strong>Keine Treffer gefunden!</strong>
                 Jeder Kontakt muss auch als Partner existieren um ihn als Kontakt hinzuzufügen
               </p>
-              <button
-                type="button"
-                className="empty-link"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  createPartner();
-                }}
-              >
-                + Partner anlegen
-              </button>
+              {allowCreate ? (
+                <button
+                  type="button"
+                  className="empty-link"
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    createPartner();
+                  }}
+                >
+                  + Partner anlegen
+                </button>
+              ) : null}
             </div>
           </div>
         )

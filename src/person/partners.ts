@@ -1,4 +1,14 @@
-export type PartnerId = "julia" | "ashley" | "karl" | "johanna" | "ash" | "marcus" | "lunixo";
+export type PartnerId =
+  | "julia"
+  | "ashley"
+  | "karl"
+  | "johanna"
+  | "ash"
+  | "marcus"
+  | "sophie"
+  | "lunixo"
+  | "lunixo-holding"
+  | "lunixo-immobilien";
 export type PartnerKind = "interessent" | "kunde" | "einfach";
 /** Privatperson files are "person"; business partners (not linkable into a family yet) are "company". */
 export type FileKind = "person" | "company";
@@ -78,6 +88,7 @@ export const MARCUS = familyPartner(
   "3115",
   "interessent",
 );
+export const SOPHIE = familyPartner("sophie", "sophie-lang", "Sophie Lang", "15.04.1990", "3116", "einfach");
 
 export const LUNIXO: FilePartner = {
   id: "lunixo",
@@ -92,6 +103,31 @@ export const LUNIXO: FilePartner = {
   moreContacts: 0,
 };
 
+export const LUNIXO_HOLDING: FilePartner = {
+  id: "lunixo-holding",
+  slug: "lunixo-holding",
+  name: "Lunixo Holding",
+  fileId: "4002",
+  fileKind: "company",
+  kind: "interessent",
+  fn: "63241",
+  address: ["", "Salzburg"],
+  contacts: [],
+  moreContacts: 0,
+};
+
+export const LUNIXO_IMMOBILIEN: FilePartner = {
+  id: "lunixo-immobilien",
+  slug: "lunixo-immobilien-gmbh",
+  name: "Lunixo Immobilien GmbH",
+  fileId: "4003",
+  fileKind: "company",
+  kind: "interessent",
+  address: ["", "Linz"],
+  contacts: [],
+  moreContacts: 0,
+};
+
 export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
   julia: JULIA,
   ashley: ASHLEY,
@@ -99,7 +135,10 @@ export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
   johanna: JOHANNA,
   ash: ASH,
   marcus: MARCUS,
+  sophie: SOPHIE,
   lunixo: LUNIXO,
+  "lunixo-holding": LUNIXO_HOLDING,
+  "lunixo-immobilien": LUNIXO_IMMOBILIEN,
 };
 
 export const PARTNER_BY_SLUG = new Map<string, PartnerId>(

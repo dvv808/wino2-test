@@ -1,5 +1,10 @@
 import * as a from "../assets/index";
-import { companyWirtschaftCards } from "./companyWirtschaft";
+import {
+  EMPTY_COMPANY_GISA,
+  EMPTY_COMPANY_ORGANE,
+  companyShellFirmenbuch,
+  companyWirtschaftCards,
+} from "./companyWirtschaft";
 import { FILE_PARTNERS, type FileContact } from "./partners";
 
 /**
@@ -27,7 +32,7 @@ export type Block =
   | { kind: "group"; caption: string; rows: Row[] }
   | { kind: "note"; caption: string; text: string }
   | { kind: "files"; caption: string; rows: Row[] }
-  | { kind: "person"; tag?: string; name: string; sub: string }
+  | { kind: "person"; tag?: string; name: string; sub: string; party?: "person" | "company" }
   | { kind: "badge"; icon: string; caption?: string; text: string; open?: boolean; above?: boolean }
   | { kind: "usage"; icon: string; caption: string; text: string; rows: Row[] };
 
@@ -1604,6 +1609,32 @@ export function cloneLunixoSections(): Section[] {
   return sections.map((section) =>
     section.id === "wirtschaftsdaten"
       ? { ...section, cards: structuredClone(companyWirtschaftCards()) }
+      : section,
+  );
+}
+
+/** Other company files: same Stammdaten shell, Wirtschaftsdaten only named (fill later). */
+export function cloneCompanySections(
+  vorname: string,
+  nachname: string,
+  cardId: string,
+  identity: { name: string; city?: string; fn?: string },
+): Section[] {
+  const sections = cloneAshleySections(vorname, nachname, cardId, "Unternehmen");
+  const firmenbuch = companyShellFirmenbuch(identity.name, identity.city, identity.fn);
+  return sections.map((section) =>
+    section.id === "wirtschaftsdaten"
+      ? {
+          ...section,
+          cards: structuredClone(
+            companyWirtschaftCards({
+              firmenbuch,
+              organe: EMPTY_COMPANY_ORGANE,
+              gisa: EMPTY_COMPANY_GISA,
+              files: [],
+            }),
+          ),
+        }
       : section,
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as a from "./assets/index";
-import { AppsNav, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab } from "./chrome";
+import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
 import { ConsentWarning } from "./ConsentWarning";
 import { PdfModal } from "./documents";
@@ -17,6 +17,7 @@ import { HonorarView } from "./honorar/HonorarView";
 import { MeinBereichView } from "./mein-bereich/MeinBereichView";
 import { CompanyGroupsProvider } from "./person/companyGroups";
 import { FamilyLinksProvider } from "./person/familyLinks";
+import { KonzernLinksProvider } from "./person/konzernLinks";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
@@ -199,7 +200,7 @@ function LeavePrompt() {
 }
 
 function Screen() {
-  const { activeStep, view, openPerson, workflowPane, setWorkflowPane, personName, isHistorical } = useWorkflow();
+  const { activeStep, view, workflowPane, setWorkflowPane, isHistorical } = useWorkflow();
 
   if (view === "meinBereich") {
     return (
@@ -254,17 +255,7 @@ function Screen() {
         <header className="main-nav">
           <div className="main-nav-left">
             <LogoButton />
-            <div className="person-tab">
-              <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
-              <button type="button" className="person-tab-body" onClick={openPerson}>
-                <Icon src={a.person} size={24} />
-                {personName}
-                <span className="close-icon">
-                  <img src={a.iconClose} alt="" width={18} height={18} />
-                </span>
-              </button>
-              <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
-            </div>
+            <FileTabs />
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
@@ -314,8 +305,10 @@ export default function App() {
       <HonorarProvider>
         <FamilyLinksProvider>
           <CompanyGroupsProvider>
-            <Screen />
-            <WidgetBar />
+            <KonzernLinksProvider>
+              <Screen />
+              <WidgetBar />
+            </KonzernLinksProvider>
           </CompanyGroupsProvider>
         </FamilyLinksProvider>
       </HonorarProvider>

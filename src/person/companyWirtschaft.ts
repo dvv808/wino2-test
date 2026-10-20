@@ -287,6 +287,56 @@ export const INITIAL_COMPANY_GISA: CompanyGisaForm = {
   ],
 };
 
+export const EMPTY_COMPANY_FIRMENBUCH: CompanyFirmenbuchForm = {
+  firmenwortlaut: "",
+  strasse: "",
+  nummer: "",
+  zusatz: "",
+  plz: "",
+  ort: "",
+  land: "Österreich",
+  rechtsform: "",
+  sitzIn: "",
+  gericht: "",
+  firmenbuchnummer: "",
+  euid: "",
+  uid: "",
+  bilanzTag: "",
+  bilanzMonat: "",
+  mitarbeiter: { jahr: "", anzahl: "" },
+  mitarbeiterHistory: [],
+  erstTag: "",
+  erstMonat: "",
+  erstJahr: "",
+};
+
+export const EMPTY_COMPANY_ORGANE: CompanyOrganeForm = {
+  owners: [],
+  controlOrgans: [],
+  legalReps: [],
+  holdings: [],
+  beneficialOwners: [],
+};
+
+export const EMPTY_COMPANY_GISA: CompanyGisaForm = {
+  gln: "",
+  aktiveAnzahl: "",
+  branche: "",
+  produkte: "",
+  taetigkeit: "",
+  gewerbe: [],
+};
+
+/** Name / city / FN only — the rest of Wirtschaftsdaten is still empty. */
+export function companyShellFirmenbuch(name: string, city = "", fn = ""): CompanyFirmenbuchForm {
+  return {
+    ...EMPTY_COMPANY_FIRMENBUCH,
+    firmenwortlaut: name,
+    ort: city,
+    firmenbuchnummer: fn,
+  };
+}
+
 export const INITIAL_COMPANY_FILES: FileEntry[] = [
   { label: "Bilanz", name: "bilanz_2026.pdf", type: "pdf" },
 ];
@@ -679,7 +729,12 @@ export function applyCompanyFiles(card: Card, files: FileEntry[], draft = false)
   return { ...card, draft, blocks: anhaengeBlocks(files) };
 }
 
-export function companyWirtschaftCards(): Card[] {
+export function companyWirtschaftCards(forms?: {
+  firmenbuch?: CompanyFirmenbuchForm;
+  organe?: CompanyOrganeForm;
+  gisa?: CompanyGisaForm;
+  files?: FileEntry[];
+}): Card[] {
   return [
     applyCompanyFirmenbuch(
       {
@@ -688,7 +743,7 @@ export function companyWirtschaftCards(): Card[] {
         title: "Stammdaten laut Firmenbuch",
         clampTo: 551,
       },
-      INITIAL_COMPANY_FIRMENBUCH,
+      forms?.firmenbuch ?? INITIAL_COMPANY_FIRMENBUCH,
     ),
     applyCompanyOrgane(
       {
@@ -697,7 +752,7 @@ export function companyWirtschaftCards(): Card[] {
         title: "Organe & Beteiligungen",
         clampTo: 551,
       },
-      INITIAL_COMPANY_ORGANE,
+      forms?.organe ?? INITIAL_COMPANY_ORGANE,
     ),
     applyCompanyGisa(
       {
@@ -706,7 +761,7 @@ export function companyWirtschaftCards(): Card[] {
         title: "Stammdaten laut GISA",
         clampTo: 551,
       },
-      INITIAL_COMPANY_GISA,
+      forms?.gisa ?? INITIAL_COMPANY_GISA,
     ),
     applyCompanyFiles(
       {
@@ -714,7 +769,7 @@ export function companyWirtschaftCards(): Card[] {
         icon: a.paperclip,
         title: "Anhänge",
       },
-      INITIAL_COMPANY_FILES,
+      forms?.files ?? INITIAL_COMPANY_FILES,
     ),
   ];
 }

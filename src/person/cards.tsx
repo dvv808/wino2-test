@@ -167,7 +167,7 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
       <div className="pp-person">
         <span className="pp-person-avatar">
           <img src={a.avatarBg} alt="" width={32} height={32} />
-          <img className="glyph" src={a.personSmall} alt="" width={21} height={21} />
+          <img className="glyph" src={block.party === "company" ? a.companyBlank : a.personSmall} alt="" width={21} height={21} />
         </span>
         <span className="pp-person-copy">
           {block.tag ? <span className={chipClass(block.tag)}>{block.tag}</span> : null}
@@ -312,6 +312,8 @@ export function DataCard({
   onDelete,
   onAdd,
   full,
+  deleteLabel = "Löschen",
+  deleteIcon = a.trash,
 }: {
   card: Card;
   selected?: boolean;
@@ -320,6 +322,8 @@ export function DataCard({
   onDelete?: () => void;
   onAdd?: () => void;
   full?: boolean;
+  deleteLabel?: string;
+  deleteIcon?: string;
 }) {
   if (card.empty) return <EmptyCard empty={card.empty} onAdd={onAdd} />;
 
@@ -356,7 +360,7 @@ export function DataCard({
             items={[
               ...(onEdit ? [{ label: "Editieren", icon: a.menuEdit, onSelect: onEdit }] : []),
               ...(onDelete
-                ? [{ label: "Löschen", icon: a.trash, danger: true, onSelect: onDelete }]
+                ? [{ label: deleteLabel, icon: deleteIcon, danger: true, onSelect: onDelete }]
                 : []),
             ]}
           />

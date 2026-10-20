@@ -1,8 +1,8 @@
 import { useState } from "react";
 import * as a from "../assets/index";
-import { Icon, IdCardIcon } from "../ui";
+import { ContextMenu, Icon, IdCardIcon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { LogoButton, FileIdentity, ProfileMenu, VerlaufCaption, WorkflowDock, MeinBereichTab } from "../chrome";
+import { LogoButton, FileIdentity, FileTabs, ProfileMenu, VerlaufCaption, WorkflowDock, MeinBereichTab } from "../chrome";
 import { ManagementAreaIcon } from "../manager/BestandChrome";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
@@ -10,8 +10,19 @@ import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { WorkflowsPage } from "./WorkflowsPage";
 import { FILE_PARTNERS } from "./partners";
-import { familyKindLabel, familyMember } from "./family";
-import { confirmedLinksFor, otherMemberOf, useFamilyLinks } from "./familyLinks";
+import { COMPANY_DIRECTORY, companyMetaLine } from "./company";
+import { familyKindLabel, familyMember, type FamilyMemberId } from "./family";
+import { confirmedLinksFor, familyRoleFor, otherMemberOf, useFamilyLinks, type FamilyLink } from "./familyLinks";
+import {
+  overviewKonzernLinks,
+  partyChip,
+  partyMeta,
+  partyName,
+  useKonzernLinks,
+  type KonzernGroup,
+  type KonzernLink,
+  type PartyKind,
+} from "./konzernLinks";
 import {
   ASHLEY_PLAUSI,
   NAV_GROUPS,
@@ -21,6 +32,64 @@ import {
   navLabel,
   type Card,
 } from "./stammdaten";
+
+function emptyVerknuepfungCard(id: string, title: string): Card {
+  return {
+    id,
+    empty: {
+      icon: a.verknuepfung,
+      title,
+      link: "neue Verknüpfungen hier anlegen",
+    },
+  };
+}
+
+function familyOverviewCards(memberId: FamilyMemberId, links: FamilyLink[]): Card[] {
+  return confirmedLinksFor(links, memberId).map((link) => {
+    const other = familyMember(otherMemberOf(link, memberId));
+    return {
+      id: link.id,
+      title: familyRoleFor(link, memberId) || "Nicht definiert",
+      blocks: [{ kind: "person", tag: familyKindLabel(other.kind), name: other.name, sub: other.born || "-" }],
+    };
+  });
+}
+
+function konzernOverviewCards(partyId: string, kind: PartyKind, groups: KonzernGroup[], links: KonzernLink[]): Card[] {
+  const group = groups.find((entry) =>
+    kind === "company"
+      ? entry.konzernId === partyId
+      : links.some(
+          (link) =>
+            link.groupId === entry.id &&
+            ((link.ownerId === partyId && link.ownerKind === kind && Boolean(link.targetId)) ||
+              (link.targetId === partyId && link.targetKind === kind && link.accepted)),
+        ),
+  );
+  return overviewKonzernLinks(groups, links, partyId, kind).flatMap((link) => {
+    const id = link.targetId;
+    if (!id) return [];
+    const isKonzern = Boolean(group?.konzernId === id && link.targetKind === "company");
+    return [
+      {
+        id: link.id,
+        icon: isKonzern ? a.ksGroupCompanies : undefined,
+        title: isKonzern ? `Konzern: ${partyName(id)}` : link.label.trim() || partyName(id),
+        blocks: [
+          {
+            kind: "person" as const,
+            party: link.targetKind === "company" ? ("company" as const) : ("person" as const),
+            tag: partyChip(id),
+            name: partyName(id),
+            sub:
+              partyMeta(id) ||
+              (link.targetKind === "company" ? companyMetaLine(COMPANY_DIRECTORY.find((entry) => entry.id === id)) : "-"),
+          },
+        ],
+      },
+    ];
+  });
+}
 
 /** Same apps as the workflow bar. Only Person is open in the prototype. */
 const AREAS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
@@ -87,6 +156,60 @@ function PersonModuleNav() {
   );
 }
 
+function TreeNavItem({
+  label,
+  icon,
+  target,
+}: {
+  label: string;
+  icon: string;
+  target?: string;
+}) {
+  const { openStammdaten } = useWorkflow();
+  const area = target ? areaForSection(target) : null;
+
+  return (
+    <div className="pp-tree-item">
+      {target ? (
+        <button
+          type="button"
+          className="pp-tree-main"
+          onClick={() => document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        >
+          <span className="pp-tree-name">
+            <Icon src={icon} size={18} />
+            {label}
+          </span>
+        </button>
+      ) : (
+        <span className="pp-tree-main">
+          <span className="pp-tree-name">
+            <Icon src={icon} size={18} />
+            {label}
+          </span>
+        </span>
+      )}
+      <span className="pp-tree-trail">
+        <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
+        {area ? (
+          <span className="pp-tree-menu">
+            <ContextMenu
+              items={[
+                {
+                  label: "Editieren",
+                  icon: a.menuEdit,
+                  onSelect: () => openStammdaten(area),
+                },
+              ]}
+              label={`${label} bearbeiten`}
+            />
+          </span>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
 /** The areas of the file. Stammdaten expands; the rest are placeholders. */
 function Sidebar() {
   const { sections, personName, filePartnerId, personArea, openPersonArea } = useWorkflow();
@@ -133,32 +256,14 @@ function Sidebar() {
           {NAV_GROUPS.map((group) => (
             <div className="pp-tree-group" key={group.label}>
               <span className="pp-tree-label">{group.label}</span>
-              {group.items.map((item) =>
-                "target" in item && item.target ? (
-                  <button
-                    type="button"
-                    className="pp-tree-item"
-                    key={item.label}
-                    onClick={() =>
-                      document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" })
-                    }
-                  >
-                    <span className="pp-tree-name">
-                      <Icon src={item.icon} size={18} />
-                      {navLabel(item, sections)}
-                    </span>
-                    <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
-                  </button>
-                ) : (
-                  <span className="pp-tree-item" key={item.label}>
-                    <span className="pp-tree-name">
-                      <Icon src={item.icon} size={18} />
-                      {navLabel(item, sections)}
-                    </span>
-                    <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
-                  </span>
-                ),
-              )}
+              {group.items.map((item) => (
+                <TreeNavItem
+                  key={item.label}
+                  label={navLabel(item, sections)}
+                  icon={item.icon}
+                  target={"target" in item ? item.target : undefined}
+                />
+              ))}
             </div>
           ))}
         </div>
@@ -238,7 +343,6 @@ export function PersonPage() {
     displaySections,
     openStammdaten,
     deleteStammdatenCard,
-    personName,
     isHistorical,
     openVersionHistory,
     personModule,
@@ -246,25 +350,26 @@ export function PersonPage() {
     personArea,
     finanzenProfileOpen,
     backToFinanzen,
-    closeFinanzenProfile,
   } = useWorkflow();
-  const { links, removeLink } = useFamilyLinks();
-  const familyCards: Card[] = confirmedLinksFor(links, filePartnerId).map((link) => {
-    const other = familyMember(otherMemberOf(link, filePartnerId));
-    return {
-      id: link.id,
-      title: link.label || "Nicht definiert",
-      blocks: [{ kind: "person", tag: familyKindLabel(other.kind), name: other.name, sub: other.born || "-" }],
-    };
-  });
+  const { links, unlinkLink } = useFamilyLinks();
+  const konzern = useKonzernLinks();
+  const isCompanyFile = FILE_PARTNERS[filePartnerId].fileKind === "company";
+  const partyKind: PartyKind = isCompanyFile ? "company" : "person";
+  const familyCards = isCompanyFile ? [] : familyOverviewCards(filePartnerId, links);
+  const konzernCards = konzernOverviewCards(filePartnerId, partyKind, konzern.groups, konzern.links);
+  const familyShown = familyCards.length ? familyCards : [emptyVerknuepfungCard("verknuepfung-familie-empty", "Noch keine Familienverknüpfung angelegt")];
+  const konzernShown = konzernCards.length ? konzernCards : [emptyVerknuepfungCard("verknuepfung-konzern-empty", "Noch keine Konzernverknüpfung angelegt")];
+  const vkCount = familyCards.length + konzernCards.length;
   const sectionsShown = displaySections.map((section) =>
-    section.id === "verknuepfung" && familyCards.length
-      ? { ...section, title: `Verknüpfungen (${familyCards.length})`, cards: familyCards }
+    section.id === "verknuepfung"
+      ? { ...section, title: vkCount ? `Verknüpfungen (${vkCount})` : "Verknüpfungen" }
       : section,
   );
-  const [pendingDelete, setPendingDelete] = useState<{ area: ReturnType<typeof areaForSection>; card: Card } | null>(
-    null,
-  );
+  const [pendingDelete, setPendingDelete] = useState<{
+    area: ReturnType<typeof areaForSection>;
+    card: Card;
+    unlink?: "family" | "konzern";
+  } | null>(null);
 
   const appClass = [
     "app",
@@ -303,22 +408,7 @@ export function PersonPage() {
                 <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
               </div>
             ) : null}
-            <div className="person-tab">
-              <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
-              <span className="person-tab-body">
-                <Icon src={a.person} size={24} />
-                {personName}
-                <button
-                  type="button"
-                  className="close-icon"
-                  aria-label={`${personName} schließen`}
-                  onClick={() => (finanzenProfileOpen ? closeFinanzenProfile() : leaveManager())}
-                >
-                  <img src={a.iconClose} alt="" width={18} height={18} />
-                </button>
-              </span>
-              <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
-            </div>
+            <FileTabs />
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
@@ -367,6 +457,12 @@ export function PersonPage() {
             {sectionsShown.map((section) => {
               const area = areaForSection(section.id);
               const empty = !section.cards.length || Boolean(section.cards[0]?.empty);
+              const vkGroups = isCompanyFile
+                ? [{ id: "konzern" as const, title: `Konzern (${konzernCards.length})`, cards: konzernShown }]
+                : [
+                    { id: "familie" as const, title: `Familie (${familyCards.length})`, cards: familyShown },
+                    { id: "konzern" as const, title: `Konzern (${konzernCards.length})`, cards: konzernShown },
+                  ];
               return (
                 <section className="pp-section" id={section.id} key={section.id}>
                   <header className="pp-section-head">
@@ -382,17 +478,41 @@ export function PersonPage() {
                       Editieren
                     </button>
                   </header>
-                  <div className={empty ? "pp-cards center" : "pp-cards"}>
-                    {section.cards.map((card) => (
-                      <DataCard
-                        card={card}
-                        key={card.id}
-                        onEdit={() => openStammdaten(area, card.id)}
-                        onDelete={() => setPendingDelete({ area, card })}
-                        onAdd={() => openStammdaten(area)}
-                      />
-                    ))}
-                  </div>
+                  {section.id === "verknuepfung" ? (
+                    vkGroups.map((group) => {
+                      const groupEmpty = Boolean(group.cards[0]?.empty);
+                      return (
+                        <div className="pp-vk-sub" key={group.id}>
+                          <h3 className="pp-vk-subtitle">{group.title}</h3>
+                          <div className={groupEmpty ? "pp-cards center" : "pp-cards"}>
+                            {group.cards.map((card) => (
+                              <DataCard
+                                card={card}
+                                key={card.id}
+                                onEdit={() => openStammdaten(area, card.id)}
+                                onDelete={() => setPendingDelete({ area, card, unlink: group.id })}
+                                onAdd={() => openStammdaten(area)}
+                                deleteLabel="Verknüpfung auflösen"
+                                deleteIcon={a.menuUnlink}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className={empty ? "pp-cards center" : "pp-cards"}>
+                      {section.cards.map((card) => (
+                        <DataCard
+                          card={card}
+                          key={card.id}
+                          onEdit={() => openStammdaten(area, card.id)}
+                          onDelete={() => setPendingDelete({ area, card })}
+                          onAdd={() => openStammdaten(area)}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </section>
               );
             })}
@@ -403,11 +523,19 @@ export function PersonPage() {
 
       {pendingDelete ? (
         <DeleteCard
-          title={pendingDelete.card.title || "Eintrag"}
+          title={pendingDelete.area === "verknuepfung" ? "Verknüpfung" : pendingDelete.card.title || "Eintrag"}
+          action={pendingDelete.area === "verknuepfung" ? "auflösen" : "löschen"}
+          name={
+            pendingDelete.area === "verknuepfung"
+              ? pendingDelete.card.blocks?.find((block) => block.kind === "person")?.name
+              : undefined
+          }
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => {
-            if (pendingDelete.area === "verknuepfung") removeLink(pendingDelete.card.id);
-            else deleteStammdatenCard(pendingDelete.area, pendingDelete.card.id);
+            if (pendingDelete.unlink === "konzern") konzern.unlink(pendingDelete.card.id, filePartnerId, partyKind);
+            else if (pendingDelete.unlink === "family" || pendingDelete.area === "verknuepfung") {
+              unlinkLink(pendingDelete.card.id, filePartnerId);
+            } else deleteStammdatenCard(pendingDelete.area, pendingDelete.card.id);
             setPendingDelete(null);
           }}
         />

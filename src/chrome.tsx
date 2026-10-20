@@ -7,7 +7,94 @@ import { useWorkflow, type WorkflowPane } from "./workflow";
 
 const APPS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
 
-/** Two text links under the mark: the files this prototype can open. */
+/** Open partner files in the main nav. The current file is the dark tab; others stay parked beside it. */
+export function FileTabs() {
+  const {
+    view,
+    openFileIds,
+    filePartnerId,
+    personName,
+    activateFile,
+    closeFile,
+    openPerson,
+    finanzenProfileOpen,
+    closeFinanzenProfile,
+    leaveManager,
+  } = useWorkflow();
+
+  return (
+    <>
+      {openFileIds.map((id) => {
+        const active = id === filePartnerId;
+        const name = active ? personName : FILE_PARTNERS[id].name;
+        const tabIcon = FILE_PARTNERS[id].fileKind === "company" ? a.company : a.person;
+        if (active) {
+          const closeActive = () => {
+            if (openFileIds.length > 1) closeFile(id);
+            else if (view === "workflow") return;
+            else if (finanzenProfileOpen) closeFinanzenProfile();
+            else leaveManager();
+          };
+          const closeControl =
+            view === "stammdaten" || view === "workflow" ? (
+              <span
+                className="close-icon"
+                role="button"
+                aria-label={`${name} schließen`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeActive();
+                }}
+              >
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </span>
+            ) : (
+              <button type="button" className="close-icon" aria-label={`${name} schließen`} onClick={closeActive}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            );
+          const body =
+            view === "stammdaten" || view === "workflow" ? (
+              <button type="button" className="person-tab-body" onClick={openPerson}>
+                <Icon src={tabIcon} size={24} />
+                {name}
+                {closeControl}
+              </button>
+            ) : (
+              <span className="person-tab-body">
+                <Icon src={tabIcon} size={24} />
+                {name}
+                {closeControl}
+              </span>
+            );
+          return (
+            <div className="person-tab" key={id}>
+              <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+              {body}
+              <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+            </div>
+          );
+        }
+        return (
+          <div className="person-tab inactive" key={id}>
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body">
+              <Icon src={tabIcon} size={24} />
+              <button type="button" className="person-tab-open" onClick={() => activateFile(id)}>
+                {name}
+              </button>
+              <button type="button" className="close-icon" aria-label={`${name} schließen`} onClick={() => closeFile(id)}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 /** The "Mein Bereich" tab while it is open but another tab is shown; clicking it switches over without closing anything. */
 export function MeinBereichTab() {
   const { view, meinBereichOpen, openMeinBereich, closeMeinBereich } = useWorkflow();
@@ -61,6 +148,11 @@ export function LogoButton() {
         : `${FILE_PARTNERS.ashley.name} (Einfache Person)`,
     },
     { id: "lunixo" as const, label: `${FILE_PARTNERS.lunixo.name} (${kindLabel("interessent")})` },
+    { id: "lunixo-holding" as const, label: `${FILE_PARTNERS["lunixo-holding"].name} (${kindLabel("interessent")})` },
+    {
+      id: "lunixo-immobilien" as const,
+      label: `${FILE_PARTNERS["lunixo-immobilien"].name} (${kindLabel("interessent")})`,
+    },
   ];
 
   return (
@@ -400,7 +492,6 @@ export function FileIdentity({
   const isCompany = file.fileKind === "company";
   const interessent =
     forceInteressent || filePartnerId === "julia" || (filePartnerId === "ashley" && ashleyConverted) || kind === "interessent";
-  const blank = filePartnerId !== "julia";
   const compact = /\bcompact\b/.test(className);
   const street = address?.[0] ?? "";
   const city = address?.[1] ?? "";
@@ -414,15 +505,9 @@ export function FileIdentity({
           <img src={a.idDeco} alt="" />
         </span>
       )}
-      <span className={blank ? "pp-id-avatar mm-avatar" : "pp-id-avatar"}>
-        {blank ? (
-          <>
-            <img src={a.avatarBg} alt="" />
-            <img className="glyph" src={isCompany ? a.companyBlank : a.clientBlank} alt="" />
-          </>
-        ) : (
-          <img src={a.avatar} alt="" />
-        )}
+      <span className="pp-id-avatar mm-avatar">
+        <img src={a.avatarBg} alt="" />
+        <img className="glyph" src={isCompany ? a.companyBlank : a.clientBlank} alt="" />
       </span>
       <div className="pp-id-copy">
         {interessent ? <span className="chip">Interessent</span> : null}

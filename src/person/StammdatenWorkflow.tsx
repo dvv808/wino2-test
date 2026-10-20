@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
-import { AppsNav, FileIdentity, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
+import { AppsNav, FileIdentity, FileTabs, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
-import { KonzernstrukturPanel } from "./Konzernstruktur";
 import { FILE_PARTNERS } from "./partners";
+import { useFamilyLinks } from "./familyLinks";
+import { useKonzernLinks } from "./konzernLinks";
 import { SaveConfirm } from "./SaveConfirm";
+import { bindVerknuepfungSave } from "./verknuepfungSave";
 import { VerknuepfungPanel } from "./Verknuepfung";
 import {
   AddressFields,
@@ -28,11 +30,14 @@ import {
   applyCompanyFirmenbuch,
   applyCompanyGisa,
   applyCompanyOrgane,
+  EMPTY_COMPANY_GISA,
+  EMPTY_COMPANY_ORGANE,
   INITIAL_COMPANY_FILES,
   INITIAL_COMPANY_FIRMENBUCH,
   INITIAL_COMPANY_GISA,
   INITIAL_COMPANY_ORGANE,
   INITIAL_WICO_ID,
+  companyShellFirmenbuch,
   lookupWico,
   type CompanyFirmenbuchForm,
   type CompanyGisaForm,
@@ -120,7 +125,6 @@ function Stepper() {
 export function StammdatenWorkflow() {
   const {
     displaySections,
-    personName,
     filePartnerId,
     stammdatenArea,
     stammdatenCardId,
@@ -130,8 +134,6 @@ export function StammdatenWorkflow() {
     deleteStammdatenCard,
     saveStammdaten,
     closeStammdaten,
-    leaveManager,
-    openPerson,
     stammdatenDirty,
     stammdatenCanPublish,
     isHistorical,
@@ -141,6 +143,34 @@ export function StammdatenWorkflow() {
     publishedNachname,
     versionSaveError,
   } = useWorkflow();
+  const family = useFamilyLinks();
+  const konzern = useKonzernLinks();
+  const isCompanyFile = FILE_PARTNERS[filePartnerId].fileKind === "company";
+
+  useEffect(() => {
+    return bindVerknuepfungSave({
+      snapshot: () => {
+        family.snapshot();
+        konzern.snapshot();
+      },
+      commit: () => {
+        family.commitSnapshot();
+        konzern.commitSnapshot();
+      },
+      revert: () => {
+        family.revert();
+        konzern.revert();
+      },
+      publish: () => {
+        family.publish(filePartnerId);
+        konzern.publish(filePartnerId, isCompanyFile ? "company" : "person");
+      },
+      dirty: () => family.isDirty() || konzern.isDirty(),
+      publishable: () =>
+        family.hasPublishable(filePartnerId) ||
+        konzern.hasPublishable(filePartnerId, isCompanyFile ? "company" : "person"),
+    });
+  }, [family, konzern, filePartnerId, isCompanyFile]);
 
   const section = displaySections.find((entry) => entry.id === sectionIdForArea(stammdatenArea));
   const cards = useMemo(
@@ -150,6 +180,12 @@ export function StammdatenWorkflow() {
   const selected = cards.find((card) => card.id === stammdatenCardId) ?? cards[0] ?? null;
   const blank = BLANK_AREAS.includes(stammdatenArea);
   const isCompany = FILE_PARTNERS[filePartnerId].fileKind === "company";
+  const vkDirty = family.isDirty() || konzern.isDirty();
+  const vkPublishable =
+    family.hasPublishable(filePartnerId) ||
+    konzern.hasPublishable(filePartnerId, isCompany ? "company" : "person");
+  const canSaveDraft = stammdatenDirty || vkDirty;
+  const canPublish = stammdatenCanPublish || vkPublishable;
   const canAdd = MULTI_CARD_AREAS.includes(stammdatenArea) && !(isCompany && stammdatenArea === "wirtschaftsdaten");
 
   const [partner, setPartner] = useState<PartnerForm>(EMPTY_PARTNER);
@@ -180,14 +216,20 @@ export function StammdatenWorkflow() {
   useEffect(() => {
     if (stammdatenArea !== "wirtschaftsdaten") return;
     if (isCompany) {
-      setCompanyFirmenbuch(INITIAL_COMPANY_FIRMENBUCH);
-      setCompanyOrgane(INITIAL_COMPANY_ORGANE);
-      setCompanyGisa(INITIAL_COMPANY_GISA);
-      setCompanyFiles(INITIAL_COMPANY_FILES);
-      setWicoDraft(INITIAL_WICO_ID);
-      setWicoId(INITIAL_WICO_ID);
+      const file = FILE_PARTNERS[filePartnerId];
+      const filled = filePartnerId === "lunixo";
+      setCompanyFirmenbuch(
+        filled
+          ? INITIAL_COMPANY_FIRMENBUCH
+          : companyShellFirmenbuch(file.name, file.address?.[1] ?? "", file.fn ?? ""),
+      );
+      setCompanyOrgane(filled ? INITIAL_COMPANY_ORGANE : EMPTY_COMPANY_ORGANE);
+      setCompanyGisa(filled ? INITIAL_COMPANY_GISA : EMPTY_COMPANY_GISA);
+      setCompanyFiles(filled ? INITIAL_COMPANY_FILES : []);
+      setWicoDraft(filled ? INITIAL_WICO_ID : "");
+      setWicoId(filled ? INITIAL_WICO_ID : "");
       setWicoSyncing(false);
-      setWicoSnapshot(lookupWico(INITIAL_WICO_ID));
+      setWicoSnapshot(filled ? lookupWico(INITIAL_WICO_ID) : lookupWico(""));
       return;
     }
     setWirtschaft(INITIAL_WIRTSCHAFT);
@@ -198,7 +240,7 @@ export function StammdatenWorkflow() {
     setWicoId(INITIAL_PERSON_WICO_ID);
     setWicoSyncing(false);
     setPersonWico(lookupPersonWico(INITIAL_PERSON_WICO_ID));
-  }, [stammdatenArea, isCompany]);
+  }, [stammdatenArea, isCompany, filePartnerId]);
 
   useEffect(() => {
     if (!selected) return;
@@ -414,25 +456,7 @@ export function StammdatenWorkflow() {
         <header className="main-nav">
           <div className="main-nav-left">
             <LogoButton />
-            <div className="person-tab">
-              <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
-              <button type="button" className="person-tab-body" onClick={openPerson}>
-                <Icon src={a.person} size={24} />
-                {personName}
-                <span
-                  className="close-icon"
-                  role="button"
-                  aria-label={`${personName} schließen`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    leaveManager();
-                  }}
-                >
-                  <img src={a.iconClose} alt="" width={18} height={18} />
-                </span>
-              </button>
-              <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
-            </div>
+            <FileTabs />
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
@@ -464,11 +488,7 @@ export function StammdatenWorkflow() {
 
             <main className="sw-main">
             {stammdatenArea === "verknuepfung" ? (
-              isCompany ? (
-                <KonzernstrukturPanel currentCompanyId={filePartnerId} />
-              ) : (
-                <VerknuepfungPanel memberId={filePartnerId} initialId={stammdatenCardId} />
-              )
+              <VerknuepfungPanel key={filePartnerId} memberId={filePartnerId} initialId={stammdatenCardId} />
             ) : blank ? (
               <p className="sw-blank">Dieser Bereich folgt.</p>
             ) : (
@@ -600,10 +620,10 @@ export function StammdatenWorkflow() {
                       </button>
                     ) : null}
                   </header>
-                  <p className={selected?.draft || stammdatenDirty || stammdatenCanPublish ? "sw-now unsaved" : "sw-now"}>
-                    {stammdatenDirty
+                  <p className={selected?.draft || canSaveDraft || canPublish ? "sw-now unsaved" : "sw-now"}>
+                    {canSaveDraft
                       ? "Ungespeicherte Änderungen"
-                      : stammdatenCanPublish || selected?.draft
+                      : canPublish || selected?.draft
                         ? "Entwurf"
                         : "Aktuell in Wino"}
                   </p>
@@ -634,7 +654,7 @@ export function StammdatenWorkflow() {
               <button
                 type="button"
                 className="btn-secondary"
-                disabled={isHistorical || !stammdatenDirty}
+                disabled={isHistorical || !canSaveDraft}
                 onClick={() => saveStammdaten(false)}
               >
                 Entwurf speichern
@@ -642,7 +662,7 @@ export function StammdatenWorkflow() {
               <button
                 type="button"
                 className="btn-primary"
-                disabled={isHistorical || !stammdatenCanPublish}
+                disabled={isHistorical || !canPublish}
                 onClick={() => setConfirmSave(true)}
               >
                 Speichern

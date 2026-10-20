@@ -10,12 +10,14 @@ import {
 import { hashToRoute, routeToHash, type PersonArea, type PersonModule } from "./routing";
 import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
 import { FILE_PARTNERS, type PartnerId } from "./person/partners";
+import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
   MULTI_CARD_AREAS,
   STAMMDATEN_AREAS,
   areaTitle,
   cardPayload,
   cloneAshleySections,
+  cloneCompanySections,
   cloneLunixoSections,
   cloneSections,
   publishedSnapshot,
@@ -174,6 +176,7 @@ const FAMILY_FILES: [PartnerId, string, string][] = [
   ["johanna", "Johanna", "Atkinson"],
   ["ash", "Ash", "Atkinson"],
   ["marcus", "Marcus", "Atkinson-Sullivan"],
+  ["sophie", "Sophie", "Lang"],
 ];
 
 function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
@@ -196,6 +199,27 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
       sections: cloneLunixoSections(),
       versions: blankFileVersions("Lunixo", "AG", "partner-lunixo", "lunixo-v1"),
       viewingVersionId: "lunixo-v1",
+      stammdatenBaseline: null,
+      stammdatenPublished: null,
+    },
+    "lunixo-holding": {
+      sections: cloneCompanySections("Lunixo", "Holding", "partner-lunixo-holding", {
+        name: "Lunixo Holding",
+        city: "Salzburg",
+        fn: "63241",
+      }),
+      versions: blankFileVersions("Lunixo", "Holding", "partner-lunixo-holding", "lunixo-holding-v1"),
+      viewingVersionId: "lunixo-holding-v1",
+      stammdatenBaseline: null,
+      stammdatenPublished: null,
+    },
+    "lunixo-immobilien": {
+      sections: cloneCompanySections("Lunixo Immobilien", "GmbH", "partner-lunixo-immobilien", {
+        name: "Lunixo Immobilien GmbH",
+        city: "Linz",
+      }),
+      versions: blankFileVersions("Lunixo Immobilien", "GmbH", "partner-lunixo-immobilien", "lunixo-immobilien-v1"),
+      viewingVersionId: "lunixo-immobilien-v1",
       stammdatenBaseline: null,
       stammdatenPublished: null,
     },
@@ -287,6 +311,8 @@ function useWorkflowState() {
       (initialRoute.partnerId === "ashley" ? "maklermandat" : "stammdaten"),
   );
   const [filePartnerId, setFilePartnerId] = useState<PartnerId>(() => initialRoute.partnerId ?? "julia");
+  const [openFileIds, setOpenFileIds] = useState<PartnerId[]>(() => [initialRoute.partnerId ?? "julia"]);
+  const [fileAreas, setFileAreas] = useState<Partial<Record<PartnerId, StammdatenAreaId>>>({});
   const [ashleyConverted, setAshleyConverted] = useState(false);
   const [partnerFiles, setPartnerFiles] = useState<Record<PartnerId, PartnerFile>>(initialPartnerFiles);
   const file = partnerFiles[filePartnerId];
@@ -472,10 +498,20 @@ function useWorkflowState() {
   }, []);
 
   useEffect(() => {
+    setOpenFileIds((ids) => (ids.includes(filePartnerId) ? ids : [...ids, filePartnerId]));
+  }, [filePartnerId]);
+
+  useEffect(() => {
+    if (view !== "stammdaten") return;
+    setFileAreas((current) => (current[filePartnerId] === stammdatenArea ? current : { ...current, [filePartnerId]: stammdatenArea }));
+  }, [view, filePartnerId, stammdatenArea]);
+
+  useEffect(() => {
     if (view !== "stammdaten") return;
     const snapshot = sectionsRef.current;
     setStammdatenBaseline((current) => current ?? structuredClone(snapshot));
     setStammdatenPublished((current) => current ?? publishedSnapshot(snapshot));
+    verknuepfungSave().snapshot();
   }, [view, filePartnerId]);
 
   const selectedPartner = partners.find((partner) => partner.id === partnerId) ?? null;
@@ -624,12 +660,71 @@ function useWorkflowState() {
     setView("person");
   }
 
+  function ensureFileTab(id: PartnerId) {
+    setOpenFileIds((ids) => {
+      const withCurrent = ids.includes(filePartnerId) ? ids : [...ids, filePartnerId];
+      if (withCurrent.includes(id)) return withCurrent;
+      const at = withCurrent.indexOf(filePartnerId);
+      return [...withCurrent.slice(0, at + 1), id, ...withCurrent.slice(at + 1)];
+    });
+  }
+
   function openPartner(id: PartnerId) {
+    ensureFileTab(id);
     setFilePartnerId(id);
     setPersonModule("profil");
     setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
     setVersionHistoryOpen(false);
     setView("person");
+  }
+
+  /** Park the current file and open the other partner's Stammdaten workflow at Verknüpfung. */
+  function openPartnerBeside(id: PartnerId) {
+    if (id === filePartnerId) {
+      openStammdaten("verknuepfung");
+      return;
+    }
+    ensureFileTab(id);
+    setFileAreas((current) => ({ ...current, [filePartnerId]: stammdatenArea, [id]: "verknuepfung" }));
+    openStammdaten("verknuepfung", undefined, id);
+  }
+
+  function activateFile(id: PartnerId) {
+    if (id === filePartnerId) return;
+    setFileAreas((current) => ({ ...current, [filePartnerId]: stammdatenArea }));
+    const area = fileAreas[id];
+    if (area) {
+      openStammdaten(area, undefined, id);
+      return;
+    }
+    setFilePartnerId(id);
+    setPersonModule("profil");
+    setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
+    setView("person");
+  }
+
+  function closeFile(id: PartnerId) {
+    const remaining = openFileIds.filter((entry) => entry !== id);
+    setOpenFileIds(remaining.length ? remaining : openFileIds);
+    setFileAreas((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    if (id !== filePartnerId) return;
+    const fallback = remaining[remaining.length - 1];
+    if (!fallback) {
+      leaveManager();
+      return;
+    }
+    const area = fileAreas[fallback];
+    if (area) openStammdaten(area, undefined, fallback);
+    else {
+      setFilePartnerId(fallback);
+      setPersonModule("profil");
+      setPersonArea(fallback === "ashley" ? "maklermandat" : "stammdaten");
+      setView("person");
+    }
   }
 
   /** From the Honorar tables: the partner's profile, Inkasso area (Zahlungsziel lives there). */
@@ -851,6 +946,7 @@ function useWorkflowState() {
   function saveStammdaten(publish: boolean) {
     if (isHistorical) return false;
     if (!publish) {
+      verknuepfungSave().commit();
       setStammdatenBaseline(structuredClone(sections));
       setStammdatenPublished((current) => current ?? publishedSnapshot(sections));
       return true;
@@ -897,6 +993,7 @@ function useWorkflowState() {
     }
 
     setVersionSaveError(null);
+    verknuepfungSave().publish();
     setSections(published);
     setStammdatenBaseline(structuredClone(published));
     setStammdatenPublished(structuredClone(published));
@@ -905,25 +1002,37 @@ function useWorkflowState() {
   }
 
   function hasStammdatenDrafts() {
-    return Boolean(stammdatenBaseline && JSON.stringify(sections) !== JSON.stringify(stammdatenBaseline));
+    return Boolean(
+      (stammdatenBaseline && JSON.stringify(sections) !== JSON.stringify(stammdatenBaseline)) ||
+        verknuepfungSave().dirty(),
+    );
   }
 
   function hasUnpublishedStammdaten() {
+    if (verknuepfungSave().publishable()) return true;
     if (sections.some((section) => section.cards.some((card) => card.draft))) return true;
     const published = stammdatenPublished ?? publishedSnapshot(sections);
     return JSON.stringify(sectionData(sections)) !== JSON.stringify(sectionData(published));
   }
 
   function stammdatenDirtyAreas() {
-    if (!stammdatenBaseline) return [];
-    return STAMMDATEN_AREAS.filter((area) => {
-      const ids = area.id === "externe" ? ["firmenbuch", "gisa"] : [sectionIdForArea(area.id)];
-      return ids.some((sectionId) => {
-        const now = sections.find((section) => section.id === sectionId);
-        const was = stammdatenBaseline.find((section) => section.id === sectionId);
-        return JSON.stringify(now) !== JSON.stringify(was);
-      });
-    }).map((area) => ({ id: area.id, label: areaTitle(area.id) }));
+    const areas = !stammdatenBaseline
+      ? []
+      : STAMMDATEN_AREAS.filter((area) => {
+          const ids = area.id === "externe" ? ["firmenbuch", "gisa"] : [sectionIdForArea(area.id)];
+          return ids.some((sectionId) => {
+            const now = sections.find((section) => section.id === sectionId);
+            const was = stammdatenBaseline.find((section) => section.id === sectionId);
+            return JSON.stringify(now) !== JSON.stringify(was);
+          });
+        }).map((area) => ({ id: area.id, label: areaTitle(area.id) }));
+    if (
+      (verknuepfungSave().dirty() || verknuepfungSave().publishable()) &&
+      !areas.some((area) => area.id === "verknuepfung")
+    ) {
+      areas.push({ id: "verknuepfung", label: "Verknüpfung" });
+    }
+    return areas;
   }
 
   function closeStammdaten(revert: boolean) {
@@ -948,9 +1057,12 @@ function useWorkflowState() {
   }
 
   function finishLeave(keepDrafts: boolean) {
-    if (!keepDrafts && stammdatenBaseline) {
-      setSections(stammdatenBaseline);
-      setStammdatenPublished(null);
+    if (!keepDrafts) {
+      verknuepfungSave().revert();
+      if (stammdatenBaseline) {
+        setSections(stammdatenBaseline);
+        setStammdatenPublished(null);
+      }
     }
     setStammdatenBaseline(null);
     setLeavePrompt(false);
@@ -1158,7 +1270,11 @@ function useWorkflowState() {
     closeFreigabe,
     openPerson,
     filePartnerId,
+    openFileIds,
     openPartner,
+    openPartnerBeside,
+    activateFile,
+    closeFile,
     openPartnerInkasso,
     openPartnerBank,
     finanzenProfileOpen,

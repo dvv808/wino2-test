@@ -170,13 +170,15 @@ export function TarifLine({ tariff, ok }: { tariff: string; ok: boolean }) {
   );
 }
 
-/** Success toast. Undo is optional — a save confirmation does not need it. */
+/** Toast. Undo is optional — a save confirmation does not need it. */
 export function Snackbar({
   message,
+  tone = "ok",
   onUndo,
   onClose,
 }: {
   message: string;
+  tone?: "ok" | "warn";
   onUndo?: () => void;
   onClose: () => void;
 }) {
@@ -192,7 +194,7 @@ export function Snackbar({
     <div className="snackbar" role="status">
       <div className="snackbar-card">
         <span className="snackbar-icon">
-          <img src={a.snackConfirm} alt="" width={36} height={36} />
+          <img src={tone === "warn" ? a.attention : a.snackConfirm} alt="" width={36} height={36} />
         </span>
         <div className="snackbar-copy">
           <p>{message}</p>
