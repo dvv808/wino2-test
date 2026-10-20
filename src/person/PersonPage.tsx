@@ -490,7 +490,13 @@ export function PersonPage() {
                                 card={card}
                                 key={card.id}
                                 onEdit={() => openStammdaten(area, card.id)}
-                                onDelete={() => setPendingDelete({ area, card, unlink: group.id })}
+                                onDelete={() =>
+                                  setPendingDelete({
+                                    area,
+                                    card,
+                                    unlink: group.id === "konzern" ? "konzern" : "family",
+                                  })
+                                }
                                 onAdd={() => openStammdaten(area)}
                                 deleteLabel="Verknüpfung auflösen"
                                 deleteIcon={a.menuUnlink}

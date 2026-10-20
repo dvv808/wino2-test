@@ -167,8 +167,9 @@ function loadLinks(): FamilyLink[] {
         }
         continue;
       }
-      if (seed.partnerId && links.some((link) => isPair(link, seed.ownerId, seed.partnerId))) continue;
-      links.push({ ...seed });
+      const partnerId = seed.partnerId;
+      if (partnerId && links.some((link) => isPair(link, seed.ownerId, partnerId))) continue;
+      links.push({ ...seed, published: seed.published !== false });
     }
     return collapsePairLinks(links);
   } catch {

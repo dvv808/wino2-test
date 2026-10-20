@@ -153,7 +153,7 @@ function loadState(): State {
             link.targetId === seed.targetId &&
             link.targetKind === seed.targetKind),
       );
-      if (!exists) links.push({ ...seed });
+      if (!exists) links.push({ ...seed, published: seed.published !== false });
     }
     const groups = parsed.groups.length ? parsed.groups : structuredClone(SEED.groups);
     for (const seed of SEED.groups) {
