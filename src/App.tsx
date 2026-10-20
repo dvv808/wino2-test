@@ -18,6 +18,7 @@ import { MeinBereichView } from "./mein-bereich/MeinBereichView";
 import { CompanyGroupsProvider } from "./person/companyGroups";
 import { FamilyLinksProvider } from "./person/familyLinks";
 import { KonzernLinksProvider } from "./person/konzernLinks";
+import { KonzernHubPage } from "./person/KonzernHub";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
@@ -224,6 +225,15 @@ function Screen() {
     return (
       <>
         <ManagerView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
+  if (view === "konzernHub") {
+    return (
+      <>
+        <KonzernHubPage />
         <VersionLayer />
         <LeavePrompt />
       </>

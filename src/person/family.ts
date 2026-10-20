@@ -1,3 +1,4 @@
+import { austrianCityLine } from "./company";
 import { FILE_PARTNERS, type PartnerId, type PartnerKind } from "./partners";
 
 /**
@@ -7,7 +8,7 @@ import { FILE_PARTNERS, type PartnerId, type PartnerKind } from "./partners";
 export type FamilyMemberId = PartnerId;
 export type FamilyKind = PartnerKind;
 
-export type FamilyInfo = { id: FamilyMemberId; name: string; kind: FamilyKind; born: string };
+export type FamilyInfo = { id: FamilyMemberId; name: string; kind: FamilyKind; born: string; address: string };
 
 /** Every Privatperson file in the system; the Verknüpfung partner search lists these. Companies are excluded. */
 export const FAMILY_CANDIDATES: FamilyInfo[] = Object.values(FILE_PARTNERS)
@@ -21,6 +22,10 @@ export function familyMember(id: FamilyMemberId): FamilyInfo {
     name: partner.name,
     kind: partner.kind ?? (id === "julia" ? "interessent" : "einfach"),
     born: partner.born ?? "",
+    address: (() => {
+      const [street, city] = partner.address ?? [];
+      return [street, austrianCityLine(city ?? "")].filter(Boolean).join(", ");
+    })(),
   };
 }
 
@@ -72,6 +77,39 @@ const RECIPROCAL: Record<string, { f: string; m: string }> = {
   freundin: { f: "Freundin", m: "Freund" },
   freund: { f: "Freundin", m: "Freund" },
 };
+
+export const FAMILY_ROLES = [
+  "Vater",
+  "Mutter",
+  "Sohn",
+  "Tochter",
+  "Bruder",
+  "Schwester",
+  "Partner/Ehemann",
+  "Partner/Ehefrau",
+  "Ehemann",
+  "Ehefrau",
+  "Partner",
+  "Partnerin",
+  "Großvater",
+  "Großmutter",
+  "Enkel",
+  "Enkelin",
+  "Onkel",
+  "Tante",
+  "Nichte",
+  "Neffe",
+  "Schwager",
+  "Schwägerin",
+  "Schwiegervater",
+  "Schwiegermutter",
+  "Schwiegertochter",
+  "Schwiegersohn",
+  "Cousin",
+  "Cousine",
+  "Freund",
+  "Freundin",
+];
 
 /** What the owner is to the partner, given the label the owner wrote for the partner. */
 export function reciprocalFamilyLabel(label: string, ownerGender: FamilyGender) {

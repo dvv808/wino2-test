@@ -332,7 +332,7 @@ export function companyShellFirmenbuch(name: string, city = "", fn = ""): Compan
   return {
     ...EMPTY_COMPANY_FIRMENBUCH,
     firmenwortlaut: name,
-    ort: city,
+    ort: city.replace(/^[A-Z]{1,3}-\d{4,5}\s+/, "").trim(),
     firmenbuchnummer: fn,
   };
 }

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { COMPANY_DIRECTORY } from "./company";
+import { austrianCityLine, COMPANY_DIRECTORY, companyAddressLine } from "./company";
 import { FILE_PARTNERS, type PartnerId } from "./partners";
 
 export type PartyKind = "person" | "company";
@@ -110,7 +110,7 @@ const SEED: State = {
       targetId: "julia",
       targetKind: "person",
       label: "Julia Atkinson",
-      accepted: false,
+      accepted: true,
       published: true,
     },
     suggestionLink("kl-sug-alpine", "grp-sug-alpine", "alpine-cover", "company", "lunixo", "company", "Beteiligung"),
@@ -159,7 +159,12 @@ function loadState(): State {
     for (const seed of SEED.groups) {
       if (!groups.some((group) => group.id === seed.id)) groups.push({ ...seed });
     }
-    return { groups, links };
+    const cleaned = links.filter((link) => {
+      if (link.ownerKind !== "person" || !isPublished(link) || link.targetKind !== "company") return true;
+      const group = groups.find((entry) => entry.id === link.groupId);
+      return !group?.konzernId || link.targetId === group.konzernId;
+    });
+    return { groups, links: cleaned };
   } catch {
     return SEED;
   }
@@ -190,13 +195,30 @@ export function partyName(id: string) {
   return COMPANY_DIRECTORY.find((company) => company.id === id)?.name ?? id;
 }
 
-export function partyMeta(id: string) {
+export function partyAddressLine(id: string) {
   if (isFilePartner(id)) {
-    const partner = FILE_PARTNERS[id];
-    return partner.fileKind === "company" ? (partner.fn ? `FN ${partner.fn}` : "") : (partner.born ?? "");
+    const [street, city] = FILE_PARTNERS[id].address ?? [];
+    return [street, austrianCityLine(city ?? "")].filter(Boolean).join(", ");
   }
-  const company = COMPANY_DIRECTORY.find((entry) => entry.id === id);
-  return company?.fn ? `FN ${company.fn}` : company?.city ?? "";
+  return companyAddressLine(COMPANY_DIRECTORY.find((entry) => entry.id === id));
+}
+
+export function partyMeta(id: string) {
+  const address = partyAddressLine(id);
+  if (partyKindOf(id) === "company") return address;
+  const born = isFilePartner(id) ? FILE_PARTNERS[id].born ?? "" : "";
+  return [born, address].filter(Boolean).join(" · ");
+}
+
+/** Real labeled Konzerns — suggestion-only groups stay out of the picker. */
+export function isEstablishedGroup(group: KonzernGroup) {
+  return Boolean(group.konzernId) && !group.id.startsWith("grp-sug-");
+}
+
+function isListedMember(link: KonzernLink, partyId: string, kind: PartyKind) {
+  if (!isPublished(link) || link.declined) return false;
+  if (link.targetId === partyId && link.targetKind === kind) return true;
+  return kind === "person" && link.ownerId === partyId && link.ownerKind === "person" && Boolean(link.targetId);
 }
 
 /** Company partners actually on the list — never empty drafts, Vorschläge, or person-only membership. */
@@ -206,26 +228,9 @@ export function konzernTabCount(
   kind: PartyKind,
   groups: KonzernGroup[] = [],
 ) {
-  if (kind === "company") {
-    const ids = new Set<string>();
-    for (const link of links) {
-      if (!isPublished(link) || !link.targetId || link.declined) continue;
-      if (link.ownerId === partyId && link.ownerKind === "company" && link.targetKind === "company") {
-        ids.add(link.targetId);
-      }
-      if (
-        link.targetId === partyId &&
-        link.targetKind === "company" &&
-        link.accepted &&
-        link.ownerId !== partyId &&
-        link.ownerKind === "company"
-      ) {
-        ids.add(link.ownerId);
-      }
-    }
-    return ids.size;
-  }
-  return personKonzernCards(groups, links, partyId).length;
+  const group = establishedGroupOf({ groups, links }, partyId, kind);
+  if (!group?.konzernId) return 0;
+  return kind === "person" ? 1 : groupMembers(groups, links, group).length;
 }
 
 export function partyChip(id: string) {
@@ -236,6 +241,12 @@ export function partyChip(id: string) {
     return FILE_PARTNERS[id].fileKind === "company" ? "Interessent" : "Einfache Person";
   }
   return "Interessent";
+}
+
+/** Kunde files sit in a Honorar named after the Konzern. */
+export function partyHonorarLine(id: string, konzernName: string) {
+  if (!konzernName || partyChip(id) !== "Kunde") return "";
+  return `Honorar: ${konzernName}`;
 }
 
 type Store = {
@@ -255,6 +266,8 @@ type Store = {
   unlink: (id: string, viewerId: string, viewerKind: PartyKind) => { unaccepted: string[]; removed: KonzernLink[] };
   restore: (link: KonzernLink) => void;
   setKonzern: (companyId: string) => boolean;
+  leave: (partyId: string, kind: PartyKind) => { unaccepted: string[]; removed: KonzernLink[] };
+  removeMember: (groupId: string, memberId: string) => { blocked?: "konzernchef"; removed: KonzernLink[] };
   snapshot: () => void;
   commitSnapshot: () => void;
   revert: () => void;
@@ -270,28 +283,50 @@ function touches(link: KonzernLink, partyId: string, kind: PartyKind) {
   );
 }
 
-/** Companies this person added or accepted — never siblings from someone else's Konzern. */
-export function personKonzernCards(groups: KonzernGroup[], links: KonzernLink[], personId: string): KonzernLink[] {
-  const cards: KonzernLink[] = [];
+export type KonzernMember = { id: string; kind: PartyKind };
+
+export function groupMembers(_groups: KonzernGroup[], links: KonzernLink[], group: KonzernGroup): KonzernMember[] {
   const seen = new Set<string>();
-  const add = (companyId: string | null | undefined, link: KonzernLink) => {
-    if (!companyId || seen.has(companyId)) return;
-    seen.add(companyId);
-    cards.push({ ...link, targetId: companyId, targetKind: "company" });
+  const members: KonzernMember[] = [];
+  const add = (id: string | null | undefined) => {
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    members.push({ id, kind: partyKindOf(id) });
   };
+  add(group.konzernId);
   for (const link of links) {
-    if (!isPublished(link) || link.declined || !link.targetId) continue;
-    if (link.ownerId === personId && link.ownerKind === "person" && link.targetKind === "company") {
-      add(link.targetId, link);
-    }
-    if (link.targetId === personId && link.targetKind === "person" && link.accepted && link.ownerId !== personId) {
-      add(counterpartId(link, personId, groups, links), link);
-    }
+    if (link.groupId !== group.id || !isPublished(link) || link.declined) continue;
+    if (link.targetId) add(link.targetId);
+    if (link.ownerKind === "person") add(link.ownerId);
   }
-  return cards;
+  return members.sort((left, right) => {
+    if (left.id === group.konzernId) return -1;
+    if (right.id === group.konzernId) return 1;
+    if (left.kind !== right.kind) return left.kind === "company" ? -1 : 1;
+    return partyName(left.id).localeCompare(partyName(right.id));
+  });
 }
 
-/** Confirmed Konzern partners shown on the person/company overview cards. */
+/** The one Konzern this person belongs to, or empty. */
+export function personKonzernCards(groups: KonzernGroup[], links: KonzernLink[], personId: string): KonzernLink[] {
+  const group = establishedGroupOf({ groups, links }, personId, "person");
+  if (!group?.konzernId) return [];
+  return [
+    {
+      id: `hub-${group.id}`,
+      groupId: group.id,
+      ownerId: personId,
+      ownerKind: "person",
+      targetId: group.konzernId,
+      targetKind: "company",
+      label: `Konzern: ${partyName(group.konzernId)}`,
+      accepted: true,
+      published: true,
+    },
+  ];
+}
+
+/** Featured Konzern plus every listed member, for overview cards. */
 export function overviewKonzernLinks(
   groups: KonzernGroup[],
   links: KonzernLink[],
@@ -299,38 +334,32 @@ export function overviewKonzernLinks(
   kind: PartyKind,
 ) {
   const group = establishedGroupOf({ groups, links }, partyId, kind);
-  if (kind === "person") {
-    return personKonzernCards(groups, links, partyId).sort((left, right) => {
-      const leftKonzern = left.targetId === group?.konzernId ? 0 : 1;
-      const rightKonzern = right.targetId === group?.konzernId ? 0 : 1;
-      if (leftKonzern !== rightKonzern) return leftKonzern - rightKonzern;
-      return partyName(left.targetId ?? "").localeCompare(partyName(right.targetId ?? ""));
-    });
-  }
-  const incoming = links
-    .filter(
-      (link) =>
-        link.targetId === partyId &&
-        link.targetKind === kind &&
-        link.accepted &&
-        isPublished(link) &&
-        link.ownerId !== partyId,
-    )
-    .flatMap((link) => {
-      const sourceId = counterpartId(link, partyId, groups, links);
-      if (!sourceId || sourceId === partyId) return [];
-      return [{ ...link, targetId: sourceId, targetKind: partyKindOf(sourceId) }];
-    });
-  const groupLinks = links.filter((link) => group && link.groupId === group.id && link.targetId && isPublished(link));
-  return [...groupLinks, ...incoming]
-    .filter((link, index, all) => Boolean(link.targetId) && all.findIndex((entry) => entry.targetId === link.targetId) === index)
-    .sort((left, right) => {
-      const leftKonzern = left.targetId === group?.konzernId ? 0 : 1;
-      const rightKonzern = right.targetId === group?.konzernId ? 0 : 1;
-      if (leftKonzern !== rightKonzern) return leftKonzern - rightKonzern;
-      if (left.targetKind !== right.targetKind) return left.targetKind === "company" ? -1 : 1;
-      return partyName(left.targetId ?? "").localeCompare(partyName(right.targetId ?? ""));
-    });
+  if (!group?.konzernId) return [];
+  const featured: KonzernLink = {
+    id: `hub-${group.id}`,
+    groupId: group.id,
+    ownerId: partyId,
+    ownerKind: kind,
+    targetId: group.konzernId,
+    targetKind: "company",
+    label: `Konzern: ${partyName(group.konzernId)}`,
+    accepted: true,
+    published: true,
+  };
+  return [
+    featured,
+    ...groupMembers(groups, links, group).map((member) => ({
+      id: `mem-${group.id}-${member.id}`,
+      groupId: group.id,
+      ownerId: partyId,
+      ownerKind: kind,
+      targetId: member.id,
+      targetKind: member.kind,
+      label: partyName(member.id),
+      accepted: true,
+      published: true,
+    })),
+  ];
 }
 
 /** The other party on this link, from the viewer's side (incoming Vorschläge use the owner / their Konzern). */
@@ -362,18 +391,24 @@ export function counterpartId(
 }
 
 function establishedGroupOf(state: State, partyId: string, kind: PartyKind) {
-  return (
-    state.groups.find((group) => kind === "company" && group.konzernId === partyId) ??
-    state.groups.find((group) =>
-      state.links.some(
-        (link) =>
-          link.groupId === group.id &&
-          isPublished(link) &&
-          ((link.ownerId === partyId && link.ownerKind === kind && Boolean(link.targetId)) ||
-            (link.targetId === partyId && link.targetKind === kind && link.accepted)),
-      ),
-    )
+  if (kind === "company") {
+    return (
+      state.groups.find((group) => isEstablishedGroup(group) && group.konzernId === partyId) ??
+      state.groups.find((group) =>
+        isEstablishedGroup(group) &&
+        state.links.some((link) => link.groupId === group.id && isListedMember(link, partyId, "company")),
+      )
+    );
+  }
+  return state.groups.find(
+    (group) =>
+      isEstablishedGroup(group) &&
+      state.links.some((link) => link.groupId === group.id && isListedMember(link, partyId, "person")),
   );
+}
+
+export function viewerGroupOf(groups: KonzernGroup[], links: KonzernLink[], partyId: string, kind: PartyKind) {
+  return establishedGroupOf({ groups, links }, partyId, kind);
 }
 
 function hasMembership(links: KonzernLink[], groupId: string, sourceId: string, sourceKind: PartyKind) {
@@ -429,8 +464,15 @@ function takeInMembership(state: State, incoming: KonzernLink): State {
     );
 
   if (incoming.targetKind === "person") {
+    const previous = establishedGroupOf(state, incoming.targetId, "person");
+    const working =
+      previous && previous.id !== incoming.groupId
+        ? detachPersonFromGroup(state, incoming.targetId, previous.id).next
+        : state;
     const groupId = incoming.groupId;
-    const links = acceptIncoming(groupId);
+    const links = working.links.map((link) =>
+      link.id === incoming.id ? { ...link, groupId, accepted: true, declined: false } : link,
+    );
     const already = links.some(
       (link) =>
         isPublished(link) &&
@@ -451,7 +493,7 @@ function takeInMembership(state: State, incoming: KonzernLink): State {
         published: true,
       });
     }
-    return { ...state, links };
+    return { ...working, links };
   }
 
   const viewerGroup = establishedGroupOf(state, incoming.targetId, incoming.targetKind);
@@ -549,17 +591,7 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
         const id = `kl-${Date.now()}`;
         const groupId = `grp-${Date.now()}`;
         setState((prev) => {
-          const existing = prev.groups.find(
-            (group) =>
-              (ownerKind === "company" && group.konzernId === ownerId) ||
-              prev.links.some(
-                (link) =>
-                  link.groupId === group.id &&
-                  isPublished(link) &&
-                  ((link.ownerId === ownerId && link.ownerKind === ownerKind && Boolean(link.targetId)) ||
-                    (link.targetId === ownerId && link.targetKind === ownerKind && link.accepted)),
-              ),
-          );
+          const existing = establishedGroupOf(prev, ownerId, ownerKind);
           const nextGroupId = existing?.id ?? groupId;
           return {
             groups: existing ? prev.groups : [...prev.groups, { id: nextGroupId, konzernId: null }],
@@ -592,23 +624,61 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
         setState((prev) => {
           const current = prev.links.find((link) => link.id === id);
           if (!current) return prev;
+          if (current.ownerKind === "person") {
+            const already = establishedGroupOf(prev, current.ownerId, "person");
+            if (already?.konzernId) {
+              if (targetId === already.konzernId) return prev;
+              return {
+                ...prev,
+                links: prev.links.map((link) =>
+                  link.id === id
+                    ? {
+                        ...link,
+                        groupId: already.id,
+                        targetId,
+                        targetKind,
+                        label: partyName(targetId),
+                        accepted: false,
+                      }
+                    : link,
+                ),
+              };
+            }
+            const targetGroup = prev.groups.find((group) => isEstablishedGroup(group) && group.konzernId === targetId);
+            if (!targetGroup || targetKind !== "company") return prev;
+            return {
+              ...prev,
+              links: prev.links.map((link) =>
+                link.id === id
+                  ? {
+                      ...link,
+                      groupId: targetGroup.id,
+                      targetId,
+                      targetKind,
+                      label: partyName(targetId),
+                      accepted: false,
+                    }
+                  : link,
+              ),
+            };
+          }
           const targetGroup =
             targetKind === "company"
               ? prev.groups.find(
                   (group) =>
-                    group.konzernId === targetId ||
-                    prev.links.some((link) => link.groupId === group.id && touches(link, targetId, "company")),
+                    isEstablishedGroup(group) &&
+                    (group.konzernId === targetId ||
+                      prev.links.some((link) => link.groupId === group.id && isListedMember(link, targetId, "company"))),
                 )
               : undefined;
-          const groupId = targetGroup?.id ?? current.groupId;
+          const ownerGroup = establishedGroupOf(prev, current.ownerId, current.ownerKind);
+          const groupId = ownerGroup?.id ?? targetGroup?.id ?? current.groupId;
           const firstCompany = !prev.groups.find((group) => group.id === groupId)?.konzernId && targetKind === "company";
           const makeKonzern = Boolean(asKonzern || firstCompany);
           return {
             groups: prev.groups.map((group) => {
               if (group.id !== current.groupId && group.id !== groupId) return group;
-              if (group.id === current.groupId && targetGroup && targetGroup.id !== current.groupId) {
-                return group;
-              }
+              if (group.id === current.groupId && groupId !== current.groupId) return group;
               return {
                 ...group,
                 id: groupId,
@@ -622,11 +692,10 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
                   groupId,
                   targetId,
                   targetKind,
-                  label: link.label || partyName(targetId),
+                  label: partyName(targetId),
                   accepted: false,
                 };
               }
-              if (current.ownerKind === "person") return link;
               return link.groupId === current.groupId ? { ...link, groupId } : link;
             }),
           };
@@ -656,6 +725,38 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
       unlink: (id, viewerId, viewerKind) => {
         let result = { unaccepted: [] as string[], removed: [] as KonzernLink[] };
         setState((prev) => {
+          if (id.startsWith("hub-") || (id.startsWith("mem-") && id.slice(4) === viewerId)) {
+            const group = establishedGroupOf(prev, viewerId, viewerKind);
+            if (!group) return prev;
+            if (viewerKind === "person") {
+              const detached = detachPersonFromGroup(prev, viewerId, group.id);
+              result = { unaccepted: detached.unaccepted, removed: detached.removed };
+              snapshotRef.current = structuredClone(detached.next);
+              return detached.next;
+            }
+          }
+          if (id.startsWith("mem-")) {
+            const memberId = id.slice(4);
+            const group = establishedGroupOf(prev, viewerId, viewerKind);
+            if (!group || group.konzernId === memberId) return prev;
+            const kind = partyKindOf(memberId);
+            if (kind === "person") {
+              const detached = detachPersonFromGroup(prev, memberId, group.id);
+              result = { unaccepted: detached.unaccepted, removed: detached.removed };
+              snapshotRef.current = structuredClone(detached.next);
+              return detached.next;
+            }
+            const removed = prev.links.filter(
+              (link) => link.groupId === group.id && link.targetId === memberId && link.targetKind === "company",
+            );
+            const links = prev.links.filter(
+              (link) => !(link.groupId === group.id && link.targetId === memberId && link.targetKind === "company"),
+            );
+            result = { unaccepted: [], removed };
+            const next = { ...prev, links };
+            snapshotRef.current = structuredClone(next);
+            return next;
+          }
           const doomed = prev.links.find((link) => link.id === id);
           if (!doomed) return prev;
           if (viewerKind === "person") {
@@ -732,9 +833,8 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
               link.ownerId === ownerId &&
               link.ownerKind === ownerKind &&
               !isPublished(link) &&
-              link.targetId &&
-              link.label.trim()
-                ? { ...link, published: true, accepted: false }
+              link.targetId
+                ? { ...link, published: true, accepted: true, label: link.label || partyName(link.targetId) }
                 : link,
             ),
           };
@@ -748,8 +848,7 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
             link.ownerId === ownerId &&
             link.ownerKind === ownerKind &&
             !isPublished(link) &&
-            Boolean(link.targetId) &&
-            Boolean(link.label.trim()),
+            Boolean(link.targetId),
         ),
       setKonzern: (companyId) => {
         let changed = false;
@@ -767,6 +866,59 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
           };
         });
         return changed;
+      },
+      leave: (partyId, kind) => {
+        let result = { unaccepted: [] as string[], removed: [] as KonzernLink[] };
+        setState((prev) => {
+          const group = establishedGroupOf(prev, partyId, kind);
+          if (!group) return prev;
+          if (kind === "person") {
+            const detached = detachPersonFromGroup(prev, partyId, group.id);
+            result = { unaccepted: detached.unaccepted, removed: detached.removed };
+            snapshotRef.current = structuredClone(detached.next);
+            return detached.next;
+          }
+          if (group.konzernId === partyId) return prev;
+          const removed = prev.links.filter(
+            (link) => link.groupId === group.id && link.targetId === partyId && link.targetKind === "company",
+          );
+          const links = prev.links.filter(
+            (link) => !(link.groupId === group.id && link.targetId === partyId && link.targetKind === "company"),
+          );
+          result = { unaccepted: [], removed };
+          const next = { ...prev, links };
+          snapshotRef.current = structuredClone(next);
+          return next;
+        });
+        return result;
+      },
+      removeMember: (groupId, memberId) => {
+        let result: { blocked?: "konzernchef"; removed: KonzernLink[] } = { removed: [] };
+        setState((prev) => {
+          const group = prev.groups.find((entry) => entry.id === groupId);
+          if (!group) return prev;
+          if (group.konzernId === memberId) {
+            result = { blocked: "konzernchef", removed: [] };
+            return prev;
+          }
+          if (partyKindOf(memberId) === "person") {
+            const detached = detachPersonFromGroup(prev, memberId, groupId);
+            result = { removed: detached.removed };
+            snapshotRef.current = structuredClone(detached.next);
+            return detached.next;
+          }
+          const removed = prev.links.filter(
+            (link) => link.groupId === groupId && link.targetId === memberId && link.targetKind === "company",
+          );
+          const links = prev.links.filter(
+            (link) => !(link.groupId === groupId && link.targetId === memberId && link.targetKind === "company"),
+          );
+          result = { removed };
+          const next = { ...prev, links };
+          snapshotRef.current = structuredClone(next);
+          return next;
+        });
+        return result;
       },
     }),
     [state],

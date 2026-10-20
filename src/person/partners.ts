@@ -61,6 +61,8 @@ export const ASHLEY: FilePartner = {
   id: "ashley",
   slug: "ashley-johnson",
   name: "Ashley Johnson",
+  born: "18.06.1991",
+  address: ["Franz-Josef-Straße 9", "A-5020 Salzburg"],
   fileId: "3041",
   contacts: [],
   moreContacts: 0,
@@ -73,13 +75,23 @@ function familyPartner(
   born: string,
   fileId: string,
   kind: PartnerKind,
+  address: [string, string],
 ): FilePartner {
-  return { id, slug, name, born, fileId, kind, contacts: [], moreContacts: 0 };
+  return { id, slug, name, born, fileId, kind, address, contacts: [], moreContacts: 0 };
 }
 
-export const KARL = familyPartner("karl", "karl-atkinson", "Karl Atkinson", "12.09.1965", "3112", "interessent");
-export const JOHANNA = familyPartner("johanna", "johanna-atkinson", "Johanna Atkinson", "03.10.1964", "3113", "kunde");
-export const ASH = familyPartner("ash", "ash-atkinson", "Ash Atkinson", "22.11.2014", "3114", "einfach");
+export const KARL = familyPartner("karl", "karl-atkinson", "Karl Atkinson", "12.09.1965", "3112", "interessent", [
+  "Mondseestrasse 10",
+  "A-5310 Mondsee",
+]);
+export const JOHANNA = familyPartner("johanna", "johanna-atkinson", "Johanna Atkinson", "03.10.1964", "3113", "kunde", [
+  "Mondseestrasse 10",
+  "A-5310 Mondsee",
+]);
+export const ASH = familyPartner("ash", "ash-atkinson", "Ash Atkinson", "22.11.2014", "3114", "einfach", [
+  "Mondseestrasse 32",
+  "A-5310 Mondsee",
+]);
 export const MARCUS = familyPartner(
   "marcus",
   "marcus-atkinson-sullivan",
@@ -87,8 +99,12 @@ export const MARCUS = familyPartner(
   "13.11.1994",
   "3115",
   "interessent",
+  ["Linzer Straße 5", "A-5020 Salzburg"],
 );
-export const SOPHIE = familyPartner("sophie", "sophie-lang", "Sophie Lang", "15.04.1990", "3116", "einfach");
+export const SOPHIE = familyPartner("sophie", "sophie-lang", "Sophie Lang", "15.04.1990", "3116", "einfach", [
+  "Rainerstraße 14",
+  "A-5020 Salzburg",
+]);
 
 export const LUNIXO: FilePartner = {
   id: "lunixo",
@@ -99,6 +115,7 @@ export const LUNIXO: FilePartner = {
   kind: "interessent",
   fn: "232312",
   website: "www.lunixo.com",
+  address: ["Getreidegasse 12", "A-5020 Salzburg"],
   contacts: [],
   moreContacts: 0,
 };
@@ -109,9 +126,9 @@ export const LUNIXO_HOLDING: FilePartner = {
   name: "Lunixo Holding",
   fileId: "4002",
   fileKind: "company",
-  kind: "interessent",
+  kind: "kunde",
   fn: "63241",
-  address: ["", "Salzburg"],
+  address: ["Mirabellplatz 4", "A-5020 Salzburg"],
   contacts: [],
   moreContacts: 0,
 };
@@ -122,8 +139,8 @@ export const LUNIXO_IMMOBILIEN: FilePartner = {
   name: "Lunixo Immobilien GmbH",
   fileId: "4003",
   fileKind: "company",
-  kind: "interessent",
-  address: ["", "Linz"],
+  kind: "kunde",
+  address: ["Hauptplatz 8", "A-4020 Linz"],
   contacts: [],
   moreContacts: 0,
 };

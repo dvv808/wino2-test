@@ -96,6 +96,7 @@ export type Route = {
   finanzenPartnerId?: string;
   /** Year dashboard of the Sammelfaktura; empty means the overview of all years. */
   finanzenYear?: string;
+  konzernHubId?: string;
 };
 
 function partnerOf(parts: string[]): PartnerId {
@@ -117,7 +118,11 @@ export function routeToHash({
   finanzenStep,
   finanzenPartnerId,
   finanzenYear,
+  konzernHubId,
 }: Route): string {
+  if (view === "konzernHub" && konzernHubId) {
+    return `#/${personRoot(partnerId)}/konzern/${konzernHubId}`;
+  }
   if (view === "stammdaten") {
     const area = AREA_SLUGS[stammdatenArea ?? "personendaten"];
     const card = stammdatenCardId ? `/${stammdatenCardId}` : "";
@@ -181,6 +186,9 @@ export function hashToRoute(hash: string): Route {
       stammdatenCardId: parts[4],
       personArea: "stammdaten",
     };
+  }
+  if (parts[0] === "person" && parts[2] === "konzern" && parts[3]) {
+    return { view: "konzernHub", partnerId: partnerOf(parts), konzernHubId: parts[3], personArea: "stammdaten" };
   }
   if (parts[0] === "person" && parts[2] === PERSON_WORKFLOWS) {
     return { view: "person", partnerId: partnerOf(parts), personModule: "workflows" };

@@ -2,18 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import * as a from "../assets/index";
 import { ContextMenu, Icon, Snackbar, type ContextItem } from "../ui";
 import { useWorkflow } from "../workflow";
-import { COMPANY_DIRECTORY, companyMetaLine } from "./company";
+import { COMPANY_DIRECTORY, companyAddressLine } from "./company";
 import { DeleteCard } from "./DeleteCard";
-import { FAMILY_CANDIDATES, familyKindLabel, familyMember, type FamilyKind, type FamilyMemberId } from "./family";
+import { FAMILY_CANDIDATES, FAMILY_ROLES, familyKindLabel, familyMember, type FamilyKind, type FamilyMemberId } from "./family";
 import { confirmedLinksFor, draftLinksFor, familyRoleFor, otherMemberOf, pendingSuggestionsFor, useFamilyLinks } from "./familyLinks";
-import { Field, PartnerSearch, Text } from "./forms";
+import { Field, PartnerSearch, Select } from "./forms";
 import {
-  counterpartId,
+  groupMembers,
+  isEstablishedGroup,
   isFilePartner,
   isPublished,
   konzernTabCount,
-  overviewKonzernLinks,
+  partyAddressLine,
   partyChip,
+  partyHonorarLine,
   partyKindOf,
   partyMeta,
   partyName,
@@ -41,6 +43,10 @@ function kindChipClass(kind: FamilyKind) {
   return `chip ${kind}`;
 }
 
+function partyChipClass(id: string) {
+  return partyChip(id) === "Kunde" ? "chip kunde" : "chip";
+}
+
 function MemberCard({
   caption,
   captionIcon,
@@ -48,6 +54,7 @@ function MemberCard({
   chipClass,
   name,
   meta,
+  honorar,
   glyph,
   selected,
   draft,
@@ -62,6 +69,7 @@ function MemberCard({
   chipClass?: string;
   name: string;
   meta?: string;
+  honorar?: string;
   glyph: string;
   selected?: boolean;
   draft?: boolean;
@@ -84,9 +92,7 @@ function MemberCard({
           <span onClick={(event) => event.stopPropagation()}>
             <ContextMenu items={menuItems} label={`${name} Aktionen`} />
           </span>
-        ) : (
-          <Icon src={a.contextMenu} size={18} />
-        )}
+        ) : null}
       </header>
       <div className="vk-card-body">
         <Avatar glyph={glyph} />
@@ -94,6 +100,7 @@ function MemberCard({
           {chip ? <span className={chipClass ?? "chip"}>{chip}</span> : null}
           <strong>{name}</strong>
           {meta ? <small>{meta}</small> : null}
+          {honorar ? <small>{honorar}</small> : null}
         </div>
         {onOpen ? (
           <button
@@ -230,6 +237,7 @@ function FamilyTab({
   );
 
   const deleting = pendingDelete ? links.find((link) => link.id === pendingDelete) ?? null : null;
+  const role = editing ? familyRoleFor(editing, memberId) : "";
   const deletingName = deleting?.partnerId
     ? familyMember(deleting.ownerId === memberId ? deleting.partnerId : deleting.ownerId).name
     : "";
@@ -243,25 +251,15 @@ function FamilyTab({
   return (
     <>
       <section className="vk-form-card">
-        <Field label="Verknüpfungsbezeichnung" required>
-          <Text
-            value={editing ? familyRoleFor(editing, memberId) : ""}
-            onChange={(value) => {
-              if (editing && !ownsEditing) return;
-              const id = editing?.id ?? startDraft(memberId);
-              if (!editing) setSelectedId(id);
-              updateLabel(id, value);
-            }}
-            placeholder=""
-            required
-          />
-        </Field>
         <div className="block">
           <span className="field-label">Partner</span>
           <PartnerSearch
             key={editing?.id ?? "none"}
             value={otherId ? familyMember(otherId).name : ""}
-            options={options.map((option) => option.name)}
+            options={options.map((option) => ({
+              name: option.name,
+              detail: [option.born, option.address].filter(Boolean).join(" · "),
+            }))}
             onChange={(name) => {
               if (editing && !ownsEditing) return;
               const picked = options.find((option) => option.name === name)?.id;
@@ -272,6 +270,19 @@ function FamilyTab({
             }}
           />
         </div>
+        <Field label="Beziehung" required>
+          <Select
+            value={role}
+            options={role && !FAMILY_ROLES.includes(role) ? [role, ...FAMILY_ROLES] : FAMILY_ROLES}
+            placeholder="Beziehung auswählen"
+            onChange={(value) => {
+              if (editing && !ownsEditing) return;
+              const id = editing?.id ?? startDraft(memberId);
+              if (!editing) setSelectedId(id);
+              updateLabel(id, value);
+            }}
+          />
+        </Field>
       </section>
 
       <ListPanel
@@ -291,7 +302,7 @@ function FamilyTab({
               chip={familyKindLabel(member.kind)}
               chipClass={kindChipClass(member.kind)}
               name={member.name}
-              meta={member.born}
+              meta={[member.born, member.address].filter(Boolean).join(" · ")}
               glyph={a.clientBlank}
               selected={effectiveId === link.id}
               onSelect={() => setSelectedId(link.id)}
@@ -314,7 +325,7 @@ function FamilyTab({
               chip={partner ? familyKindLabel(partner.kind) : undefined}
               chipClass={partner ? kindChipClass(partner.kind) : undefined}
               name={partner?.name ?? "-"}
-              meta={partner?.born}
+              meta={partner ? [partner.born, partner.address].filter(Boolean).join(" · ") : undefined}
               glyph={a.clientBlank}
               draft
               selected={effectiveId === link.id}
@@ -343,7 +354,7 @@ function FamilyTab({
                 caption={familyRoleFor(link, memberId) || "Nicht definiert"}
                 chip={familyKindLabel(member.kind)}
                 name={member.name}
-                meta={member.born}
+                meta={[member.born, member.address].filter(Boolean).join(" · ")}
                 glyph={a.clientBlank}
                 onOpen={() => openPartnerBeside(link.ownerId)}
                 onAccept={() => {
@@ -393,9 +404,8 @@ function FamilyTab({
   );
 }
 
-function konzernCaption(id: string, isKonzern: boolean, label: string) {
-  if (isKonzern) return `Konzern: ${partyName(id)}`;
-  return label.trim() || partyName(id);
+function konzernCaption(id: string, isKonzern: boolean) {
+  return isKonzern ? `Konzern: ${partyName(id)}` : partyName(id);
 }
 
 function KonzernTab({
@@ -405,7 +415,7 @@ function KonzernTab({
   partyId: string;
   kind: PartyKind;
 }) {
-  const { openPartnerBeside } = useWorkflow();
+  const { openPartnerBeside, openKonzernHub } = useWorkflow();
   const store = useKonzernLinks();
   const companyGroups = useCompanyGroups();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -414,6 +424,8 @@ function KonzernTab({
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const group = store.groupOf(partyId, kind);
+  const inGroup = Boolean(group?.konzernId);
+  const members = group ? groupMembers(store.groups, store.links, group) : [];
   const suggestions = [...store.suggestionsFor(partyId, kind)].sort((left, right) => {
     if (left.ownerKind !== right.ownerKind) return left.ownerKind === "company" ? -1 : 1;
     return partyName(left.ownerId).localeCompare(partyName(right.ownerId));
@@ -423,111 +435,99 @@ function KonzernTab({
   );
   const draft = unpublished.find((link) => link.targetId === null) ?? unpublished[0] ?? null;
   const personView = kind === "person";
+  const holdingId = group?.konzernId ?? null;
+  const holdingName = holdingId ? partyName(holdingId) : "";
+  const viewerName = partyName(partyId);
+  const isChef = holdingId === partyId;
+  const canAddMember = inGroup || !personView;
 
-  const groupLinks = store.links.filter((link) => group && link.groupId === group.id && link.targetId && isPublished(link));
-  const incomingCards = store.links
-    .filter(
-      (link) =>
-        link.targetId === partyId &&
-        link.targetKind === kind &&
-        link.accepted &&
-        isPublished(link) &&
-        link.ownerId !== partyId,
-    )
-    .flatMap((link) => {
-      const sourceId = counterpartId(link, partyId, store.groups, store.links);
-      if (!sourceId || sourceId === partyId) return [];
-      return [{ ...link, targetId: sourceId, targetKind: partyKindOf(sourceId) }];
-    });
-
-  const companyCards = personView
-    ? overviewKonzernLinks(store.groups, store.links, partyId, kind)
-    : [...groupLinks.filter((link) => link.targetKind === "company"), ...incomingCards.filter((link) => link.targetKind === "company")];
-
-  const personCards = personView
-    ? []
-    : [...groupLinks.filter((link) => link.targetKind === "person"), ...incomingCards.filter((link) => link.targetKind === "person")];
-
-  const visible = [...companyCards, ...personCards].filter((link, index, all) => {
-    if (!link.targetId) return false;
-    return all.findIndex((entry) => entry.targetId === link.targetId) === index;
-  });
-
-  const sorted = personView
-    ? visible
-    : visible.sort((left, right) => {
-        const leftKonzern = left.targetId === group?.konzernId ? 0 : 1;
-        const rightKonzern = right.targetId === group?.konzernId ? 0 : 1;
-        if (leftKonzern !== rightKonzern) return leftKonzern - rightKonzern;
-        if (left.targetKind !== right.targetKind) return left.targetKind === "company" ? -1 : 1;
-        return partyName(left.targetId ?? "").localeCompare(partyName(right.targetId ?? ""));
-      });
-
-  const effectiveId = selectedId ?? draft?.id ?? sorted[0]?.id ?? null;
+  const effectiveId = selectedId ?? draft?.id ?? (holdingId ? `mem-${holdingId}` : null);
+  const addingDraft = Boolean(draft && effectiveId === draft.id);
+  const selectedMemberId = effectiveId?.startsWith("mem-")
+    ? effectiveId.slice(4)
+    : addingDraft
+      ? draft?.targetId ?? null
+      : store.links.find((link) => link.id === effectiveId)?.targetId ?? holdingId;
   const editing =
-    effectiveId === draft?.id ? draft : store.links.find((link) => link.id === effectiveId) ?? null;
-  const editingTarget = editing?.targetId ?? null;
-  const editingIsKonzern = Boolean(editingTarget && group?.konzernId === editingTarget && editing?.targetKind === "company");
-  const showToggle = kind === "company" && (!editingTarget || editing?.targetKind === "company");
+    addingDraft
+      ? draft
+      : store.links.find(
+          (link) =>
+            link.id === effectiveId ||
+            (group &&
+              link.groupId === group.id &&
+              isPublished(link) &&
+              link.targetId === selectedMemberId),
+        ) ?? draft;
+  const editingTarget = selectedMemberId ?? editing?.targetId ?? null;
+  const editingIsKonzern = Boolean(!addingDraft && editingTarget && holdingId === editingTarget);
+  const editingMember = addingDraft || Boolean(inGroup && editingTarget && editingTarget !== holdingId);
+  const showToggle = !personView && !addingDraft && (!editingTarget || partyKindOf(editingTarget) === "company");
 
-  const linkedIds = new Set(
-    [partyId, ...visible.map((link) => link.targetId).filter((id): id is string => Boolean(id))],
-  );
+  const linkedIds = new Set([partyId, ...members.map((member) => member.id)]);
   const konzernIds = new Set(
     [
       ...companyGroups.groups.map((entry) => entry.konzernId),
-      ...store.groups
-        .filter(
-          (group) =>
-            Boolean(group.konzernId) &&
-            !group.id.startsWith("grp-sug-") &&
-            store.links.some(
-              (link) =>
-                link.groupId === group.id &&
-                isPublished(link) &&
-                link.accepted &&
-                Boolean(link.targetId) &&
-                !link.declined,
-            ),
-        )
-        .map((group) => group.konzernId),
+      ...store.groups.filter(isEstablishedGroup).map((entry) => entry.konzernId),
     ].filter((id): id is string => Boolean(id)),
   );
   const companyOptions = COMPANY_DIRECTORY.filter((company) => {
-    if (linkedIds.has(company.id)) return false;
-    if (personView && !konzernIds.has(company.id)) return false;
+    if (personView && !inGroup) return konzernIds.has(company.id);
+    if (personView && !editingMember) return konzernIds.has(company.id);
+    if (linkedIds.has(company.id) && company.id !== editingTarget) return false;
     return true;
-  }).map((company) => company.name);
+  }).map((company) => ({
+    name: company.name,
+    detail: companyAddressLine(company),
+    icon: a.companyBlank,
+  }));
   const personOptions = Object.values(FILE_PARTNERS)
-    .filter((partner) => partner.fileKind !== "company" && !linkedIds.has(partner.id))
-    .map((partner) => partner.name);
-  const searchOptions = personView ? companyOptions : [...companyOptions, ...personOptions];
+    .filter((partner) => partner.fileKind !== "company" && (!linkedIds.has(partner.id) || partner.id === editingTarget))
+    .map((partner) => ({
+      name: partner.name,
+      detail: [partner.born, partyAddressLine(partner.id)].filter(Boolean).join(" · "),
+      icon: a.personSmall,
+    }));
+  const searchOptions =
+    personView && !editingMember ? companyOptions : [...companyOptions, ...personOptions];
 
   function pickPartner(name: string) {
     const id = editing?.id ?? store.startDraft(partyId, kind);
-    if (!editing) setSelectedId(id);
+    if (!editing || editing.id !== id) setSelectedId(id);
     const company = COMPANY_DIRECTORY.find((entry) => entry.name === name);
-    const person = (Object.keys(FILE_PARTNERS) as FamilyMemberId[]).find((id) => FILE_PARTNERS[id].name === name);
+    const person = (Object.keys(FILE_PARTNERS) as FamilyMemberId[]).find((entry) => FILE_PARTNERS[entry].name === name);
     if (company) {
-      if (personView && !konzernIds.has(company.id)) return;
-      store.setTarget(id, company.id, "company", kind === "company" && (!group?.konzernId || editingIsKonzern));
+      if (personView && !inGroup && !konzernIds.has(company.id)) return;
+      if (personView && editingIsKonzern && company.id !== holdingId) {
+        setToast({
+          message: "Eine Privatperson kann nur einem Konzern angehören.",
+          tone: "warn",
+          undo: () => setToast(null),
+        });
+        return;
+      }
+      store.setTarget(id, company.id, "company", kind === "company" && (!holdingId || editingIsKonzern));
+      if (inGroup) setSelectedId(`mem-${company.id}`);
     } else if (person) {
-      if (personView) return;
+      if (personView && !inGroup) return;
       store.setTarget(id, person, "person");
+      if (inGroup) setSelectedId(`mem-${person}`);
     } else {
-      if (personView) return;
-      const createdKind: PartyKind = personView || !group?.konzernId ? "company" : "person";
+      if (personView && !inGroup) return;
+      const createdKind: PartyKind = !holdingId ? "company" : "person";
+      const createdId = rememberParty(name, createdKind);
       store.setTarget(
         id,
-        rememberParty(name, createdKind),
+        createdId,
         createdKind,
-        createdKind === "company" && kind === "company" && !group?.konzernId,
+        createdKind === "company" && kind === "company" && !holdingId,
       );
+      if (inGroup) setSelectedId(`mem-${createdId}`);
     }
   }
 
   function toggleKonzern() {
-    if (!editingTarget || editing?.targetKind !== "company") return;
+    if (!editingTarget || partyKindOf(editingTarget) !== "company") return;
     if (editingIsKonzern) {
       setToast({
         message: "Definiere zuerst ein anderes Unternehmen als Konzern um diesen Konzern zu deselektieren.",
@@ -540,41 +540,36 @@ function KonzernTab({
   }
 
   useEffect(() => {
-    if (!draft && sorted.length === 0) {
+    if (!draft && !inGroup) {
       setSelectedId(store.startDraft(partyId, kind));
     }
-  }, [draft, kind, partyId, sorted.length, store]);
+  }, [draft, inGroup, kind, partyId, store]);
 
   const emptyCaption = kind === "company" ? "Kein Konzern ausgewählt" : "Keine Verknüpfung vorhanden";
   const searchValue = editingTarget ? partyName(editingTarget) : "";
-  const searchPlaceholder = personView || !group?.konzernId ? "Konzern auswählen" : "Partner suchen";
-  const unlinking = pendingDelete ? store.links.find((link) => link.id === pendingDelete) ?? null : null;
-  const unlinkingName = unlinking?.targetId ? partyName(unlinking.targetId) : "";
+  const searchPlaceholder = personView && !editingMember ? "Konzern auswählen" : "Partner suchen";
+  const unlinkingName = pendingDelete ? partyName(pendingDelete) : "";
 
   return (
     <>
       <section className="vk-form-card">
-        <Field label="Verknüpfungsbezeichnung" required>
-          <Text
-            value={editing?.label ?? ""}
-            onChange={(value) => {
-              const id = editing?.id ?? store.startDraft(partyId, kind);
-              if (!editing) setSelectedId(id);
-              store.updateLabel(id, value);
-            }}
-            placeholder=""
-            required
-          />
-        </Field>
         <div className="block">
-          <span className="field-label">{personView ? "Konzern" : "Partner"}</span>
+          <span className="field-label">{personView && !editingMember ? "Konzern" : "Partner"}</span>
           <PartnerSearch
-            key={editing?.id ?? "none"}
+            key={editingTarget ?? editing?.id ?? "none"}
             value={searchValue}
             options={searchOptions}
             placeholder={searchPlaceholder}
-            icon={personView || !group?.konzernId ? a.companyBlank : a.personSmall}
-            allowCreate={!personView}
+            icon={
+              editingTarget
+                ? partyKindOf(editingTarget) === "company"
+                  ? a.companyBlank
+                  : a.personSmall
+                : personView && !editingMember
+                  ? a.companyBlank
+                  : a.personSmall
+            }
+            allowCreate={canAddMember}
             onChange={pickPartner}
           />
         </div>
@@ -585,51 +580,73 @@ function KonzernTab({
 
       <ListPanel
         title="Verknüpfung: Konzern"
-        onAdd={() => setSelectedId(store.startDraft(partyId, kind))}
+        onAdd={canAddMember ? () => setSelectedId(store.startDraft(partyId, kind)) : undefined}
         suggestionCount={suggestions.length}
         suggestionsOpen={showSuggestions}
         onToggleSuggestions={() => setShowSuggestions((open) => !open)}
       >
-        {sorted.map((link) => {
-          const id = link.targetId as string;
-          const isKonzern = group?.konzernId === id;
-          return (
+        {inGroup && holdingId ? (
+          <>
+            <p className="vk-belong">
+              {isChef ? `${viewerName} ist Konzern:` : `${viewerName} gehört zu Konzern:`}
+            </p>
             <MemberCard
-              key={link.id}
-              caption={konzernCaption(id, isKonzern, link.label)}
-              captionIcon={isKonzern ? a.ksGroupCompanies : undefined}
-              chip={partyChip(id)}
-              name={partyName(id)}
-              meta={partyMeta(id) || (link.targetKind === "company" ? companyMetaLine(COMPANY_DIRECTORY.find((entry) => entry.id === id)) : "")}
-              glyph={link.targetKind === "company" ? a.companyBlank : a.clientBlank}
-              selected={effectiveId === link.id}
-              onSelect={() => setSelectedId(link.id)}
-              onOpen={isFilePartner(id) ? () => openPartnerBeside(id) : undefined}
-              menuItems={[
-                { label: "Editieren", icon: a.menuEdit, onSelect: () => setSelectedId(link.id) },
-                {
-                  label: "Verknüpfung auflösen",
-                  icon: a.menuUnlink,
-                  danger: true,
-                  onSelect: () => setPendingDelete(link.id),
-                },
-              ]}
+              caption={`Konzern: ${holdingName}`}
+              captionIcon={a.ksGroupCompanies}
+              name={holdingName}
+              glyph={a.ksGroupCompanies}
+              selected={editingTarget === holdingId && !draft}
+              onSelect={() => setSelectedId(`mem-${holdingId}`)}
+              onOpen={() => openKonzernHub(holdingId)}
             />
-          );
-        })}
+            <p className="vk-belong">Mitglieder von Konzern {holdingName} sind:</p>
+            {members.map((member) => {
+              const isKonzern = member.id === holdingId;
+              return (
+                <MemberCard
+                  key={member.id}
+                  caption={konzernCaption(member.id, isKonzern)}
+                  captionIcon={isKonzern ? a.ksGroupCompanies : undefined}
+                  chip={partyChip(member.id)}
+                  chipClass={partyChipClass(member.id)}
+                  name={partyName(member.id)}
+                  meta={partyMeta(member.id)}
+                  honorar={partyHonorarLine(member.id, holdingName)}
+                  glyph={member.kind === "company" ? a.companyBlank : a.clientBlank}
+                  selected={effectiveId === `mem-${member.id}`}
+                  onSelect={() => setSelectedId(`mem-${member.id}`)}
+                  onOpen={
+                    isKonzern
+                      ? () => openKonzernHub(member.id)
+                      : isFilePartner(member.id)
+                        ? () => openPartnerBeside(member.id as FamilyMemberId)
+                        : undefined
+                  }
+                  menuItems={[
+                    { label: "Editieren", icon: a.menuEdit, onSelect: () => setSelectedId(`mem-${member.id}`) },
+                    {
+                      label: "Verknüpfung auflösen",
+                      icon: a.menuUnlink,
+                      danger: true,
+                      onSelect: () => setPendingDelete(member.id),
+                    },
+                  ]}
+                />
+              );
+            })}
+          </>
+        ) : null}
         {unpublished.map((link) => {
           const id = link.targetId;
           return (
             <MemberCard
               key={link.id}
-              caption={
-                id
-                  ? konzernCaption(id, false, link.label)
-                  : link.label.trim() || (kind === "company" ? "Kein Konzern ausgewählt" : "Keine Verknüpfung vorhanden")
-              }
+              caption={id ? partyName(id) : emptyCaption}
               chip={id ? partyChip(id) : undefined}
+              chipClass={id ? partyChipClass(id) : undefined}
               name={id ? partyName(id) : "-"}
               meta={id ? partyMeta(id) : "-"}
+              honorar={id && holdingName ? partyHonorarLine(id, holdingName) : undefined}
               glyph={link.targetKind === "company" || kind === "company" ? a.companyBlank : a.clientBlank}
               draft
               selected={effectiveId === link.id}
@@ -637,7 +654,7 @@ function KonzernTab({
             />
           );
         })}
-        {sorted.length === 0 && !draft ? (
+        {!inGroup && !draft ? (
           <MemberCard
             caption={emptyCaption}
             name="-"
@@ -657,7 +674,7 @@ function KonzernTab({
             return (
               <SuggestionCard
                 key={link.id}
-                caption={konzernCaption(sourceId, foreignKonzern, link.label || partyName(sourceId))}
+                caption={konzernCaption(sourceId, foreignKonzern)}
                 captionIcon={foreignKonzern ? a.ksGroupCompanies : undefined}
                 chip={partyChip(sourceId)}
                 name={partyName(sourceId)}
@@ -689,29 +706,32 @@ function KonzernTab({
           name={unlinkingName}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => {
-            const doomed = store.links.find((link) => link.id === pendingDelete);
-            const displayId = doomed
-              ? personView && doomed.ownerKind === "company"
-                ? suggestionDisplayId(
-                    doomed,
-                    store.groups.find((entry) => entry.id === doomed.groupId)?.konzernId,
-                    partyId,
-                  )
-                : doomed.targetId
-              : null;
-            const name = displayId ? partyName(displayId) : "";
-            const wasKonzern = Boolean(doomed?.targetId && doomed.targetId === group?.konzernId);
-            const result = pendingDelete ? store.unlink(pendingDelete, partyId, kind) : { unaccepted: [], removed: [] };
-            if (effectiveId === pendingDelete) setSelectedId(null);
+            const memberId = pendingDelete;
+            if (group && memberId === group.konzernId) {
+              setPendingDelete(null);
+              setToast({
+                message: "Definiere zuerst ein anderes Unternehmen als Konzern um diesen Konzern aufzulösen.",
+                tone: "warn",
+                undo: () => setToast(null),
+              });
+              return;
+            }
+            const result = group
+              ? store.removeMember(group.id, memberId)
+              : { ...store.leave(partyId, kind), blocked: undefined };
             setPendingDelete(null);
-            if (!doomed && !result.unaccepted.length && !result.removed.length) return;
+            if (result.blocked === "konzernchef") {
+              setToast({
+                message: "Definiere zuerst ein anderes Unternehmen als Konzern um diesen Konzern aufzulösen.",
+                tone: "warn",
+                undo: () => setToast(null),
+              });
+              return;
+            }
             setToast({
-              message: name ? `Verknüpfung mit ${name} aufgelöst.` : "Verknüpfung aufgelöst.",
+              message: unlinkingName ? `Verknüpfung mit ${unlinkingName} aufgelöst.` : "Verknüpfung aufgelöst.",
               undo: () => {
-                for (const id of result.unaccepted) store.accept(id);
                 for (const link of result.removed) store.restore(link);
-                if (wasKonzern && doomed?.targetId && !personView) store.setKonzern(doomed.targetId);
-                if (doomed) setSelectedId(doomed.id);
                 setToast(null);
               },
             });
@@ -783,7 +803,7 @@ function ListPanel({
   children,
 }: {
   title: string;
-  onAdd: () => void;
+  onAdd?: () => void;
   suggestionCount: number;
   suggestionsOpen: boolean;
   onToggleSuggestions: () => void;
@@ -796,9 +816,11 @@ function ListPanel({
           <Icon src={a.verknuepfung} size={22} />
           {title}
         </span>
-        <button type="button" className="btn-primary vk-add-btn" onClick={onAdd}>
-          + Hinzufügen
-        </button>
+        {onAdd ? (
+          <button type="button" className="btn-primary vk-add-btn" onClick={onAdd}>
+            + Hinzufügen
+          </button>
+        ) : null}
       </header>
       <div className="vk-now-row">
         <p className="vk-caption">Aktuell in Wino</p>

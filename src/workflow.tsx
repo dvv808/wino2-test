@@ -57,7 +57,7 @@ export type SignMode = "upload" | "digital";
  * The workflow and the Bestandsmanager are two separate workspaces. From the
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich";
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich" | "konzernHub";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
 /** Only these two steps need a Freigabe from the Bestandsmanager. */
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
@@ -312,6 +312,8 @@ function useWorkflowState() {
   );
   const [filePartnerId, setFilePartnerId] = useState<PartnerId>(() => initialRoute.partnerId ?? "julia");
   const [openFileIds, setOpenFileIds] = useState<PartnerId[]>(() => [initialRoute.partnerId ?? "julia"]);
+  const [konzernHubId, setKonzernHubId] = useState<string | null>(null);
+  const [konzernHubFrom, setKonzernHubFrom] = useState<View | null>(null);
   const [fileAreas, setFileAreas] = useState<Partial<Record<PartnerId, StammdatenAreaId>>>({});
   const [ashleyConverted, setAshleyConverted] = useState(false);
   const [partnerFiles, setPartnerFiles] = useState<Record<PartnerId, PartnerFile>>(initialPartnerFiles);
@@ -442,6 +444,7 @@ function useWorkflowState() {
       personModule,
       personArea,
       partnerId: filePartnerId,
+      konzernHubId: konzernHubId ?? undefined,
       finanzenPage,
       finanzenMonth,
       finanzenStep,
@@ -465,6 +468,7 @@ function useWorkflowState() {
     personModule,
     personArea,
     filePartnerId,
+    konzernHubId,
     finanzenPage,
     finanzenMonth,
     finanzenStep,
@@ -484,6 +488,7 @@ function useWorkflowState() {
       if (route.view === "person") setPersonModule(route.personModule ?? "profil");
       if (route.personArea) setPersonArea(route.personArea);
       if (route.partnerId) setFilePartnerId(route.partnerId);
+      setKonzernHubId(route.konzernHubId ?? null);
       if (route.view === "workflow") setMaklerOpen(true);
       if (route.view === "finanzen") {
         setFinanzenPage(route.finanzenPage ?? "month");
@@ -689,8 +694,36 @@ function useWorkflowState() {
     openStammdaten("verknuepfung", undefined, id);
   }
 
+  function openKonzernHub(id: string) {
+    setKonzernHubFrom(view);
+    setKonzernHubId(id);
+    setView("konzernHub");
+  }
+
+  function closeKonzernHub() {
+    const from = konzernHubFrom;
+    setKonzernHubId(null);
+    setKonzernHubFrom(null);
+    if (view !== "konzernHub") return;
+    if (from === "stammdaten") setView("stammdaten");
+    else if (from && from !== "konzernHub") setView(from);
+    else setView("person");
+  }
+
+  function activateKonzernHub() {
+    if (!konzernHubId) return;
+    setView("konzernHub");
+  }
+
   function activateFile(id: PartnerId) {
-    if (id === filePartnerId) return;
+    if (id === filePartnerId) {
+      if (view === "konzernHub") {
+        if (konzernHubFrom === "stammdaten") setView("stammdaten");
+        else if (konzernHubFrom && konzernHubFrom !== "konzernHub") setView(konzernHubFrom);
+        else setView("person");
+      }
+      return;
+    }
     setFileAreas((current) => ({ ...current, [filePartnerId]: stammdatenArea }));
     const area = fileAreas[id];
     if (area) {
@@ -1273,6 +1306,10 @@ function useWorkflowState() {
     openFileIds,
     openPartner,
     openPartnerBeside,
+    openKonzernHub,
+    closeKonzernHub,
+    activateKonzernHub,
+    konzernHubId,
     activateFile,
     closeFile,
     openPartnerInkasso,

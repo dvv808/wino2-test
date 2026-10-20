@@ -191,7 +191,7 @@ type FamilyLinksStore = {
    * Owner retracts the relationship. Partner only releases their confirmation —
    * the adder's card stays, and they see it as a Vorschlag again.
    */
-  unlinkLink: (id: string, viewerId: FamilyMemberId) => { mode: "removed" | "unaccepted"; link: FamilyLink | null };
+  unlinkLink: (id: string, viewerId?: FamilyMemberId) => { mode: "removed" | "unaccepted"; link: FamilyLink | null };
   removeLink: (id: string) => void;
   restoreLink: (link: FamilyLink) => void;
   snapshot: () => void;
@@ -212,13 +212,15 @@ function uniqueByOther(links: FamilyLink[], memberId: FamilyMemberId) {
   });
 }
 
-/** Relationships that count for this member: their own published ones, plus ones they accepted. */
+/** Published family links show on both files as soon as one side saves them. */
 export function confirmedLinksFor(links: FamilyLink[], memberId: FamilyMemberId) {
   return uniqueByOther(
     links.filter(
       (link) =>
-        (link.ownerId === memberId && link.partnerId !== null && isPublished(link) && !link.suggestionOnly) ||
-        (link.partnerId === memberId && link.accepted && isPublished(link)),
+        isPublished(link) &&
+        !link.suggestionOnly &&
+        Boolean(link.partnerId) &&
+        (link.ownerId === memberId || link.partnerId === memberId),
     ),
     memberId,
   );
@@ -310,7 +312,7 @@ export function FamilyLinksProvider({ children }: { children: ReactNode }) {
                 ...link,
                 ownerId: viewerId,
                 partnerId: link.ownerId,
-                accepted: false,
+                accepted: true,
                 published: true,
                 suggestionOnly: false,
               };
@@ -318,24 +320,15 @@ export function FamilyLinksProvider({ children }: { children: ReactNode }) {
             return { ...link, accepted: true, published: true, suggestionOnly: false };
           }),
         ),
-      unlinkLink: (id, viewerId) => {
+      unlinkLink: (id) => {
         let result: { mode: "removed" | "unaccepted"; link: FamilyLink | null } = { mode: "removed", link: null };
         setLinks((prev) => {
           const doomed = prev.find((link) => link.id === id);
           if (!doomed) return prev;
-          if (doomed.ownerId === viewerId) {
-            result = { mode: "removed", link: doomed };
-            const next = prev.filter((link) => link.id !== id);
-            snapshotRef.current = structuredClone(next);
-            return next;
-          }
-          if (doomed.partnerId === viewerId) {
-            result = { mode: "unaccepted", link: doomed };
-            const next = prev.map((link) => (link.id === id ? { ...link, accepted: false } : link));
-            snapshotRef.current = structuredClone(next);
-            return next;
-          }
-          return prev;
+          result = { mode: "removed", link: doomed };
+          const next = prev.filter((link) => link.id !== id);
+          snapshotRef.current = structuredClone(next);
+          return next;
         });
         return result;
       },
@@ -364,7 +357,7 @@ export function FamilyLinksProvider({ children }: { children: ReactNode }) {
           const next = collapsePairLinks(
             prev.map((link) =>
               link.ownerId === ownerId && !isPublished(link) && link.partnerId && link.label.trim()
-                ? { ...link, published: true, accepted: false }
+                ? { ...link, published: true, accepted: true, suggestionOnly: false }
                 : link,
             ),
           );

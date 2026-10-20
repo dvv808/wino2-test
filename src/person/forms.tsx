@@ -87,7 +87,7 @@ export function Text({
   );
 }
 
-function Select({
+export function Select({
   value,
   onChange,
   options,
@@ -150,6 +150,12 @@ function SearchPick({
 }
 
 /** Person-contacts must resolve to a system partner; missing names can be added from the empty list. */
+export type SearchOption = { name: string; detail?: string; icon?: string };
+
+function asSearchOptions(options: Array<string | SearchOption>): SearchOption[] {
+  return options.map((option) => (typeof option === "string" ? { name: option } : option));
+}
+
 export function PartnerSearch({
   value,
   onChange,
@@ -160,8 +166,8 @@ export function PartnerSearch({
 }: {
   value: string;
   onChange: (value: string) => void;
-  /** Names to pick from; defaults to all system partners. */
-  options?: string[];
+  /** Names or name+detail rows to pick from; defaults to all system partners. */
+  options?: Array<string | SearchOption>;
   placeholder?: string;
   icon?: string;
   /** When false, typed names that are not in `options` cannot be created. */
@@ -170,13 +176,15 @@ export function PartnerSearch({
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [created, setCreated] = useState<string[]>([]);
-  const names = useMemo(() => {
-    const all = [...options, ...created, value].filter(Boolean);
-    return all.filter((name, index) => all.indexOf(name) === index);
+  const [created, setCreated] = useState<SearchOption[]>([]);
+  const rows = useMemo(() => {
+    const all = [...asSearchOptions(options), ...created, ...(value ? [{ name: value }] : [])];
+    return all.filter((row, index) => all.findIndex((entry) => entry.name === row.name) === index);
   }, [options, created, value]);
   const needle = query.trim().toLowerCase();
-  const matches = needle ? names.filter((name) => name.toLowerCase().includes(needle)) : names;
+  const matches = needle
+    ? rows.filter((row) => `${row.name} ${row.detail ?? ""}`.toLowerCase().includes(needle))
+    : rows;
 
   useEffect(() => {
     if (!open) return;
@@ -203,24 +211,24 @@ export function PartnerSearch({
   function createPartner() {
     const name = query.trim();
     if (!name || !allowCreate) return;
-    const existing = names.find((entry) => entry.toLowerCase() === name.toLowerCase());
+    const existing = rows.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
     if (existing) {
-      pick(existing);
+      pick(existing.name);
       return;
     }
-    setCreated((current) => [...current, name]);
+    setCreated((current) => [...current, { name }]);
     pick(name);
   }
 
   function commitTyped() {
     const name = query.trim();
     if (!name) return;
-    const exact = names.find((entry) => entry.toLowerCase() === name.toLowerCase());
+    const exact = rows.find((entry) => entry.name.toLowerCase() === name.toLowerCase());
     if (exact) {
-      pick(exact);
+      pick(exact.name);
       return;
     }
-    if (matches.length === 1) pick(matches[0]);
+    if (matches.length === 1) pick(matches[0].name);
   }
 
   return (
@@ -251,21 +259,24 @@ export function PartnerSearch({
       {open ? (
         matches.length ? (
           <div className="dropdown-menu sw-partner-menu">
-            {matches.map((name) => (
+            {matches.map((row) => (
               <button
                 type="button"
-                className={`menu-item${name === value ? " selected" : ""}`}
-                key={name}
+                className={`menu-item${row.name === value ? " selected" : ""}`}
+                key={row.name}
                 onMouseDown={(event) => {
                   event.preventDefault();
-                  pick(name);
+                  pick(row.name);
                 }}
               >
                 <span className="menu-item-main">
-                  <EntityIcon src={a.personSmall} />
-                  <strong>{name}</strong>
+                  <EntityIcon src={row.icon ?? icon} />
+                  <span>
+                    <strong>{row.name}</strong>
+                    {row.detail ? <small className="sw-search-detail">{row.detail}</small> : null}
+                  </span>
                 </span>
-                <Icon src={name === value ? a.confirmOn : a.confirmOff} size={18} />
+                <Icon src={row.name === value ? a.confirmOn : a.confirmOff} size={18} />
               </button>
             ))}
           </div>

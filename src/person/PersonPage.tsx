@@ -10,12 +10,12 @@ import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { WorkflowsPage } from "./WorkflowsPage";
 import { FILE_PARTNERS } from "./partners";
-import { COMPANY_DIRECTORY, companyMetaLine } from "./company";
 import { familyKindLabel, familyMember, type FamilyMemberId } from "./family";
 import { confirmedLinksFor, familyRoleFor, otherMemberOf, useFamilyLinks, type FamilyLink } from "./familyLinks";
 import {
   overviewKonzernLinks,
   partyChip,
+  partyHonorarLine,
   partyMeta,
   partyName,
   useKonzernLinks,
@@ -50,40 +50,40 @@ function familyOverviewCards(memberId: FamilyMemberId, links: FamilyLink[]): Car
     return {
       id: link.id,
       title: familyRoleFor(link, memberId) || "Nicht definiert",
-      blocks: [{ kind: "person", tag: familyKindLabel(other.kind), name: other.name, sub: other.born || "-" }],
+      blocks: [
+        {
+          kind: "person",
+          tag: familyKindLabel(other.kind),
+          name: other.name,
+          sub: [other.born, other.address].filter(Boolean).join(" · ") || "-",
+        },
+      ],
     };
   });
 }
 
 function konzernOverviewCards(partyId: string, kind: PartyKind, groups: KonzernGroup[], links: KonzernLink[]): Card[] {
-  const group = groups.find((entry) =>
-    kind === "company"
-      ? entry.konzernId === partyId
-      : links.some(
-          (link) =>
-            link.groupId === entry.id &&
-            ((link.ownerId === partyId && link.ownerKind === kind && Boolean(link.targetId)) ||
-              (link.targetId === partyId && link.targetKind === kind && link.accepted)),
-        ),
-  );
+  const holdingName = groups.find((group) =>
+    links.some((link) => link.groupId === group.id && (link.ownerId === partyId || link.targetId === partyId)),
+  )?.konzernId;
+  const honorarOf = holdingName ? partyName(holdingName) : "";
   return overviewKonzernLinks(groups, links, partyId, kind).flatMap((link) => {
     const id = link.targetId;
     if (!id) return [];
-    const isKonzern = Boolean(group?.konzernId === id && link.targetKind === "company");
+    const featured = link.id.startsWith("hub-");
+    const honorar = honorarOf ? partyHonorarLine(id, honorarOf) : "";
     return [
       {
         id: link.id,
-        icon: isKonzern ? a.ksGroupCompanies : undefined,
-        title: isKonzern ? `Konzern: ${partyName(id)}` : link.label.trim() || partyName(id),
+        icon: featured ? a.ksGroupCompanies : undefined,
+        title: featured ? `Konzern: ${partyName(id)}` : partyName(id),
         blocks: [
           {
             kind: "person" as const,
             party: link.targetKind === "company" ? ("company" as const) : ("person" as const),
             tag: partyChip(id),
             name: partyName(id),
-            sub:
-              partyMeta(id) ||
-              (link.targetKind === "company" ? companyMetaLine(COMPANY_DIRECTORY.find((entry) => entry.id === id)) : "-"),
+            sub: [partyMeta(id) || "-", honorar].filter(Boolean).join(" · "),
           },
         ],
       },

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as a from "./assets/index";
 import { FILE_PARTNERS, kindLabel } from "./person/partners";
+import { partyName } from "./person/konzernLinks";
 import { liveFileIdentity } from "./person/stammdaten";
 import { Icon } from "./ui";
 import { useWorkflow, type WorkflowPane } from "./workflow";
@@ -20,12 +21,15 @@ export function FileTabs() {
     finanzenProfileOpen,
     closeFinanzenProfile,
     leaveManager,
+    konzernHubId,
+    activateKonzernHub,
+    closeKonzernHub,
   } = useWorkflow();
 
   return (
     <>
       {openFileIds.map((id) => {
-        const active = id === filePartnerId;
+        const active = view !== "konzernHub" && id === filePartnerId;
         const name = active ? personName : FILE_PARTNERS[id].name;
         const tabIcon = FILE_PARTNERS[id].fileKind === "company" ? a.company : a.person;
         if (active) {
@@ -91,6 +95,35 @@ export function FileTabs() {
           </div>
         );
       })}
+      {konzernHubId ? (
+        view === "konzernHub" ? (
+          <div className="person-tab" key={`hub-${konzernHubId}`}>
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body">
+              <Icon src={a.ksGroupCompanies} size={24} />
+              Konzern {partyName(konzernHubId)}
+              <button type="button" className="close-icon" aria-label="Konzern schließen" onClick={closeKonzernHub}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        ) : (
+          <div className="person-tab inactive" key={`hub-${konzernHubId}`}>
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body">
+              <Icon src={a.ksGroupCompanies} size={24} />
+              <button type="button" className="person-tab-open" onClick={activateKonzernHub}>
+                Konzern {partyName(konzernHubId)}
+              </button>
+              <button type="button" className="close-icon" aria-label="Konzern schließen" onClick={closeKonzernHub}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        )
+      ) : null}
     </>
   );
 }
