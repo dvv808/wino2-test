@@ -5,7 +5,7 @@ import { useWorkflow } from "../workflow";
 import { COMPANY_DIRECTORY, companyAddressLine } from "./company";
 import { DeleteCard } from "./DeleteCard";
 import { FAMILY_CANDIDATES, FAMILY_ROLES, familyKindLabel, familyMember, type FamilyKind, type FamilyMemberId } from "./family";
-import { confirmedLinksFor, draftLinksFor, familyRoleFor, otherMemberOf, pendingSuggestionsFor, useFamilyLinks } from "./familyLinks";
+import { confirmedLinksFor, draftLinksFor, familyRoleFor, otherMemberOf, useFamilyLinks } from "./familyLinks";
 import { Field, PartnerSearch, Select } from "./forms";
 import {
   groupMembers,
@@ -213,12 +213,10 @@ function FamilyTab({
   const [selectedId, setSelectedId] = useState<string | null>(initialId ?? null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const confirmed = confirmedLinksFor(links, memberId);
   const drafts = draftLinksFor(links, memberId);
   const draft = drafts.find((link) => link.partnerId === null) ?? drafts[0] ?? null;
-  const pending = pendingSuggestionsFor(links, memberId);
   const effectiveId = selectedId ?? draft?.id ?? confirmed[0]?.id ?? null;
   const editing =
     effectiveId === draft?.id ? draft : effectiveId ? confirmed.find((link) => link.id === effectiveId) ?? null : null;
@@ -285,13 +283,7 @@ function FamilyTab({
         </Field>
       </section>
 
-      <ListPanel
-        title="Verknüpfung: Familie"
-        onAdd={() => setSelectedId(startDraft(memberId))}
-        suggestionCount={pending.length}
-        suggestionsOpen={showSuggestions}
-        onToggleSuggestions={() => setShowSuggestions((open) => !open)}
-      >
+      <ListPanel title="Verknüpfung: Familie" onAdd={() => setSelectedId(startDraft(memberId))}>
         {confirmed.map((link) => {
           const other = otherMemberOf(link, memberId);
           const member = familyMember(other);
@@ -344,33 +336,6 @@ function FamilyTab({
           />
         ) : null}
       </ListPanel>
-      {showSuggestions ? (
-        <SuggestionsOverlay count={pending.length} kind="Familie" onClose={() => setShowSuggestions(false)}>
-          {pending.map((link) => {
-            const member = familyMember(link.ownerId);
-            return (
-              <SuggestionCard
-                key={link.id}
-                caption={familyRoleFor(link, memberId) || "Nicht definiert"}
-                chip={familyKindLabel(member.kind)}
-                name={member.name}
-                meta={[member.born, member.address].filter(Boolean).join(" · ")}
-                glyph={a.clientBlank}
-                onOpen={() => openPartnerBeside(link.ownerId)}
-                onAccept={() => {
-                  acceptLink(link.id, memberId);
-                  setToast({ message: "Verknüpfung bestätigt." });
-                  if (pending.length <= 1) setShowSuggestions(false);
-                }}
-                onDecline={() => {
-                  unlinkLink(link.id, memberId);
-                  if (pending.length <= 1) setShowSuggestions(false);
-                }}
-              />
-            );
-          })}
-        </SuggestionsOverlay>
-      ) : null}
 
       {toast ? (
         <Snackbar message={toast.message} tone={toast.tone} onUndo={toast.undo} onClose={() => setToast(null)} />
@@ -581,7 +546,7 @@ function KonzernTab({
       <ListPanel
         title="Verknüpfung: Konzern"
         onAdd={canAddMember ? () => setSelectedId(store.startDraft(partyId, kind)) : undefined}
-        suggestionCount={suggestions.length}
+        suggestionCount={personView ? 0 : suggestions.length}
         suggestionsOpen={showSuggestions}
         onToggleSuggestions={() => setShowSuggestions((open) => !open)}
       >
@@ -665,7 +630,7 @@ function KonzernTab({
           />
         ) : null}
       </ListPanel>
-      {showSuggestions ? (
+      {showSuggestions && !personView ? (
         <SuggestionsOverlay count={suggestions.length} kind="Konzern" onClose={() => setShowSuggestions(false)}>
           {suggestions.map((link) => {
             const groupKonzern = store.groups.find((entry) => entry.id === link.groupId)?.konzernId;
@@ -797,16 +762,16 @@ function SuggestionsOverlay({
 function ListPanel({
   title,
   onAdd,
-  suggestionCount,
-  suggestionsOpen,
+  suggestionCount = 0,
+  suggestionsOpen = false,
   onToggleSuggestions,
   children,
 }: {
   title: string;
   onAdd?: () => void;
-  suggestionCount: number;
-  suggestionsOpen: boolean;
-  onToggleSuggestions: () => void;
+  suggestionCount?: number;
+  suggestionsOpen?: boolean;
+  onToggleSuggestions?: () => void;
   children: React.ReactNode;
 }) {
   return (
