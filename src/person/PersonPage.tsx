@@ -13,6 +13,7 @@ import { FILE_PARTNERS } from "./partners";
 import { familyKindLabel, familyMember, type FamilyMemberId } from "./family";
 import { confirmedLinksFor, familyRoleFor, otherMemberOf, useFamilyLinks, type FamilyLink } from "./familyLinks";
 import {
+  honorarWarningFor,
   overviewKonzernLinks,
   partyChip,
   partyHonorarLine,
@@ -357,6 +358,10 @@ export function PersonPage() {
   const partyKind: PartyKind = isCompanyFile ? "company" : "person";
   const familyCards = isCompanyFile ? [] : familyOverviewCards(filePartnerId, links);
   const konzernCards = konzernOverviewCards(filePartnerId, partyKind, konzern.groups, konzern.links);
+  const holdingName = (() => {
+    const group = konzern.groupOf(filePartnerId, partyKind);
+    return group?.konzernId ? partyName(group.konzernId) : "";
+  })();
   const familyShown = familyCards.length ? familyCards : [emptyVerknuepfungCard("verknuepfung-familie-empty", "Noch keine Familienverknüpfung angelegt")];
   const konzernShown = konzernCards.length ? konzernCards : [emptyVerknuepfungCard("verknuepfung-konzern-empty", "Noch keine Konzernverknüpfung angelegt")];
   const vkCount = familyCards.length + konzernCards.length;
@@ -534,6 +539,20 @@ export function PersonPage() {
           name={
             pendingDelete.area === "verknuepfung"
               ? pendingDelete.card.blocks?.find((block) => block.kind === "person")?.name
+              : undefined
+          }
+          warning={
+            pendingDelete.unlink === "konzern"
+              ? honorarWarningFor(
+                  [
+                    pendingDelete.card.id.startsWith("hub-") && partyKind === "person"
+                      ? filePartnerId
+                      : overviewKonzernLinks(konzern.groups, konzern.links, filePartnerId, partyKind).find(
+                          (link) => link.id === pendingDelete.card.id,
+                        )?.targetId ?? "",
+                  ].filter(Boolean),
+                  holdingName,
+                )
               : undefined
           }
           onCancel={() => setPendingDelete(null)}

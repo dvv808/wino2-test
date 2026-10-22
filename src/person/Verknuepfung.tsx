@@ -15,6 +15,7 @@ import {
   konzernTabCount,
   partyAddressLine,
   partyChip,
+  honorarWarningFor,
   partyHonorarLine,
   partyKindOf,
   partyMeta,
@@ -124,10 +125,26 @@ function MemberCard({
   );
 }
 
+function suggestionLead(link: { label: string; ownerKind: PartyKind }, sourceId: string, viewerId: string) {
+  const source = partyName(sourceId);
+  const viewer = partyName(viewerId);
+  const label = link.label.trim().toLowerCase();
+  if (link.ownerKind === "person" || partyKindOf(sourceId) === "person") {
+    if (label.includes("geschäft")) return `${source} ist in der Geschäftsführung von ${viewer}`;
+    if (label.includes("aufsicht")) return `${source} ist im Aufsichtsrat von ${viewer}`;
+    return `${source} ist ${link.label.trim() || "verknüpft"} von ${viewer}`;
+  }
+  if (label.includes("beteil")) return `${viewer} ist beteiligt an`;
+  if (label.includes("kooper")) return `${viewer} kooperiert mit`;
+  if (label.includes("gesell")) return `${source} ist Gesellschafter von ${viewer}`;
+  return `${viewer} ist verknüpft mit`;
+}
+
 function SuggestionCard({
+  lead,
   caption,
-  captionIcon,
   chip,
+  chipClass,
   name,
   meta,
   glyph,
@@ -135,9 +152,10 @@ function SuggestionCard({
   onAccept,
   onDecline,
 }: {
+  lead: string;
   caption: string;
-  captionIcon?: string;
   chip?: string;
+  chipClass?: string;
   name: string;
   meta?: string;
   glyph: string;
@@ -146,40 +164,40 @@ function SuggestionCard({
   onDecline: () => void;
 }) {
   return (
-    <article className="vk-suggestion">
-      <header className="vk-card-head">
-        <span className="vk-card-caption">
-          {captionIcon ? <Icon src={captionIcon} size={18} /> : null}
-          {caption}
-        </span>
-        <Icon src={a.contextMenu} size={18} />
-      </header>
-      <div className="vk-card-body">
-        <Avatar glyph={glyph} />
-        <div className="vk-card-copy">
-          {chip ? <span className="chip">{chip}</span> : null}
-          <strong>{name}</strong>
-          {meta ? <small>{meta}</small> : null}
-        </div>
-        {onOpen ? (
-          <button type="button" className="vk-card-open" aria-label={`${name} öffnen`} onClick={onOpen}>
-            <Icon src={a.openTab} size={20} />
-          </button>
-        ) : (
-          <span className="vk-card-open">
-            <Icon src={a.openTab} size={20} />
+    <div className="vk-suggest-item">
+      <p className="vk-suggest-item-lead">{lead}</p>
+      <article className="vk-suggestion">
+        <header className="vk-card-head">
+          <span className="vk-card-caption">{caption}</span>
+          <span onClick={(event) => event.stopPropagation()}>
+            <ContextMenu
+              items={[{ label: "Ablehnen", icon: a.menuUnlink, danger: true, onSelect: onDecline }]}
+              label={`${name} Aktionen`}
+            />
           </span>
-        )}
-      </div>
-      <div className="vk-suggestion-actions">
-        <button type="button" className="btn-secondary" onClick={onDecline}>
-          Ablehnen
-        </button>
-        <button type="button" className="btn-primary" onClick={onAccept}>
+        </header>
+        <div className="vk-card-body">
+          <Avatar glyph={glyph} />
+          <div className="vk-card-copy">
+            {chip ? <span className={chipClass ?? "chip"}>{chip}</span> : null}
+            <strong>{name}</strong>
+            {meta ? <small>{meta}</small> : null}
+          </div>
+          {onOpen ? (
+            <button type="button" className="vk-card-open" aria-label={`${name} öffnen`} onClick={onOpen}>
+              <Icon src={a.openTab} size={20} />
+            </button>
+          ) : (
+            <span className="vk-card-open">
+              <Icon src={a.openTab} size={20} />
+            </span>
+          )}
+        </div>
+        <button type="button" className="btn-primary vk-suggest-take" onClick={onAccept}>
           Übernehmen
         </button>
-      </div>
-    </article>
+      </article>
+    </div>
   );
 }
 
@@ -386,6 +404,7 @@ function KonzernTab({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [pendingDissolve, setPendingDissolve] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const group = store.groupOf(partyId, kind);
@@ -563,6 +582,14 @@ function KonzernTab({
               selected={editingTarget === holdingId && !draft}
               onSelect={() => setSelectedId(`mem-${holdingId}`)}
               onOpen={() => openKonzernHub(holdingId)}
+              menuItems={[
+                {
+                  label: "Konzern komplett auflösen",
+                  icon: a.menuUnlink,
+                  danger: true,
+                  onSelect: () => setPendingDissolve(true),
+                },
+              ]}
             />
             <p className="vk-belong">Mitglieder von Konzern {holdingName} sind:</p>
             {members.map((member) => {
@@ -635,21 +662,21 @@ function KonzernTab({
           {suggestions.map((link) => {
             const groupKonzern = store.groups.find((entry) => entry.id === link.groupId)?.konzernId;
             const sourceId = suggestionDisplayId(link, groupKonzern, partyId);
-            const foreignKonzern = partyKindOf(sourceId) === "company" && sourceId === groupKonzern && sourceId !== partyId;
             return (
               <SuggestionCard
                 key={link.id}
-                caption={konzernCaption(sourceId, foreignKonzern)}
-                captionIcon={foreignKonzern ? a.ksGroupCompanies : undefined}
-                chip={partyChip(sourceId)}
+                lead={suggestionLead(link, sourceId, partyId)}
+                caption={partyName(sourceId)}
+                chip={partyKindOf(sourceId) === "person" ? partyChip(sourceId) : undefined}
+                chipClass={partyKindOf(sourceId) === "person" ? partyChipClass(sourceId) : undefined}
                 name={partyName(sourceId)}
                 meta={partyMeta(sourceId)}
                 glyph={partyKindOf(sourceId) === "company" ? a.companyBlank : a.clientBlank}
                 onOpen={isFilePartner(sourceId) ? () => openPartnerBeside(sourceId) : undefined}
                 onAccept={() => {
                   store.accept(link.id);
+                  setShowSuggestions(false);
                   setToast({ message: "Verknüpfung bestätigt." });
-                  if (suggestions.length <= 1) setShowSuggestions(false);
                 }}
                 onDecline={() => {
                   store.decline(link.id);
@@ -664,11 +691,38 @@ function KonzernTab({
       {toast ? (
         <Snackbar message={toast.message} tone={toast.tone} onUndo={toast.undo} onClose={() => setToast(null)} />
       ) : null}
+      {pendingDissolve && holdingId ? (
+        <DeleteCard
+          title="Konzern"
+          action="auflösen"
+          name={holdingName}
+          message={`Der gesamte Konzern${holdingName ? ` ${holdingName}` : ""} wird aufgelöst. Alle Mitgliedschaften gehen verloren.`}
+          warning={honorarWarningFor(members.map((member) => member.id), holdingName)}
+          onCancel={() => setPendingDissolve(false)}
+          onConfirm={() => {
+            if (!group) {
+              setPendingDissolve(false);
+              return;
+            }
+            const result = store.dissolve(group.id);
+            setPendingDissolve(false);
+            setSelectedId(null);
+            setToast({
+              message: holdingName ? `Konzern ${holdingName} aufgelöst.` : "Konzern aufgelöst.",
+              undo: () => {
+                if (result.group) store.restoreDissolved(result.group, result.links);
+                setToast(null);
+              },
+            });
+          }}
+        />
+      ) : null}
       {pendingDelete ? (
         <DeleteCard
           title="Verknüpfung"
           action="auflösen"
           name={unlinkingName}
+          warning={honorarWarningFor([pendingDelete], holdingName)}
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => {
             const memberId = pendingDelete;

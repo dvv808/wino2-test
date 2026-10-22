@@ -243,10 +243,29 @@ export function partyChip(id: string) {
   return "Interessent";
 }
 
-/** Kunde files sit in a Honorar named after the Konzern. */
-export function partyHonorarLine(id: string, konzernName: string) {
-  if (!konzernName || partyChip(id) !== "Kunde") return "";
-  return `Honorar: ${konzernName}`;
+/** Running Honorar is billed with this partner — Julia always with Lunixo AG. */
+export function partyHonorarPartner(id: string, konzernName = "") {
+  if (id === "julia") return "Lunixo AG";
+  if (id === "lunixo-holding" || id === "lunixo-immobilien") return konzernName || "Lunixo Holding";
+  if (partyChip(id) === "Kunde" && konzernName) return konzernName;
+  return "";
+}
+
+export function partyHonorarLine(id: string, konzernName = "") {
+  const partner = partyHonorarPartner(id, konzernName);
+  return partner ? `Honorar: ${partner}` : "";
+}
+
+/** One bullet per partner with a running Honorar. */
+export function honorarWarningFor(ids: string[], konzernName = "") {
+  return ids
+    .map((id) => {
+      const partner = partyHonorarPartner(id, konzernName);
+      if (!partner) return "";
+      const withKonzern = id !== "julia" && partner === konzernName;
+      return `${partyName(id)} hat ein laufendes Honorar mit ${withKonzern ? "diesem Konzern" : partner}.`;
+    })
+    .filter(Boolean);
 }
 
 type Store = {
@@ -268,6 +287,8 @@ type Store = {
   setKonzern: (companyId: string) => boolean;
   leave: (partyId: string, kind: PartyKind) => { unaccepted: string[]; removed: KonzernLink[] };
   removeMember: (groupId: string, memberId: string) => { blocked?: "konzernchef"; removed: KonzernLink[] };
+  dissolve: (groupId: string) => { group?: KonzernGroup; links: KonzernLink[] };
+  restoreDissolved: (group: KonzernGroup, links: KonzernLink[]) => void;
   snapshot: () => void;
   commitSnapshot: () => void;
   revert: () => void;
@@ -892,6 +913,33 @@ export function KonzernLinksProvider({ children }: { children: ReactNode }) {
         });
         return result;
       },
+      dissolve: (groupId) => {
+        let result: { group?: KonzernGroup; links: KonzernLink[] } = { links: [] };
+        setState((prev) => {
+          const group = prev.groups.find((entry) => entry.id === groupId);
+          if (!group) return prev;
+          const links = prev.links.filter((link) => link.groupId === groupId);
+          result = { group, links };
+          const next = {
+            groups: prev.groups.filter((entry) => entry.id !== groupId),
+            links: prev.links.filter((link) => link.groupId !== groupId),
+          };
+          snapshotRef.current = structuredClone(next);
+          return next;
+        });
+        return result;
+      },
+      restoreDissolved: (group, links) =>
+        setState((prev) => {
+          const groups = prev.groups.some((entry) => entry.id === group.id) ? prev.groups : [...prev.groups, group];
+          const existing = new Set(prev.links.map((link) => link.id));
+          const next = {
+            groups,
+            links: [...prev.links, ...links.filter((link) => !existing.has(link.id))],
+          };
+          snapshotRef.current = structuredClone(next);
+          return next;
+        }),
       removeMember: (groupId, memberId) => {
         let result: { blocked?: "konzernchef"; removed: KonzernLink[] } = { removed: [] };
         setState((prev) => {

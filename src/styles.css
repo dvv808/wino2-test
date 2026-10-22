@@ -3959,6 +3959,19 @@ input.text-field {
   text-align: left;
 }
 
+.wmodal-honorar {
+  margin: 12px 0 0;
+  padding: 0 0 0 1.15em;
+  font-size: 15px;
+  line-height: 22px;
+  letter-spacing: 0.15px;
+  text-align: left;
+}
+
+.wmodal-honorar li + li {
+  margin-top: 4px;
+}
+
 .wmodal-foot {
   display: flex;
   align-items: center;
@@ -7061,29 +7074,42 @@ span.pp-tree-main {
 }
 
 .vk-suggestion {
-  border-color: #a9d3e8;
-  background: linear-gradient(180deg, #e9f4fa 0%, var(--wino-white) 55%);
+  position: relative;
+  border-color: #e2e7ec;
+  background: linear-gradient(180deg, #f4f9fb 0%, var(--wino-white) 62%);
+  padding-bottom: 36px;
+}
+
+.vk-suggest-item {
+  width: min(510px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.vk-suggest-item-lead {
+  margin: 0 0 10px 8px;
+  font-size: 15px;
+  line-height: 23px;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
+}
+
+.vk-suggest-take {
+  position: absolute;
+  right: 28px;
+  bottom: -16px;
+  min-width: 121px;
+  height: 32px;
+  padding: 0 32px;
+  font-size: 13px;
+  letter-spacing: 0.13px;
 }
 
 .vk-caption-suggest {
   margin-top: 28px;
   font-size: 15px;
   color: var(--wino-black-dark);
-}
-
-.vk-suggestion-actions {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.vk-suggestion-actions .btn-secondary,
-.vk-suggestion-actions .btn-primary {
-  min-width: 121px;
-  height: 32px;
-  padding: 0 32px;
-  font-size: 13px;
 }
 
 .vk-suggest-overlay {
@@ -7200,11 +7226,11 @@ span.pp-tree-main {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 36px;
 }
 
 .vk-suggest-cards .vk-suggestion {
-  width: min(510px, 100%);
+  width: 100%;
 }
 
 .vk-overlay {

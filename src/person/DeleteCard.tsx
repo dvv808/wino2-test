@@ -5,19 +5,23 @@ export function DeleteCard({
   title,
   name,
   action = "löschen",
+  message,
+  warning,
   onCancel,
   onConfirm,
 }: {
   title: string;
   name?: string;
   action?: "löschen" | "auflösen";
+  message?: string;
+  warning?: string[];
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const unlink = action === "auflösen";
   const verb = unlink ? "auflösen" : "löschen";
   return (
-    <div className="wmodal" role="dialog" aria-label={unlink ? "Verknüpfung auflösen" : "Eintrag löschen"}>
+    <div className="wmodal" role="dialog" aria-label={unlink ? `${title} auflösen` : "Eintrag löschen"}>
       <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onCancel} />
 
       <div className="wmodal-body">
@@ -27,10 +31,19 @@ export function DeleteCard({
 
         <h2>Achtung! {title} wirklich {verb}?</h2>
         <p>
-          {unlink
-            ? `Die Verknüpfung${name ? ` mit ${name}` : ""} wird aufgelöst.`
-            : "Der Eintrag wird aus den Stammdaten entfernt. Du kannst die Daten danach nur durch erneutes Anlegen wiederherstellen."}
+          {message
+            ? message
+            : unlink
+              ? `Die Verknüpfung${name ? ` mit ${name}` : ""} wird aufgelöst.`
+              : "Der Eintrag wird aus den Stammdaten entfernt. Du kannst die Daten danach nur durch erneutes Anlegen wiederherstellen."}
         </p>
+        {warning?.length ? (
+          <ul className="wmodal-honorar">
+            {warning.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
 
         <footer className="wmodal-foot centered">
           <button type="button" className="btn-secondary" onClick={onCancel}>
