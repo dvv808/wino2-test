@@ -32,7 +32,7 @@ export type Block =
   | { kind: "group"; caption: string; rows: Row[] }
   | { kind: "note"; caption: string; text: string }
   | { kind: "files"; caption: string; rows: Row[] }
-  | { kind: "person"; tag?: string; name: string; sub: string; party?: "person" | "company" }
+  | { kind: "person"; caption?: string; tag?: string; name: string; sub: string; party?: "person" | "company" }
   | { kind: "badge"; icon: string; caption?: string; text: string; open?: boolean; above?: boolean }
   | { kind: "usage"; icon: string; caption: string; text: string; rows: Row[] };
 

@@ -9,7 +9,7 @@ import {
 } from "react";
 import { hashToRoute, routeToHash, type PersonArea, type PersonModule } from "./routing";
 import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
-import { FILE_PARTNERS, type PartnerId } from "./person/partners";
+import { getPartner, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
 import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
   MULTI_CARD_AREAS,
@@ -39,6 +39,8 @@ import {
   EDITOR_ADVISOR,
   currentVersion,
   historyFromStammdatenSave,
+  lunixoVersions,
+  wicoDeviationHistoryEntry,
   isMarriageCertificate,
   latestLegalNumber,
   namesDiffer,
@@ -169,6 +171,8 @@ type PartnerFile = {
   viewingVersionId: string;
   stammdatenBaseline: Section[] | null;
   stammdatenPublished: Section[] | null;
+  /** A Maklervereinbarung was created for this partner — stays after the tab closes. */
+  maklerCreated?: boolean;
 };
 
 const FAMILY_FILES: [PartnerId, string, string][] = [
@@ -197,7 +201,7 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
     },
     lunixo: {
       sections: cloneLunixoSections(),
-      versions: blankFileVersions("Lunixo", "AG", "partner-lunixo", "lunixo-v1"),
+      versions: lunixoVersions(),
       viewingVersionId: "lunixo-v1",
       stammdatenBaseline: null,
       stammdatenPublished: null,
@@ -262,6 +266,11 @@ function useWorkflowState() {
   const [customNote, setCustomNote] = useState(
     "Wurde Aufgrund der privaten Lebensverhältnisse genehmigt, dass kein Honorar fällig ist.",
   );
+  const [wicoDeviationOn, setWicoDeviationOnState] = useState(false);
+  const [wicoDeviationNote, setWicoDeviationNoteState] = useState("");
+  const wicoNoteRef = useRef("");
+  wicoNoteRef.current = wicoDeviationNote;
+  const wicoCommitted = useRef({ on: false, note: "" });
 
   const [textBlock, setTextBlock] = useState<string | null>(null);
   const [termsText, setTermsText] = useState("");
@@ -316,8 +325,10 @@ function useWorkflowState() {
   const [konzernHubFrom, setKonzernHubFrom] = useState<View | null>(null);
   const [fileAreas, setFileAreas] = useState<Partial<Record<PartnerId, StammdatenAreaId>>>({});
   const [ashleyConverted, setAshleyConverted] = useState(false);
-  const [partnerFiles, setPartnerFiles] = useState<Record<PartnerId, PartnerFile>>(initialPartnerFiles);
-  const file = partnerFiles[filePartnerId];
+  const [partnerFiles, setPartnerFiles] = useState<Record<string, PartnerFile>>(initialPartnerFiles);
+  const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
+  const [extraPartners, setExtraPartners] = useState<FilePartner[]>([]);
+  const file = partnerFiles[filePartnerId] ?? partnerFiles.julia;
   const { sections, versions, viewingVersionId, stammdatenBaseline, stammdatenPublished } = file;
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
@@ -803,15 +814,131 @@ function useWorkflowState() {
     setAshleyConverted(true);
   }
 
+  function appendWicoHistory(kind: PersonVersion["kind"], to: string, from?: string) {
+    const at = stamp();
+    const file = getPartner(filePartnerId);
+    const bits = file.name.split(" ");
+    const entry = wicoDeviationHistoryEntry({
+      id: `wico-${Date.now()}`,
+      number: latestLegalNumber(versions),
+      kind,
+      date: at.date,
+      time: at.time,
+      from,
+      to,
+      vorname: bits[0] ?? file.name,
+      nachname: bits.slice(1).join(" ") || file.name,
+    });
+    setVersions((current) => current.concat(entry));
+    setViewingVersionId(entry.id);
+  }
+
+  /** One live Abweichung. History is append-only in Verlauf — never a stack of banners. */
+  function commitWicoDeviation(nextOn: boolean, nextNote: string) {
+    const prev = wicoCommitted.current;
+    const note = nextNote.trim();
+    const prevNote = prev.note.trim();
+    if (prev.on === nextOn && prevNote === note) return;
+
+    if (nextOn && note && (!prev.on || !prevNote)) {
+      appendWicoHistory("added", note);
+    } else if (nextOn && note && prev.on && prevNote && prevNote !== note) {
+      appendWicoHistory("changed", note, prevNote);
+    } else if (!nextOn && prev.on && (note || prevNote)) {
+      appendWicoHistory("removed", note || prevNote);
+    }
+
+    wicoCommitted.current = { on: nextOn, note };
+  }
+
+  function setWicoDeviationOn(on: boolean) {
+    setWicoDeviationOnState(on);
+    commitWicoDeviation(on, wicoNoteRef.current);
+  }
+
+  function setWicoDeviationNote(note: string) {
+    setWicoDeviationNoteState(note);
+  }
+
+  function commitWicoDeviationNote() {
+    commitWicoDeviation(wicoDeviationOn, wicoNoteRef.current);
+  }
+
   /** Profil vs Workflows & To-Dos, still inside the person file. */
   function openPersonModule(module: PersonModule) {
     setPersonModule(module);
     setView("person");
   }
 
+  function openPartnerCreate() {
+    setPartnerCreateOpen(true);
+  }
+
+  function closePartnerCreate() {
+    setPartnerCreateOpen(false);
+  }
+
+  function createPartner(
+    built: {
+      file: FilePartner;
+      sections: Section[];
+      versions: PersonVersion[];
+      viewingVersionId: string;
+    },
+    mode: "done" | "stammdaten" | "draft",
+    related: {
+      file: FilePartner;
+      sections: Section[];
+      versions: PersonVersion[];
+      viewingVersionId: string;
+    }[] = [],
+  ) {
+    const files = [...related, built];
+    files.forEach((entry) => registerPartner(entry.file));
+    setExtraPartners((all) => {
+      const next = all.filter((entry) => !files.some((item) => item.file.id === entry.id));
+      return [...next, ...files.map((entry) => entry.file)];
+    });
+    setPartnerFiles((all) => {
+      const next = { ...all };
+      for (const entry of files) {
+        next[entry.file.id] = {
+          sections: entry.sections,
+          versions: entry.versions,
+          viewingVersionId: entry.viewingVersionId,
+          stammdatenBaseline: null,
+          stammdatenPublished: null,
+        };
+      }
+      return next;
+    });
+    setPartnerCreateOpen(false);
+    ensureFileTab(built.file.id);
+    setFilePartnerId(built.file.id);
+    setPersonModule("profil");
+    setPersonArea("stammdaten");
+    if (mode === "stammdaten") {
+      setStammdatenBaseline(structuredClone(built.sections));
+      setStammdatenPublished(publishedSnapshot(built.sections));
+      setStammdatenArea("personendaten");
+      setStammdatenCardId(firstCardId("personendaten", built.sections));
+      setFreigabeId(null);
+      setView("stammdaten");
+      return;
+    }
+    setView("person");
+  }
+
   function openMakler() {
     setMaklerOpen(true);
     setView("workflow");
+  }
+
+  function markMaklerCreated() {
+    setPartnerFiles((all) => ({
+      ...all,
+      [filePartnerId]: { ...all[filePartnerId], maklerCreated: true },
+    }));
   }
 
   function closeMakler() {
@@ -930,8 +1057,8 @@ function useWorkflowState() {
     ? `${partnerForm(livePartner).vorname} ${partnerForm(livePartner).nachname}`.trim()
     : "";
   const shownName = isHistorical
-    ? personNameFromVersion(viewingVersion, FILE_PARTNERS[filePartnerId].name)
-    : livePartnerName || personNameFromVersion(liveVersion, FILE_PARTNERS[filePartnerId].name);
+    ? personNameFromVersion(viewingVersion, getPartner(filePartnerId).name)
+    : livePartnerName || personNameFromVersion(liveVersion, getPartner(filePartnerId).name);
 
   function openVersionHistory() {
     setVersionHistoryOpen(true);
@@ -1008,8 +1135,8 @@ function useWorkflowState() {
       number,
       at,
       editor: EDITOR_ADVISOR,
-      vorname: form?.vorname || liveVersion?.vorname || FILE_PARTNERS[filePartnerId].name.split(" ")[0] || "Julia",
-      nachname: form?.nachname || liveVersion?.nachname || FILE_PARTNERS[filePartnerId].name.split(" ").at(-1) || "Atkinson",
+      vorname: form?.vorname || liveVersion?.vorname || getPartner(filePartnerId).name.split(" ")[0] || "Julia",
+      nachname: form?.nachname || liveVersion?.nachname || getPartner(filePartnerId).name.split(" ").at(-1) || "Atkinson",
       legalNachname:
         nameChanged && form && liveVersion
           ? {
@@ -1228,6 +1355,11 @@ function useWorkflowState() {
     setInvoiceNote,
     customNote,
     setCustomNote,
+    wicoDeviationOn,
+    setWicoDeviationOn,
+    wicoDeviationNote,
+    setWicoDeviationNote,
+    commitWicoDeviationNote,
     textBlock,
     setTextBlock,
     termsText,
@@ -1305,6 +1437,11 @@ function useWorkflowState() {
     filePartnerId,
     openFileIds,
     openPartner,
+    partnerCreateOpen,
+    extraPartners,
+    openPartnerCreate,
+    closePartnerCreate,
+    createPartner,
     openPartnerBeside,
     openKonzernHub,
     closeKonzernHub,
@@ -1324,6 +1461,8 @@ function useWorkflowState() {
     personArea,
     openPersonArea,
     maklerOpen,
+    maklerCreated: Boolean(file.maklerCreated),
+    markMaklerCreated,
     openMakler,
     closeMakler,
     stammdatenOpen: view === "stammdaten" || stammdatenBaseline !== null,
@@ -1342,7 +1481,7 @@ function useWorkflowState() {
     openHistoryChange,
     viewCurrentVersion,
     versionSaveError,
-    publishedNachname: liveVersion?.nachname ?? FILE_PARTNERS[filePartnerId].name.split(" ").at(-1) ?? "Atkinson",
+    publishedNachname: liveVersion?.nachname ?? getPartner(filePartnerId).name.split(" ").at(-1) ?? "Atkinson",
     stammdatenArea,
     stammdatenCardId,
     openStammdaten,

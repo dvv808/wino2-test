@@ -2,6 +2,7 @@ import { useState } from "react";
 import * as a from "./assets/index";
 import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
+import { WicoDeviationBox } from "./Summary";
 import { ConsentWarning } from "./ConsentWarning";
 import { PdfModal } from "./documents";
 import { CommsStep } from "./steps/CommsStep";
@@ -19,6 +20,7 @@ import { CompanyGroupsProvider } from "./person/companyGroups";
 import { FamilyLinksProvider } from "./person/familyLinks";
 import { KonzernLinksProvider } from "./person/konzernLinks";
 import { KonzernHubPage } from "./person/KonzernHub";
+import { PartnerCreate } from "./person/PartnerCreate";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
@@ -285,6 +287,7 @@ function Screen() {
               <Stepper />
 
               <main className={LAYOUT[activeStep]}>
+                <WicoDeviationBox />
                 {activeStep === "tasks" && <TasksStep />}
                 {activeStep === "comms" && <CommsStep />}
                 {activeStep === "fee" && <HonorarStep />}
@@ -317,6 +320,7 @@ export default function App() {
           <CompanyGroupsProvider>
             <KonzernLinksProvider>
               <Screen />
+              <PartnerCreate />
               <WidgetBar />
             </KonzernLinksProvider>
           </CompanyGroupsProvider>

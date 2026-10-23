@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as a from "./assets/index";
-import { FILE_PARTNERS, kindLabel } from "./person/partners";
+import { FILE_PARTNERS, getPartner, kindLabel, partnerKindText } from "./person/partners";
 import { partyName } from "./person/konzernLinks";
 import { liveFileIdentity } from "./person/stammdaten";
 import { Icon } from "./ui";
@@ -30,8 +30,8 @@ export function FileTabs() {
     <>
       {openFileIds.map((id) => {
         const active = view !== "konzernHub" && id === filePartnerId;
-        const name = active ? personName : FILE_PARTNERS[id].name;
-        const tabIcon = FILE_PARTNERS[id].fileKind === "company" ? a.company : a.person;
+        const name = active ? personName : getPartner(id).name;
+        const tabIcon = getPartner(id).fileKind === "company" ? a.company : a.person;
         if (active) {
           const closeActive = () => {
             if (openFileIds.length > 1) closeFile(id);
@@ -150,7 +150,7 @@ export function MeinBereichTab() {
 }
 
 export function LogoButton() {
-  const { openPartner, ashleyConverted } = useWorkflow();
+  const { openPartner, ashleyConverted, extraPartners, openPartnerCreate } = useWorkflow();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -186,6 +186,10 @@ export function LogoButton() {
       id: "lunixo-immobilien" as const,
       label: `${FILE_PARTNERS["lunixo-immobilien"].name} (${kindLabel("interessent")})`,
     },
+    ...extraPartners.map((partner) => ({
+      id: partner.id,
+      label: `${partner.name} (${partnerKindText(partner.kind)})`,
+    })),
   ];
 
   return (
@@ -214,6 +218,16 @@ export function LogoButton() {
               {link.label}
             </button>
           ))}
+          <button
+            type="button"
+            className="logo-pop-create"
+            onClick={() => {
+              openPartnerCreate();
+              setOpen(false);
+            }}
+          >
+            Partner anlegen
+          </button>
         </div>
       ) : null}
     </div>
@@ -513,7 +527,7 @@ export function FileIdentity({
   forceInteressent?: boolean;
 }) {
   const { filePartnerId, personName, ashleyConverted, displaySections } = useWorkflow();
-  const file = FILE_PARTNERS[filePartnerId];
+  const file = getPartner(filePartnerId);
   const live = liveFileIdentity(displaySections);
   const born = live.born ?? file.born;
   const address = live.address ?? file.address;

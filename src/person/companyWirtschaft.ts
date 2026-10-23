@@ -560,14 +560,14 @@ function joinDate(tag: string, monat: string, jahr: string) {
   return [tag, monat, jahr].filter(Boolean).join(".") || "-";
 }
 
-function companyFn(name: string) {
+export function companyFn(name: string) {
   if (name === "Winter Habocha GesmbH") return "FN 351251";
   if (name === "Winter Insurance Group") return "FN 98984";
   if (name === "Lunixo Holding") return "FN 63241";
   return "FN 232312";
 }
 
-function personBorn(name: string) {
+export function personBorn(name: string) {
   if (name === "Dave Vice" || name === "Philip Weenter") return "06.11.1972";
   if (name === "Michael Jordan") return "17.03.1963";
   if (name === "Bernhard Meyer") return "22.04.1968";

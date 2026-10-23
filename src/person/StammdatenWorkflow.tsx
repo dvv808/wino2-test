@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { AppsNav, FileIdentity, FileTabs, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
+import { WicoDeviationBox } from "../Summary";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
-import { FILE_PARTNERS } from "./partners";
+import { getPartner } from "./partners";
 import { useFamilyLinks } from "./familyLinks";
 import { useKonzernLinks } from "./konzernLinks";
 import { SaveConfirm } from "./SaveConfirm";
@@ -142,10 +143,15 @@ export function StammdatenWorkflow() {
     openVersionHistory,
     publishedNachname,
     versionSaveError,
+    wicoDeviationOn,
+    setWicoDeviationOn,
+    wicoDeviationNote,
+    setWicoDeviationNote,
+    commitWicoDeviationNote,
   } = useWorkflow();
   const family = useFamilyLinks();
   const konzern = useKonzernLinks();
-  const isCompanyFile = FILE_PARTNERS[filePartnerId].fileKind === "company";
+  const isCompanyFile = getPartner(filePartnerId).fileKind === "company";
 
   useEffect(() => {
     return bindVerknuepfungSave({
@@ -179,7 +185,7 @@ export function StammdatenWorkflow() {
   );
   const selected = cards.find((card) => card.id === stammdatenCardId) ?? cards[0] ?? null;
   const blank = BLANK_AREAS.includes(stammdatenArea);
-  const isCompany = FILE_PARTNERS[filePartnerId].fileKind === "company";
+  const isCompany = getPartner(filePartnerId).fileKind === "company";
   const vkDirty = family.isDirty() || konzern.isDirty();
   const vkPublishable =
     family.hasPublishable(filePartnerId) ||
@@ -216,7 +222,7 @@ export function StammdatenWorkflow() {
   useEffect(() => {
     if (stammdatenArea !== "wirtschaftsdaten") return;
     if (isCompany) {
-      const file = FILE_PARTNERS[filePartnerId];
+      const file = getPartner(filePartnerId);
       const filled = filePartnerId === "lunixo";
       setCompanyFirmenbuch(
         filled
@@ -511,6 +517,11 @@ export function StammdatenWorkflow() {
                           scheduleWicoSync(value);
                         }}
                         onSync={flushWicoSync}
+                        deviationOn={wicoDeviationOn}
+                        deviationNote={wicoDeviationNote}
+                        onDeviationOn={setWicoDeviationOn}
+                        onDeviationNote={setWicoDeviationNote}
+                        onDeviationCommit={commitWicoDeviationNote}
                       />
                     </fieldset>
                   </form>
@@ -628,6 +639,7 @@ export function StammdatenWorkflow() {
                         : "Aktuell in Wino"}
                   </p>
                   <div className="sw-cards">
+                    {stammdatenArea === "wirtschaftsdaten" ? <WicoDeviationBox /> : null}
                     {cards.map((card) => (
                       <DataCard
                         key={card.id}

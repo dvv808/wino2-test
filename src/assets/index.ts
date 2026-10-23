@@ -196,6 +196,13 @@ export { default as snackUndo } from "./icons/snack-undo.svg";
 export { default as transform } from "./icons/transform.svg";
 export { default as tick } from "./icons/tick.svg";
 export { default as confirmOutline } from "./icons/confirm-outline.svg";
+export { default as iconInteressent } from "./icons/icon-interessent.svg";
+export { default as iconMandate } from "./icons/icon-mandate.svg";
+export { default as iconLimitKm } from "./icons/icon-limit-km.svg";
+export { default as iconDamage } from "./icons/icon-damage.svg";
+export { default as iconBrokerContract } from "./icons/icon-broker-contract.svg";
+export { default as iconInsurance } from "./icons/icon-insurance.svg";
+export { default as iconWico } from "./icons/icon-wico.svg";
 
 export { default as reqAnna } from "./images/req-anna.png";
 export { default as reqSonja } from "./images/req-sonja.png";

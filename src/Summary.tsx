@@ -226,6 +226,23 @@ function TermsCard() {
   );
 }
 
+export function WicoDeviationBox() {
+  const { wicoDeviationOn, wicoDeviationNote, openStammdaten } = useWorkflow();
+  if (!wicoDeviationOn) return null;
+  const note = wicoDeviationNote.trim();
+  return (
+    <button
+      type="button"
+      className="wico-deviation-box"
+      onClick={() => openStammdaten("wirtschaftsdaten")}
+    >
+      <span className="wico-deviation-kicker">Abweichende Daten · WICO</span>
+      {note ? <strong>{note}</strong> : null}
+      <small>In Stammdaten öffnen</small>
+    </button>
+  );
+}
+
 export function Summary({ cards }: { cards: Card[] }) {
   const { setPdfOpen } = useWorkflow();
   const highlight = cards[cards.length - 1];

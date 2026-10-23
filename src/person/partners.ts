@@ -162,6 +162,38 @@ export const PARTNER_BY_SLUG = new Map<string, PartnerId>(
   Object.values(FILE_PARTNERS).map((partner) => [partner.slug, partner.id]),
 );
 
+const extraPartners = new Map<string, FilePartner>();
+
+export function registerPartner(partner: FilePartner) {
+  extraPartners.set(partner.id, partner);
+  PARTNER_BY_SLUG.set(partner.slug, partner.id);
+}
+
+export function getPartner(id: string): FilePartner {
+  return extraPartners.get(id) ?? FILE_PARTNERS[id as PartnerId] ?? JULIA;
+}
+
+export function extraPartnerList(): FilePartner[] {
+  return [...extraPartners.values()];
+}
+
+export function listedPartners(): FilePartner[] {
+  return [
+    FILE_PARTNERS.julia,
+    FILE_PARTNERS.ashley,
+    FILE_PARTNERS.lunixo,
+    FILE_PARTNERS["lunixo-holding"],
+    FILE_PARTNERS["lunixo-immobilien"],
+    ...extraPartners.values(),
+  ];
+}
+
 export function kindLabel(kind: PartnerKind) {
   return kind === "interessent" ? "Interessent" : "";
+}
+
+export function partnerKindText(kind?: PartnerKind) {
+  if (kind === "kunde") return "Kunde";
+  if (kind === "einfach") return "Einfache Person";
+  return "Interessent";
 }

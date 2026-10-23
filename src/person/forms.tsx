@@ -823,6 +823,121 @@ function ChannelSection({
   );
 }
 
+function PhoneField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="pa-phone">
+      <span className="sw-select sw-land pa-phone-cc">
+        <span className="pp-flag at" aria-hidden="true" />
+        <span className="text-field">+43</span>
+        <Icon src={a.selectCaret} size={16} />
+      </span>
+      <input className="text-field" value={value} onChange={(event) => onChange(event.target.value)} />
+    </div>
+  );
+}
+
+/** Partner-anlegen Kontaktdaten: note + addable phone / mail / web panels. */
+export function CreateContactFields({
+  notiz,
+  phones,
+  mails,
+  websites,
+  onNotiz,
+  onPhones,
+  onMails,
+  onWebsites,
+}: {
+  notiz: string;
+  phones: ContactChannel[];
+  mails: ContactChannel[];
+  websites: ContactChannel[];
+  onNotiz: (value: string) => void;
+  onPhones: (items: ContactChannel[]) => void;
+  onMails: (items: ContactChannel[]) => void;
+  onWebsites: (items: ContactChannel[]) => void;
+}) {
+  return (
+    <div className="pa-contact">
+      <Field label="Allgemeine Kontaktnotiz">
+        <Area value={notiz} onChange={onNotiz} />
+      </Field>
+      <div className="pa-channel">
+        <ChannelSection
+          label="Telefonnummer"
+          removedLabel="Telefonnummer"
+          items={phones}
+          onChange={onPhones}
+          blank={{ value: "", note: "", extra: "Mobil" }}
+        >
+          {(phone, patch) => (
+            <>
+              <Field label="Telefonnummer">
+                <PhoneField value={phone.value} onChange={(value) => patch({ ...phone, value })} />
+              </Field>
+              <Field label="Mobil oder Festnetz">
+                <Select
+                  value={phone.extra ?? "Mobil"}
+                  onChange={(extra) => patch({ ...phone, extra })}
+                  options={["Mobil", "Festnetz"]}
+                />
+              </Field>
+              <Field label="Notiz zur Telefonnummer">
+                <Area value={phone.note} onChange={(note) => patch({ ...phone, note })} />
+              </Field>
+            </>
+          )}
+        </ChannelSection>
+      </div>
+      <div className="pa-channel">
+        <ChannelSection
+          label="E-Mail"
+          removedLabel="E-Mail"
+          items={mails}
+          onChange={onMails}
+          blank={{ value: "", note: "" }}
+        >
+          {(mail, patch) => (
+            <>
+              <Field label="Mail Adresse">
+                <Text value={mail.value} onChange={(value) => patch({ ...mail, value })} />
+              </Field>
+              <Field label="Notiz zur Mail Adresse">
+                <Area value={mail.note} onChange={(note) => patch({ ...mail, note })} />
+              </Field>
+            </>
+          )}
+        </ChannelSection>
+      </div>
+      <div className="pa-channel">
+        <ChannelSection
+          label="Website & Social Media"
+          removedLabel="Website"
+          items={websites}
+          onChange={onWebsites}
+          blank={{ value: "", note: "" }}
+        >
+          {(site, patch) => (
+            <>
+              <Field label="Website oder Social Media link">
+                <Text value={site.value} onChange={(value) => patch({ ...site, value })} />
+              </Field>
+              <Field label="Notiz zur Website">
+                <Area value={site.note} onChange={(note) => patch({ ...site, note })} />
+              </Field>
+            </>
+          )}
+        </ChannelSection>
+      </div>
+    </div>
+  );
+}
+
 export function ContactFields({
   form,
   onChange,
@@ -1094,11 +1209,21 @@ export function WicoDatenFields({
   syncing,
   onChange,
   onSync,
+  deviationOn,
+  deviationNote,
+  onDeviationOn,
+  onDeviationNote,
+  onDeviationCommit,
 }: {
   value: string;
   syncing: boolean;
   onChange: (value: string) => void;
   onSync: () => void;
+  deviationOn: boolean;
+  deviationNote: string;
+  onDeviationOn: (on: boolean) => void;
+  onDeviationNote: (note: string) => void;
+  onDeviationCommit: () => void;
 }) {
   return (
     <>
@@ -1118,7 +1243,27 @@ export function WicoDatenFields({
           }}
         />
       </Field>
-      <p className="sw-hint">{syncing ? "Wird mit WICO synchronisiert…" : "Daten werden mit WICO abgeglichen."}</p>
+      <p className="sw-hint">
+        {syncing ? "Wird mit WICO synchronisiert…" : "Daten werden mit WICO abgeglichen und laufend aut. synchronisiert."}
+      </p>
+      <Switch label="Abweichende Daten" on={deviationOn} onChange={onDeviationOn} />
+      {deviationOn ? (
+        <>
+          <Field label="Kommentar">
+            <textarea
+              className="textarea"
+              value={deviationNote}
+              placeholder="Was weicht von den WICO-Daten ab?"
+              onChange={(event) => onDeviationNote(event.target.value)}
+              onBlur={onDeviationCommit}
+            />
+          </Field>
+          <p className="sw-hint">
+            Es gilt immer nur die aktuelle Abweichung. Wird sie geändert oder aufgehoben, bleibt der Eintrag im
+            Versionsverlauf.
+          </p>
+        </>
+      ) : null}
     </>
   );
 }

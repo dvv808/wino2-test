@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as a from "../assets/index";
-import { ContextMenu, Icon, IdCardIcon } from "../ui";
+import { ContextMenu, Icon } from "../ui";
+import { WicoDeviationBox } from "../Summary";
 import { useWorkflow } from "../workflow";
 import { LogoButton, FileIdentity, FileTabs, ProfileMenu, VerlaufCaption, WorkflowDock, MeinBereichTab } from "../chrome";
 import { ManagementAreaIcon } from "../manager/BestandChrome";
@@ -9,7 +10,7 @@ import { DeleteCard } from "./DeleteCard";
 import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { WorkflowsPage } from "./WorkflowsPage";
-import { FILE_PARTNERS } from "./partners";
+import { getPartner } from "./partners";
 import { familyKindLabel, familyMember, type FamilyMemberId } from "./family";
 import { confirmedLinksFor, familyRoleFor, otherMemberOf, useFamilyLinks, type FamilyLink } from "./familyLinks";
 import {
@@ -107,7 +108,7 @@ const MODULES = [
 
 const SIDE_AREAS = [
   { label: "Riskmanagement", icon: a.riskTarget },
-  { label: "Maklermandat", icon: a.docList },
+  { label: "Maklermandat", icon: a.iconBrokerContract },
   { label: "Inkasso", icon: a.tickList },
   { label: "Wino", icon: a.logoMark, mark: true },
 ];
@@ -213,13 +214,13 @@ function TreeNavItem({
 
 /** The areas of the file. Stammdaten expands; the rest are placeholders. */
 function Sidebar() {
-  const { sections, personName, filePartnerId, personArea, openPersonArea } = useWorkflow();
+  const { sections, personName, personArea, openPersonArea } = useWorkflow();
   const [stammdatenOpen, setStammdatenOpen] = useState(true);
   return (
     <aside className="pp-side">
       <header className="pp-side-head">
         <span className="pp-side-glyph">
-          <IdCardIcon />
+          <Icon src={a.moduleProfile} size={24} />
         </span>
         <span className="pp-side-title">
           <strong>Profil</strong>
@@ -273,12 +274,17 @@ function Sidebar() {
       {SIDE_AREAS.map((area) => (
         <button
           type="button"
-          className={area.label === "Inkasso" && personArea === "inkasso" ? "pp-area open" : "pp-area"}
+          className={
+            (area.label === "Inkasso" && personArea === "inkasso") ||
+            (area.label === "Maklermandat" && personArea === "maklermandat")
+              ? "pp-area open"
+              : "pp-area"
+          }
           key={area.label}
           onClick={
             area.label === "Inkasso"
               ? () => openPersonArea("inkasso")
-              : filePartnerId === "ashley" && area.label === "Maklermandat"
+              : area.label === "Maklermandat"
                 ? () => openPersonArea("maklermandat")
                 : undefined
           }
@@ -297,7 +303,7 @@ function Sidebar() {
 /** The partner at a glance, next to the note and the Plausibilitäts-Check. */
 function IdentityStrip() {
   const { filePartnerId } = useWorkflow();
-  const file = FILE_PARTNERS[filePartnerId];
+  const file = getPartner(filePartnerId);
   const plausi = filePartnerId === "ashley" ? ASHLEY_PLAUSI : PLAUSI;
 
   return (
@@ -354,7 +360,7 @@ export function PersonPage() {
   } = useWorkflow();
   const { links, unlinkLink } = useFamilyLinks();
   const konzern = useKonzernLinks();
-  const isCompanyFile = FILE_PARTNERS[filePartnerId].fileKind === "company";
+  const isCompanyFile = getPartner(filePartnerId).fileKind === "company";
   const partyKind: PartyKind = isCompanyFile ? "company" : "person";
   const familyCards = isCompanyFile ? [] : familyOverviewCards(filePartnerId, links);
   const konzernCards = konzernOverviewCards(filePartnerId, partyKind, konzern.groups, konzern.links);
@@ -434,7 +440,7 @@ export function PersonPage() {
             <Sidebar />
             <InkassoMain />
           </div>
-        ) : filePartnerId === "ashley" && personArea !== "stammdaten" ? (
+        ) : personArea === "maklermandat" ? (
           <MaklermandatPage />
         ) : (
         <div className="pp-body">
@@ -512,17 +518,20 @@ export function PersonPage() {
                       );
                     })
                   ) : (
-                    <div className={empty ? "pp-cards center" : "pp-cards"}>
-                      {section.cards.map((card) => (
-                        <DataCard
-                          card={card}
-                          key={card.id}
-                          onEdit={() => openStammdaten(area, card.id)}
-                          onDelete={() => setPendingDelete({ area, card })}
-                          onAdd={() => openStammdaten(area)}
-                        />
-                      ))}
-                    </div>
+                    <>
+                      <div className={empty ? "pp-cards center" : "pp-cards"}>
+                        {section.cards.map((card) => (
+                          <DataCard
+                            card={card}
+                            key={card.id}
+                            onEdit={() => openStammdaten(area, card.id)}
+                            onDelete={() => setPendingDelete({ area, card })}
+                            onAdd={() => openStammdaten(area)}
+                          />
+                        ))}
+                      </div>
+                      {section.id === "wirtschaftsdaten" ? <WicoDeviationBox /> : null}
+                    </>
                   )}
                 </section>
               );

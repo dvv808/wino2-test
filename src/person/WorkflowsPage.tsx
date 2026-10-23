@@ -13,7 +13,7 @@ import {
   type RequestRow,
   type RequestStatus,
 } from "../manager/requests";
-import { FILE_PARTNERS } from "./partners";
+import { getPartner } from "./partners";
 import { ContextMenu, Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 
@@ -294,7 +294,7 @@ export function WorkflowsPage() {
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const [tab, setTab] = useState<ListTab>("workflows");
 
-  const file = FILE_PARTNERS[filePartnerId];
+  const file = getPartner(filePartnerId);
   const stammdatenRows = liveStammdatenDraftRows({
     sections,
     partner: { name: personName, meta: file.born, kind: "person" },

@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import * as a from "../assets/index";
 import { ContextMenu, Icon } from "../ui";
 import type { Block, Card, Empty, Row, Value } from "./stammdaten";
@@ -50,7 +51,7 @@ function ValueCell({ value, className }: { value: Value; className?: string }) {
   return (
     <span className={className ? `${className} pp-entity` : "pp-entity"}>
       <span className="pp-entity-copy">
-        <span className="chip">{value.tag}</span>
+        {value.tag ? <span className={chipClass(value.tag)}>{value.tag}</span> : null}
         <strong>{value.name}</strong>
         <small>{value.sub}</small>
       </span>
@@ -163,7 +164,7 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
   if (block.kind === "person") {
     const was = previous?.kind === "person" ? previous : undefined;
     const changed = Boolean(was && (was.name !== block.name || was.sub !== block.sub || was.tag !== block.tag));
-    return (
+    const body = (
       <div className="pp-person">
         <span className="pp-person-avatar">
           <img src={a.avatarBg} alt="" width={32} height={32} />
@@ -185,6 +186,15 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
         <Icon src={a.openTab} size={18} />
       </div>
     );
+    if (block.caption) {
+      return (
+        <div className="pp-badge-wrap">
+          <span className="pp-caption">{block.caption}</span>
+          {body}
+        </div>
+      );
+    }
+    return body;
   }
 
   if (block.kind === "badge") {
@@ -312,6 +322,7 @@ export function DataCard({
   onDelete,
   onAdd,
   full,
+  headerExtra,
   deleteLabel = "Löschen",
   deleteIcon = a.trash,
 }: {
@@ -322,6 +333,7 @@ export function DataCard({
   onDelete?: () => void;
   onAdd?: () => void;
   full?: boolean;
+  headerExtra?: ReactNode;
   deleteLabel?: string;
   deleteIcon?: string;
 }) {
@@ -355,20 +367,23 @@ export function DataCard({
           )}
           {card.draft ? <span className="chip draft">Entwurf</span> : null}
         </span>
-        {onEdit || onDelete ? (
-          <ContextMenu
-            items={[
-              ...(onEdit ? [{ label: "Editieren", icon: a.menuEdit, onSelect: onEdit }] : []),
-              ...(onDelete
-                ? [{ label: deleteLabel, icon: deleteIcon, danger: true, onSelect: onDelete }]
-                : []),
-            ]}
-          />
-        ) : (
-          <span className="pp-card-menu" aria-hidden="true">
-            <img src={a.contextMenu} alt="" width={18} height={18} />
-          </span>
-        )}
+        <span className="pp-card-actions">
+          {headerExtra}
+          {onEdit || onDelete ? (
+            <ContextMenu
+              items={[
+                ...(onEdit ? [{ label: "Editieren", icon: a.menuEdit, onSelect: onEdit }] : []),
+                ...(onDelete
+                  ? [{ label: deleteLabel, icon: deleteIcon, danger: true, onSelect: onDelete }]
+                  : []),
+              ]}
+            />
+          ) : (
+            <span className="pp-card-menu" aria-hidden="true">
+              <img src={a.contextMenu} alt="" width={18} height={18} />
+            </span>
+          )}
+        </span>
       </header>
 
       <div className="pp-card-body" style={clamp && card.clampTo ? { maxHeight: card.clampTo - 90 } : undefined}>
@@ -379,7 +394,16 @@ export function DataCard({
 
       {clamp ? (
         <footer className="pp-card-more">
-          <a href="#daten">Alle Daten anzeigen</a>
+          <a
+            href="#daten"
+            onClick={(event) => {
+              if (!onSelect) return;
+              event.preventDefault();
+              onSelect();
+            }}
+          >
+            Alle Daten anzeigen
+          </a>
         </footer>
       ) : null}
     </article>

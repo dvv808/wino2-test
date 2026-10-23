@@ -381,6 +381,76 @@ export function blankFileVersions(
 
 export const ASHLEY_VERSIONS: PersonVersion[] = blankFileVersions("Ashley", "Johnson", "partner-ashley", "a01");
 
+export const WICO_DEVIATION_FIELD = "Abweichende Daten · WICO";
+
+export function wicoDeviationHistoryEntry({
+  id,
+  number,
+  kind,
+  date,
+  time,
+  from,
+  to,
+  vorname,
+  nachname,
+  editor = EDITOR_ADVISOR,
+}: {
+  id: string;
+  number: number;
+  kind: HistoryKind;
+  date: string;
+  time: string;
+  from?: string;
+  to: string;
+  vorname: string;
+  nachname: string;
+  editor?: HistoryEditor;
+}): PersonVersion {
+  return {
+    id,
+    number,
+    legal: false,
+    kind,
+    date,
+    time,
+    field: WICO_DEVIATION_FIELD,
+    from,
+    to,
+    placeLabel: "Stammdaten · Wirtschaftsdaten",
+    place: { app: "stammdaten", area: "wirtschaftsdaten" },
+    editor,
+    vorname,
+    nachname,
+  };
+}
+
+/** Lunixo starts with one lifted Abweichung so Verlauf already has an old entry. */
+export function lunixoVersions(): PersonVersion[] {
+  return [
+    ...blankFileVersions("Lunixo", "AG", "partner-lunixo", "lunixo-v1"),
+    wicoDeviationHistoryEntry({
+      id: "lunixo-wico-1",
+      number: 1,
+      kind: "added",
+      date: "08.10.2026",
+      time: "10:22",
+      to: "Mitarbeiterzahl weicht vom aktuellen WICO-Stand ab.",
+      vorname: "Lunixo",
+      nachname: "AG",
+    }),
+    wicoDeviationHistoryEntry({
+      id: "lunixo-wico-2",
+      number: 1,
+      kind: "removed",
+      date: "14.10.2026",
+      time: "16:05",
+      to: "Mitarbeiterzahl weicht vom aktuellen WICO-Stand ab.",
+      vorname: "Lunixo",
+      nachname: "AG",
+    }),
+  ];
+}
+
 export function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("de-AT");
 }

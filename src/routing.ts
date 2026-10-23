@@ -1,4 +1,4 @@
-import { FILE_PARTNERS, PARTNER_BY_SLUG, type PartnerId } from "./person/partners";
+import { PARTNER_BY_SLUG, getPartner, type PartnerId } from "./person/partners";
 import type { StammdatenAreaId } from "./person/stammdaten";
 import { STAMMDATEN_AREAS } from "./person/stammdaten";
 import type { StepId, View, WorkflowPane } from "./workflow";
@@ -10,20 +10,20 @@ export type PersonArea = "stammdaten" | "maklermandat" | "inkasso";
 
 /**
  * URLs mirror the app's nesting: the open person tab, the open workflow tab, then the page.
- * Maklervereinbarung always hangs off Julia; Ashley only has a person file.
+ * Maklervereinbarung hangs off the partner who opened it.
  */
 const WORKFLOW = "maklervereinbarung";
 const MANAGER = "bestandsmanager/freigaben";
 const FINANZEN = "bestandsmanager/finanzen";
 /** The profile page opens on Stammdaten; Ashley's file opens on Maklermandat. */
 const PERSON_AREA = "stammdaten";
-const ASHLEY_AREA = "maklermandat";
+const MAKLERMANDAT_AREA = "maklermandat";
 const INKASSO_AREA = "inkasso";
 const PERSON_WORKFLOWS = "workflows-to-dos";
 const STAMMDATEN_WORKFLOW = "stammdaten-workflow";
 
 function personRoot(partnerId: PartnerId = "julia") {
-  return `person/${FILE_PARTNERS[partnerId].slug}`;
+  return `person/${getPartner(partnerId).slug}`;
 }
 
 const STEP_SLUGS: Record<StepId, string> = {
@@ -132,7 +132,7 @@ export function routeToHash({
     const root = personRoot(partnerId);
     if (personModule === "workflows") return `#/${root}/${PERSON_WORKFLOWS}`;
     if (personArea === "inkasso") return `#/${root}/${INKASSO_AREA}`;
-    if (partnerId === "ashley" && personArea !== "stammdaten") return `#/${root}/${ASHLEY_AREA}`;
+    if (personArea === "maklermandat") return `#/${root}/${MAKLERMANDAT_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
   if (view === "meinBereich") return "#/mein-bereich";
@@ -149,9 +149,9 @@ export function routeToHash({
   if (view === "freigabe" && freigabeId) return `#/${MANAGER}/${freigabeId}`;
   if (view === "manager" || view === "freigabe") return `#/${MANAGER}`;
   const pane = workflowPane && workflowPane !== "workflow" ? PANE_SLUGS[workflowPane] : null;
-  if (pane) return `#/${personRoot("julia")}/${WORKFLOW}/${pane}`;
+  if (pane) return `#/${personRoot(partnerId)}/${WORKFLOW}/${pane}`;
   const slug = STEP_SLUGS[activeStep ?? "tasks"];
-  return `#/${personRoot("julia")}/${WORKFLOW}/${slug}`;
+  return `#/${personRoot(partnerId)}/${WORKFLOW}/${slug}`;
 }
 
 export function hashToRoute(hash: string): Route {
@@ -200,12 +200,12 @@ export function hashToRoute(hash: string): Route {
       partnerId: partnerOf(parts),
       personModule: "profil",
       personArea:
-        parts[2] === INKASSO_AREA ? "inkasso" : parts[2] === ASHLEY_AREA ? "maklermandat" : "stammdaten",
+        parts[2] === INKASSO_AREA ? "inkasso" : parts[2] === MAKLERMANDAT_AREA ? "maklermandat" : "stammdaten",
     };
   }
   const last = parts[parts.length - 1] ?? "";
   const pane = PANE_BY_SLUG.get(last);
-  if (pane) return { view: "workflow", partnerId: "julia", workflowPane: pane };
+  if (pane) return { view: "workflow", partnerId: partnerOf(parts), workflowPane: pane };
   const step = STEP_BY_SLUG.get(last);
-  return { view: "workflow", partnerId: "julia", activeStep: step ?? "tasks", workflowPane: "workflow" };
+  return { view: "workflow", partnerId: partnerOf(parts), activeStep: step ?? "tasks", workflowPane: "workflow" };
 }
