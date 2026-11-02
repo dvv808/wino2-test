@@ -1,12 +1,29 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as a from "./assets/index";
-import { FILE_PARTNERS, getPartner, kindLabel, partnerKindText } from "./person/partners";
+import { getPartner } from "./person/partners";
 import { partyName } from "./person/konzernLinks";
 import { liveFileIdentity } from "./person/stammdaten";
 import { Icon } from "./ui";
-import { useWorkflow, type WorkflowPane } from "./workflow";
+import { MANAGEMENT_VIEWS, useWorkflow, type WorkflowPane } from "./workflow";
 
-const APPS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
+export const APPS = ["Person", "Verträge", "Schäden", "Angebote"];
+
+/**
+ * A parked tab opens wherever it is clicked, not only on its name: a click on the tab that misses its buttons
+ * runs the tab's own open button. The × keeps closing.
+ */
+export function useParkedTabClicks() {
+  useEffect(() => {
+    function onClick(event: MouseEvent) {
+      const target = event.target as HTMLElement;
+      const tab = target.closest(".main-nav .person-tab.inactive");
+      if (!tab || target.closest("button, [role='button']")) return;
+      tab.querySelector<HTMLButtonElement>(".person-tab-open")?.click();
+    }
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
+}
 
 /** Open partner files in the main nav. The current file is the dark tab; others stay parked beside it. */
 export function FileTabs() {
@@ -20,7 +37,9 @@ export function FileTabs() {
     openPerson,
     finanzenProfileOpen,
     closeFinanzenProfile,
-    leaveManager,
+    managementOpen,
+    openManagement,
+    closeManagement,
     konzernHubId,
     activateKonzernHub,
     closeKonzernHub,
@@ -29,15 +48,15 @@ export function FileTabs() {
   return (
     <>
       {openFileIds.map((id) => {
-        const active = view !== "konzernHub" && id === filePartnerId;
+        // On Home, Management or Mein Bereich every partner tab is parked; only a partner view has an active one.
+        const active =
+          id === filePartnerId && view !== "konzernHub" && view !== "home" && view !== "meinBereich" && !MANAGEMENT_VIEWS.includes(view);
         const name = active ? personName : getPartner(id).name;
         const tabIcon = getPartner(id).fileKind === "company" ? a.company : a.person;
         if (active) {
           const closeActive = () => {
-            if (openFileIds.length > 1) closeFile(id);
-            else if (view === "workflow") return;
-            else if (finanzenProfileOpen) closeFinanzenProfile();
-            else leaveManager();
+            if (openFileIds.length === 1 && finanzenProfileOpen) closeFinanzenProfile();
+            else closeFile(id);
           };
           const closeControl =
             view === "stammdaten" || view === "workflow" ? (
@@ -124,6 +143,26 @@ export function FileTabs() {
           </div>
         )
       ) : null}
+      {managementOpen && !finanzenProfileOpen && !MANAGEMENT_VIEWS.includes(view) ? (
+        <div className="person-tab inactive" key="management">
+          <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+          <span className="person-tab-body mgmt-tab">
+            <span className="mgmt-icon">
+              <img src={a.mgmtAreaShelf} alt="" />
+              <img src={a.mgmtAreaPerson} alt="" />
+            </span>
+            <button type="button" className="mgmt-tab-copy person-tab-open" onClick={openManagement}>
+              Management
+              <br />
+              Winter Vers.
+            </button>
+            <button type="button" className="close-icon" aria-label="Management schließen" onClick={closeManagement}>
+              <img src={a.iconClose} alt="" width={18} height={18} />
+            </button>
+          </span>
+          <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+        </div>
+      ) : null}
     </>
   );
 }
@@ -149,87 +188,22 @@ export function MeinBereichTab() {
   );
 }
 
+/** The Wino logo opens the home area (Planner, Kommunikation, Bestand, Wissen). */
 export function LogoButton() {
-  const { openPartner, ashleyConverted, extraPartners, openPartnerCreate } = useWorkflow();
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function away(event: MouseEvent) {
-      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", escape);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", escape);
-    };
-  }, [open]);
-
-  const links = [
-    { id: "julia" as const, label: `${FILE_PARTNERS.julia.name} (${kindLabel("interessent")})` },
-    {
-      id: "ashley" as const,
-      label: ashleyConverted
-        ? `${FILE_PARTNERS.ashley.name} (${kindLabel("interessent")})`
-        : `${FILE_PARTNERS.ashley.name} (Einfache Person)`,
-    },
-    { id: "lunixo" as const, label: `${FILE_PARTNERS.lunixo.name} (${kindLabel("interessent")})` },
-    { id: "lunixo-holding" as const, label: `${FILE_PARTNERS["lunixo-holding"].name} (${kindLabel("interessent")})` },
-    {
-      id: "lunixo-immobilien" as const,
-      label: `${FILE_PARTNERS["lunixo-immobilien"].name} (${kindLabel("interessent")})`,
-    },
-    ...extraPartners.map((partner) => ({
-      id: partner.id,
-      label: `${partner.name} (${partnerKindText(partner.kind)})`,
-    })),
-  ];
+  const { view, openHome } = useWorkflow();
 
   return (
-    <div className="logo-menu" ref={wrapRef}>
+    <div className="logo-menu">
       <button
         type="button"
-        className="logo-btn"
-        aria-label="Wino"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        className={view === "home" ? "logo-btn active" : "logo-btn"}
+        aria-label="Wino Home"
+        aria-current={view === "home" ? "page" : undefined}
+        onClick={() => openHome()}
       >
         <Icon src={a.logoGlow} size={52} className="glow" />
         <Icon src={a.logoMark} size={34} className="mark" />
       </button>
-      {open ? (
-        <div className="logo-pop">
-          {links.map((link) => (
-            <button
-              type="button"
-              key={link.id}
-              onClick={() => {
-                openPartner(link.id);
-                setOpen(false);
-              }}
-            >
-              {link.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="logo-pop-create"
-            onClick={() => {
-              openPartnerCreate();
-              setOpen(false);
-            }}
-          >
-            Partner anlegen
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function reminderCandidates(state: HonorarState, monthId: string) {
 export function isOpenItemFee(state: HonorarState, fee: Fee) {
   if (fee.hiddenOpen || fee.settledVia || fee.paymentStatus === "paid") return false;
   if (fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op") return true;
-  return fee.invoiceStatus === "sent" && fee.month < state.today.slice(0, 7);
+  return fee.invoiceStatus === "sent" && fee.month < state.today.slice(0, 7) && fee.dueDate < state.today;
 }
 
 /**
@@ -55,6 +55,42 @@ export function rechnungOverdue(fees: Fee[]) {
       fee.paymentMethod === "Rechnung" &&
       (fee.paymentStatus === "unpaid" || fee.paymentStatus === "handed_to_op" || Boolean(fee.reminderSentAt)),
   );
+}
+
+/** The four Rechnungsversand steps of a month, in order. */
+export const RECHNUNGSVERSAND_STEPS = ["data", "carrier", "dispatch", "reminders"] as const;
+export type RechnungsversandStep = (typeof RECHNUNGSVERSAND_STEPS)[number];
+
+/** Which Rechnungsversand steps of a month are finished. */
+export function rechnungsversandDone(state: HonorarState, monthId: string): Record<RechnungsversandStep, boolean> {
+  const month = monthOf(state, monthId);
+  if (!month) return { data: false, carrier: false, dispatch: false, reminders: false };
+  // A SEPA-Lastschrift never goes through the invoice dispatch (mail/post).
+  const dispatchFees = feesOfMonth(state, monthId).filter((fee) => fee.paymentMethod !== "Abbucher");
+  const overdue = reminderCandidates(state, monthId);
+  return {
+    data: month.steps.data,
+    carrier: month.steps.dataCarrier,
+    dispatch: month.steps.dispatch || (dispatchFees.length > 0 && dispatchFees.every((fee) => fee.invoiceStatus === "sent")),
+    reminders: month.closed || (overdue.length > 0 && overdue.every((fee) => fee.reminderSentAt)),
+  };
+}
+
+/** A fee is settled once it is paid in full (not over) or closed through Inkasso. */
+export function feeSettled(fee: Fee) {
+  return Boolean(fee.settledVia) || (fee.paymentStatus === "paid" && fee.paid <= fee.amount);
+}
+
+/** Status of a month is done when every invoice of the month is settled. */
+export function monthStatusDone(state: HonorarState, monthId: string) {
+  const fees = feesOfMonth(state, monthId);
+  return fees.length > 0 && fees.every(feeSettled);
+}
+
+/** A month is finished only when Rechnungsversand is through and nothing of the month is still open. */
+export function monthFinished(state: HonorarState, monthId: string) {
+  const done = rechnungsversandDone(state, monthId);
+  return RECHNUNGSVERSAND_STEPS.every((step) => done[step]) && monthStatusDone(state, monthId);
 }
 
 export function previousFees(state: HonorarState, monthId: string) {

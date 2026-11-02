@@ -112,8 +112,13 @@ export function HonorarView() {
     personName,
     openPerson,
     closeFinanzenProfile,
+    rechnungFeeId,
+    openRechnungWorkflow,
+    closeRechnungWorkflow,
   } = useWorkflow();
   const [history, setHistory] = useState(false);
+  const workflowFee = rechnungFeeId ? state.fees.find((fee) => fee.id === rechnungFeeId) : undefined;
+  const workflowPartner = workflowFee ? state.partners.find((partner) => partner.id === workflowFee.partnerId)?.name : undefined;
   const dashboard = finanzenPage === "sammelfaktura";
   const monthEntries = state.history.filter(
     (entry) =>
@@ -135,20 +140,27 @@ export function HonorarView() {
     <div className="app">
       <div className="shell">
         <BestandMainNav
-          {...(finanzenProfileOpen
+          {...(workflowPartner && rechnungFeeId
             ? {
-                partner: personName,
-                onOpenPartner: openPerson,
-                onClosePartner: closeFinanzenProfile,
+                // An open invoice workflow parks its partner tab here; clicking it goes back to the workflow.
+                partner: workflowPartner,
+                onOpenPartner: () => openRechnungWorkflow(rechnungFeeId),
+                onClosePartner: closeRechnungWorkflow,
               }
-            : {})}
+            : finanzenProfileOpen
+              ? {
+                  partner: personName,
+                  onOpenPartner: openPerson,
+                  onClosePartner: closeFinanzenProfile,
+                }
+              : {})}
         />
         <FinanzenAreaNav />
         <FinanzenModuleNav />
         <div className="content-shell bestand-body">
           <HonorarSidebar />
           <div className="hn-main">
-            {finanzenPage === "month" ? <HonorarStepper /> : null}
+            {finanzenPage === "month" && finanzenStep !== "status" ? <HonorarStepper /> : null}
             {finanzenPage === "month" && finanzenStep === "status" ? (
               <StatusStep />
             ) : null}
@@ -157,9 +169,6 @@ export function HonorarView() {
             ) : null}
             {finanzenPage === "month" && finanzenStep === "carrier" ? (
               <CarrierStep />
-            ) : null}
-            {finanzenPage === "month" && finanzenStep === "abbucher" ? (
-              <StatusStep mode="abbucher" />
             ) : null}
             {finanzenPage === "month" && finanzenStep === "dispatch" ? (
               <DispatchStep />

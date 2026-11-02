@@ -20,7 +20,8 @@ export type CorrectionStatus = "draft" | "in_approval" | "reset" | "approved";
 
 export type HonorarRole = "backoffice" | "advisor" | "head" | "approver";
 
-export type HonorarStepKey = "status" | "data" | "carrier" | "abbucher" | "dispatch" | "reminders";
+/** "status" is the month's Status page; the other four are the Rechnungsversand steps. */
+export type HonorarStepKey = "status" | "data" | "carrier" | "dispatch" | "reminders";
 
 export type FinanzenPage = "month" | "sammelfaktura" | "openItems" | "singleInvoices" | "inkasso" | "meinBereich";
 
@@ -57,6 +58,8 @@ export interface Fee {
   /** One-time mail address for this invoice. The partner's own address stays untouched. */
   mailTo?: string;
   paymentStatus: PaymentStatus;
+  /** Zahlungseingang: when the payment arrived (YYYY-MM-DD). */
+  paidAt?: string;
   /** Set once a payment reminder (Zahlungserinnerung) went out for this invoice. */
   reminderSentAt?: string;
   paymentReason?: PaymentReason;
@@ -72,6 +75,38 @@ export interface Fee {
   hiddenOpen?: boolean;
   /** Settled through Inkasso (Gutschrift or new Zahlungsziel): counts as done in Offene Posten. */
   settledVia?: "credit" | "due_date";
+  /** Rechnungskorrektur of this invoice (Info zur Rechnung). */
+  correction?: InvoiceCorrection;
+}
+
+export type InvoiceCorrectionKind = "Zahlungsziel ändern" | "Teilgutschrift" | "Vollgutschrift" | "Doch bezahlt";
+
+/** The workflows that can be started for one invoice from Info zur Rechnung. */
+export type InvoiceWorkflowType = "Gutschrift" | "Zahlungsziel anpassen" | "Doch bezahlt markieren" | "Rechnungskorrektur";
+
+/**
+ * Workflow of one invoice: Kundenberater fills in the Antrag, Bestandsmanager approves or rejects it,
+ * Honorarverwalter books it (as Einzelfaktura, or as paid).
+ */
+export interface InvoiceCorrection {
+  workflow: InvoiceWorkflowType;
+  startedBy: string;
+  startedAt: string;
+  kind: InvoiceCorrectionKind;
+  /** Teilgutschrift only. */
+  amount?: number;
+  /** Zahlungsziel ändern only (YYYY-MM-DD). */
+  dueDate?: string;
+  reason: string;
+  /** entwurf: started, Antrag not sent yet. abgelehnt: back with the Kundenberater for a new Antrag. */
+  status: "entwurf" | "beantragt" | "freigegeben" | "abgelehnt" | "verbucht";
+  requestedBy?: string;
+  requestedAt?: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionComment?: string;
+  bookedBy?: string;
+  bookedAt?: string;
 }
 
 export interface Month {
@@ -138,7 +173,7 @@ export interface HonorarNotice {
   createdAt: string;
   read: boolean;
   /** Notices saved before the widget existed have no kind and show as "openItems". */
-  kind?: "openItems" | "advisor";
+  kind?: "openItems" | "advisor" | "workflow";
   title?: string;
   subject?: string;
   feeId?: string;

@@ -59,8 +59,11 @@ export type SignMode = "upload" | "digital";
  * The workflow and the Bestandsmanager are two separate workspaces. From the
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich" | "konzernHub";
+/** "rechnung" is the workflow of one invoice (Gutschrift, Zahlungsziel, ...), opened from Info zur Rechnung. */
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
+/** Views that belong to the Management tab. */
+export const MANAGEMENT_VIEWS: View[] = ["manager", "freigabe", "finanzen", "rechnung"];
 /** Only these two steps need a Freigabe from the Bestandsmanager. */
 export type ApprovalStep = Extract<StepId, "docs" | "sign">;
 export type RequestStamp = { date: string; time: string };
@@ -292,6 +295,8 @@ function useWorkflowState() {
   const [pdfOpen, setPdfOpen] = useState(false);
 
   const [view, setView] = useState<View>(initialRoute.view);
+  /** Fee whose invoice workflow is open beside its partner tab. */
+  const [rechnungFeeId, setRechnungFeeId] = useState<string | null>(initialRoute.rechnungFeeId ?? null);
   /** The view that was open before "Mein Bereich"; its tab stays open next to it. */
   /** Whose Forderungen the Inkasso area lists: the Honorar partner the user came from ("" = the first open one). */
   const [inkassoPartnerId, setInkassoPartnerId] = useState("");
@@ -299,6 +304,14 @@ function useWorkflowState() {
   /** "Mein Bereich" is a tab of its own that stays open next to the others until it is closed. */
   const [meinBereichOpen, setMeinBereichOpen] = useState(initialRoute.view === "meinBereich");
   const [meinBereichNav, setMeinBereichNav] = useState({ area: "Mein Bereich", page: "Dashboard" });
+  /** The home area behind the logo: Planner, Kommunikation, Bestand, Wissen. */
+  const [homeFrom, setHomeFrom] = useState<View | null>(null);
+  /** Management (Bestandsmanager, Finanzen) is a tab like the partner files: it stays in the header until it is closed. */
+  const [managementOpen, setManagementOpen] = useState(MANAGEMENT_VIEWS.includes(initialRoute.view ?? "person"));
+  const [lastManagementView, setLastManagementView] = useState<View>(
+    MANAGEMENT_VIEWS.includes(initialRoute.view ?? "person") ? (initialRoute.view as View) : "manager",
+  );
+  const [homeNav, setHomeNav] = useState({ area: "Planner", page: "Workflows & To-Dos" });
   /** The right-hand widget bar, switched on from the profile menu. */
   const [widgetOn, setWidgetOn] = useState(() => localStorage.getItem(WIDGET_KEY) === "1");
   useEffect(() => {
@@ -461,6 +474,7 @@ function useWorkflowState() {
       finanzenStep,
       finanzenPartnerId,
       finanzenYear,
+      rechnungFeeId: rechnungFeeId ?? undefined,
     });
     if (window.location.hash === next) {
       hashWritten.current = true;
@@ -485,6 +499,7 @@ function useWorkflowState() {
     finanzenStep,
     finanzenPartnerId,
     finanzenYear,
+    rechnungFeeId,
   ]);
 
   useEffect(() => {
@@ -501,6 +516,7 @@ function useWorkflowState() {
       if (route.partnerId) setFilePartnerId(route.partnerId);
       setKonzernHubId(route.konzernHubId ?? null);
       if (route.view === "workflow") setMaklerOpen(true);
+      if (route.view === "rechnung" && route.rechnungFeeId) setRechnungFeeId(route.rechnungFeeId);
       if (route.view === "finanzen") {
         setFinanzenPage(route.finanzenPage ?? "month");
         if (route.finanzenMonth) setFinanzenMonth(route.finanzenMonth);
@@ -685,10 +701,11 @@ function useWorkflowState() {
     });
   }
 
+  /** Opens a partner as a tab. A freshly opened partner starts on its Dashboard. */
   function openPartner(id: PartnerId) {
     ensureFileTab(id);
     setFilePartnerId(id);
-    setPersonModule("profil");
+    setPersonModule("dashboard");
     setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
     setVersionHistoryOpen(false);
     setView("person");
@@ -732,6 +749,9 @@ function useWorkflowState() {
         if (konzernHubFrom === "stammdaten") setView("stammdaten");
         else if (konzernHubFrom && konzernHubFrom !== "konzernHub") setView(konzernHubFrom);
         else setView("person");
+      } else if (view !== "person" && view !== "stammdaten" && view !== "workflow") {
+        // From Home or Management: back into the file that is already current.
+        setView(fileAreas[id] ? "stammdaten" : "person");
       }
       return;
     }
@@ -747,6 +767,28 @@ function useWorkflowState() {
     setView("person");
   }
 
+  /** Closes a partner tab that is parked beside Management, without leaving Management. */
+  function dropFileTab(id: PartnerId) {
+    setOpenFileIds((ids) => ids.filter((entry) => entry !== id));
+    setFileAreas((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }
+
+  /** The last partner tab was closed: no file stays open and Home takes over (unsaved Stammdaten ask first). */
+  function closeAllFiles() {
+    if (view === "stammdaten" && hasStammdatenDrafts()) {
+      leaveManager();
+      return;
+    }
+    setOpenFileIds([]);
+    setFileAreas({});
+    openHome();
+    setHomeFrom(null);
+  }
+
   function closeFile(id: PartnerId) {
     const remaining = openFileIds.filter((entry) => entry !== id);
     setOpenFileIds(remaining.length ? remaining : openFileIds);
@@ -758,7 +800,7 @@ function useWorkflowState() {
     if (id !== filePartnerId) return;
     const fallback = remaining[remaining.length - 1];
     if (!fallback) {
-      leaveManager();
+      closeAllFiles();
       return;
     }
     const area = fileAreas[fallback];
@@ -791,6 +833,18 @@ function useWorkflowState() {
     setFinanzenProfileOpen(true);
     setView("person");
     window.setTimeout(() => document.getElementById("bankverbindungen")?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+  }
+
+  /** Opens the workflow of one invoice beside its partner tab (one invoice workflow at a time). */
+  function openRechnungWorkflow(feeId: string) {
+    setRechnungFeeId(feeId);
+    setView("rechnung");
+  }
+
+  /** Closes the invoice workflow tab and its partner tab; the workflow itself keeps its state. */
+  function closeRechnungWorkflow() {
+    setRechnungFeeId(null);
+    if (view === "rechnung") setView("finanzen");
   }
 
   /** Back to the Forderungen tab, the parked profile tab stays open. */
@@ -1265,6 +1319,42 @@ function useWorkflowState() {
     setView("manager");
   }
 
+  // Entering any Management view opens (or keeps) the Management tab and remembers where it was.
+  useEffect(() => {
+    if (!MANAGEMENT_VIEWS.includes(view)) return;
+    setManagementOpen(true);
+    setLastManagementView(view);
+  }, [view]);
+
+  /** Back to the parked Management tab, on the page it was left on. */
+  function openManagement() {
+    if (lastManagementView === "freigabe" && !freigabeId) setView("manager");
+    else if (lastManagementView === "rechnung" && !rechnungFeeId) setView("finanzen");
+    else setView(lastManagementView);
+  }
+
+  /** Closes the Management tab only; the partner tabs stay. Without any, Home takes over. */
+  function closeManagement() {
+    setManagementOpen(false);
+    setFinanzenProfileOpen(false);
+    if (!MANAGEMENT_VIEWS.includes(view)) return;
+    if (openFileIds.length) setView("person");
+    else openHome();
+  }
+
+  /** The home area behind the logo. The tab that was open before stays in the header. */
+  function openHome(area?: string, page?: string) {
+    if (area && page) setHomeNav({ area, page });
+    if (view !== "home") setHomeFrom(view);
+    setFreigabeId(null);
+    setReviewStep(null);
+    setView("home");
+  }
+
+  function leaveHome() {
+    setView(homeFrom && homeFrom !== "home" ? homeFrom : "manager");
+  }
+
   /** The personal area behind the profile menu ("Mein Bereich"). */
   function openMeinBereich() {
     if (view !== "meinBereich") setMeinBereichFrom(view);
@@ -1411,6 +1501,14 @@ function useWorkflowState() {
     leaveManager,
     openManager,
     inkassoPartnerId,
+    homeFrom,
+    homeNav,
+    managementOpen,
+    openManagement,
+    closeManagement,
+    setHomeNav,
+    openHome,
+    leaveHome,
     meinBereichFrom,
     meinBereichOpen,
     meinBereichNav,
@@ -1423,6 +1521,9 @@ function useWorkflowState() {
     openFinanzen,
     openFinanzenStep,
     openFinanzenInkasso,
+    rechnungFeeId,
+    openRechnungWorkflow,
+    closeRechnungWorkflow,
     openSammelfaktura,
     finanzenYear,
     finanzenPage,
@@ -1450,6 +1551,7 @@ function useWorkflowState() {
     activateFile,
     closeFile,
     openPartnerInkasso,
+    dropFileTab,
     openPartnerBank,
     finanzenProfileOpen,
     backToFinanzen,

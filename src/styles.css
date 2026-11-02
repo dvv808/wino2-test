@@ -17,6 +17,8 @@
   --wino-canvas: #d8e0e6;
   --font: "Fira Sans", "Helvetica Neue", sans-serif;
   --font-display: "Syncopate", sans-serif;
+  /* Room reserved on the right for the widget bar: 0 when it is off (see body.widget-on). */
+  --widget-space: 0px;
 }
 
 *,
@@ -57,11 +59,13 @@ img {
   min-height: 100vh;
   background: var(--wino-bg-lighter);
   padding: 16px 24px 24px;
+  /* The page always fills the screen; the widget bar only takes its width off the right side. */
+  padding-right: calc(24px + var(--widget-space));
+  transition: padding-right 0.25s ease;
 }
 
 .shell {
-  max-width: 1872px;
-  margin: 0 auto;
+  min-width: 0;
   background: linear-gradient(180deg, #313537 0%, #444f56 40%);
   border-radius: 24px 24px 16px 16px;
   overflow: hidden;
@@ -112,6 +116,12 @@ img {
 
 .logo-btn .icon {
   position: absolute;
+}
+
+/* Home is open: the logo sits in a tab that runs into the area bar below, like the other active tabs. */
+.logo-btn.active {
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, #3d4245 0%, var(--wino-black-medium) 100%);
 }
 
 .logo-btn .glow {
@@ -2859,7 +2869,8 @@ input.text-field {
 }
 
 .fg-tab.active .icon img {
-  filter: none;
+  /* Active tabs are dark: every icon turns white, whatever colour its file is. */
+  filter: brightness(0) invert(1);
 }
 
 .freigaben-stats {
@@ -2943,13 +2954,14 @@ input.text-field {
 
 /* Request table */
 .req-table {
-  --col-partner: 314px;
-  --col-type: 141px;
-  --col-art: 258px;
-  --col-req: 201px;
-  --col-date: 118px;
-  --col-status: 243px;
-  --col-comment: 196px;
+  /* Figma widths are the minimum; extra screen width is shared out in the same proportions. */
+  --col-partner: minmax(314px, 314fr);
+  --col-type: minmax(141px, 141fr);
+  --col-art: minmax(258px, 258fr);
+  --col-req: minmax(201px, 201fr);
+  --col-date: minmax(118px, 118fr);
+  --col-status: minmax(243px, 243fr);
+  --col-comment: minmax(196px, 196fr);
   margin-top: 18px;
   min-width: 1482px;
 }
@@ -9276,35 +9288,6 @@ body.historical-version .shell {
   background: var(--wino-bg-darker);
 }
 
-.hn-year {
-  position: relative;
-  width: 239px;
-  height: 40px;
-  margin: 0 auto 12px;
-}
-
-.hn-year-btn {
-  width: 100%;
-  height: 40px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--wino-bg-darker);
-  border-radius: 12px;
-  background: var(--wino-white);
-  font-size: 13px;
-  letter-spacing: 0.26px;
-  color: var(--wino-black-dark);
-}
-
-.hn-year-select {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
 .hn-folder {
   width: 239px;
   margin: 0 auto 6px;
@@ -9403,6 +9386,12 @@ body.historical-version .shell {
   align-items: center;
 }
 
+/* Status and Rechnungsversand, nested under the open month: same items, one tree level deeper. */
+.hn-month-pages.pp-tree {
+  width: auto;
+  margin: 0 0 4px 20px;
+}
+
 .hn-tree-name {
   display: flex;
   align-items: center;
@@ -9429,15 +9418,6 @@ body.historical-version .shell {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 10px;
-}
-
-.hn-year-compact {
-  height: 32px;
-  margin: 0 auto 8px;
-}
-
-.hn-year-compact .hn-year-btn {
-  height: 32px;
 }
 
 .hn-year-group {
@@ -9654,6 +9634,7 @@ body.historical-version .shell {
   display: flex;
   align-items: center;
   gap: 18px;
+  margin-left: auto;
 }
 
 .hn-drop {
@@ -9690,9 +9671,9 @@ body.historical-version .shell {
 }
 
 .hn-status-table {
-  --st-cols: minmax(220px, 1.45fr) minmax(160px, 1.1fr) minmax(190px, 1fr) minmax(100px, 0.7fr) minmax(150px, 1fr) minmax(120px, 0.85fr) minmax(120px, 0.85fr) minmax(140px, 0.95fr);
+  --st-cols: minmax(220px, 1.4fr) minmax(190px, 1.1fr) minmax(170px, 1fr) minmax(130px, 0.75fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(190px, 1.15fr) minmax(150px, 0.9fr) minmax(170px, 1fr) minmax(190px, 1.1fr) minmax(44px, 0.3fr);
   margin-top: 16px;
-  min-width: 1320px;
+  min-width: 1900px;
 }
 
 .hn-status-table.abbucher {
@@ -9953,6 +9934,762 @@ body.historical-version .shell {
   filter: brightness(0) invert(1);
 }
 
+.hn-status-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hn-status-stamp {
+  flex: none;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Info zur Rechnung (modal from the row menu of Status zu Rechnungen) */
+.hn-inv-body {
+  position: relative;
+  width: min(1080px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 32px;
+  border-radius: 24px;
+  background: var(--wino-white);
+  box-shadow: 0 7px 24px #afc0cc;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+}
+
+.hn-inv-body .wmodal-close {
+  top: 16px;
+  right: 16px;
+}
+
+.hn-inv-title {
+  margin: 0;
+  padding-right: 48px;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 28px;
+  text-wrap: balance;
+}
+
+.hn-inv-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+}
+
+.hn-inv-card {
+  border-radius: 16px;
+  padding: 16px;
+  background: linear-gradient(28deg, #ffffff 13%, #e2e7ec 97%);
+  border: 1px solid var(--wino-bg-light);
+}
+
+.hn-inv-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.33px;
+  text-transform: uppercase;
+  color: var(--wino-black-light);
+}
+
+.hn-inv-preview {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* A small sheet standing in for the invoice PDF. */
+.hn-inv-paper {
+  aspect-ratio: 1 / 1.414;
+  max-width: 100%;
+  padding: 10px;
+  border-radius: 4px;
+  background: var(--wino-white);
+  box-shadow: 0 2px 8px rgba(49, 53, 55, 0.14);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 8px;
+  line-height: 11px;
+  overflow: hidden;
+}
+
+.hn-inv-paper-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.hn-inv-paper-head strong {
+  font-size: 9px;
+}
+
+.hn-inv-paper-lines {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.hn-inv-paper-lines i {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--wino-bg-light);
+}
+
+.hn-inv-paper-lines i:last-child {
+  width: 60%;
+}
+
+.hn-inv-paper-sum {
+  margin-top: auto;
+  align-self: flex-end;
+  font-weight: 600;
+  font-size: 9px;
+}
+
+.hn-inv-now p {
+  margin: 6px 0 14px;
+  font-size: 15px;
+  line-height: 21px;
+  letter-spacing: 0.15px;
+  max-width: 60ch;
+}
+
+.hn-inv-figures {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hn-inv-figures dt {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.hn-inv-figures dd {
+  margin: 2px 0 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.hn-inv-agreement {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hn-inv-agreement strong {
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.hn-inv-agreement small {
+  font-size: 12px;
+  color: var(--wino-black-medium);
+}
+
+.hn-inv-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hn-inv-tabs.freigaben-tabs {
+  margin-top: 0;
+  flex-wrap: wrap;
+}
+
+.hn-inv-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hn-inv-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 500;
+  background: var(--wino-white);
+  border: 1px solid var(--wino-bg-darker);
+}
+
+.hn-inv-pill.hn-st-tone-ok {
+  background: var(--wino-signal-greenlight);
+  border-color: transparent;
+}
+
+.hn-inv-pill.hn-st-tone-warn {
+  background: var(--wino-signal-yellowlight);
+  border-color: transparent;
+}
+
+.hn-inv-pill.hn-st-tone-fail {
+  background: var(--wino-signal-redlight);
+  border-color: transparent;
+  color: #a3283f;
+}
+
+.hn-inv-pill.hn-st-tone-muted {
+  background: #f3f6f8;
+  border-color: transparent;
+  color: var(--wino-black-medium);
+}
+
+.hn-inv-panel {
+  min-height: 280px;
+}
+
+.hn-inv-data {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+}
+
+.hn-inv-data div {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--wino-bg-lighter);
+}
+
+.hn-inv-data dt {
+  color: var(--wino-black-light);
+}
+
+.hn-inv-data dd {
+  margin: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.hn-inv-table {
+  display: grid;
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.hn-inv-tr {
+  display: grid;
+  gap: 16px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--wino-bg-lighter);
+  align-items: start;
+}
+
+.hn-inv-table.history .hn-inv-tr {
+  grid-template-columns: 96px minmax(0, 1fr) 200px 130px;
+}
+
+.hn-inv-table.docs .hn-inv-tr {
+  grid-template-columns: 96px minmax(0, 1fr) 180px;
+}
+
+.hn-inv-tr.head {
+  border-top: 0;
+  background: var(--wino-blue-light);
+  font-weight: 500;
+}
+
+.hn-inv-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hn-inv-doc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--wino-bg-lighter);
+  overflow-wrap: anywhere;
+}
+
+.hn-inv-empty,
+.hn-inv-wait,
+.hn-inv-note {
+  margin: 0;
+  color: var(--wino-black-light);
+}
+
+.hn-inv-note.fail {
+  color: #a3283f;
+}
+
+.hn-inv-corr {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hn-inv-advice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  background: linear-gradient(28deg, #ffffff 13%, #e2e7ec 97%);
+  border: 1px solid var(--wino-bg-light);
+}
+
+.hn-inv-advice p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 21px;
+  letter-spacing: 0.15px;
+  max-width: 70ch;
+}
+
+.hn-inv-fixes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hn-inv-fixes .btn-primary,
+.hn-inv-fixes .btn-secondary {
+  min-width: 0;
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 52px;
+  font-size: 13px;
+}
+
+.hn-inv-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--wino-bg-light);
+}
+
+.hn-inv-step.active {
+  border-color: var(--wino-black-light);
+  background: linear-gradient(28deg, #ffffff 40%, #ebf1f5 100%);
+}
+
+.hn-inv-step header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.hn-inv-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid var(--wino-bg-darker);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.hn-inv-dot.done {
+  border: 0;
+}
+
+.hn-inv-you {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--wino-black-dark);
+  color: var(--wino-white);
+}
+
+.hn-inv-duty {
+  margin: 0;
+  color: var(--wino-black-medium);
+}
+
+.hn-inv-fact {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hn-inv-fact small {
+  color: var(--wino-black-medium);
+  font-size: 12px;
+}
+
+.hn-inv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hn-inv-kinds {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hn-inv-kinds legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.hn-inv-kinds label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--wino-bg-light);
+  cursor: pointer;
+}
+
+.hn-inv-kinds label.active {
+  border-color: var(--wino-black-dark);
+}
+
+.hn-inv-kinds input {
+  margin: 2px 0 0;
+  accent-color: var(--wino-black-dark);
+}
+
+.hn-inv-kinds span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hn-inv-kinds small {
+  color: var(--wino-black-light);
+  font-size: 12px;
+}
+
+.hn-inv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.hn-inv-field input,
+.hn-inv-field textarea {
+  font: inherit;
+  font-weight: 400;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--wino-bg-darker);
+  background: var(--wino-white);
+  max-width: 100%;
+}
+
+.hn-inv-field input {
+  width: 220px;
+}
+
+.hn-inv-field textarea {
+  resize: vertical;
+}
+
+.hn-inv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.hn-inv-actions > span:first-child {
+  margin-right: auto;
+}
+
+.hn-inv-actions .btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hn-inv-error {
+  color: #a3283f;
+}
+
+@media (max-width: 860px) {
+  .hn-inv-top,
+  .hn-inv-preview,
+  .hn-inv-data,
+  .hn-inv-kinds {
+    grid-template-columns: 1fr;
+  }
+  .hn-inv-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .hn-inv-paper {
+    width: 132px;
+  }
+  .hn-inv-table.history .hn-inv-tr,
+  .hn-inv-table.docs .hn-inv-tr {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* Invoice workflow page (Gutschrift, Zahlungsziel, Doch bezahlt, Rechnungskorrektur) */
+.rw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+}
+
+/* .page.single centers its content; the workflow cards start at the top. */
+.page.rw-page {
+  justify-content: flex-start;
+  padding-bottom: 32px;
+}
+
+.rw-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 24px;
+  border-radius: 16px;
+  border: 1px solid var(--wino-bg-light);
+  background: var(--wino-white);
+}
+
+.rw-card p {
+  margin: 0;
+}
+
+.rw-card > .btn-primary {
+  align-self: flex-start;
+}
+
+.rw-title {
+  margin: 4px 0 12px;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 26px;
+  text-wrap: balance;
+}
+
+.rw-head {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: linear-gradient(28deg, #ffffff 13%, #e2e7ec 97%);
+}
+
+.rw-head > div:first-child {
+  flex: 1 1 520px;
+  min-width: 0;
+}
+
+.rw-head-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.rw-step-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rw-step-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.rw-step-head small {
+  color: var(--wino-black-medium);
+  font-size: 12px;
+}
+
+.rw-step-role {
+  display: block;
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.hn-inv-running {
+  border-color: var(--wino-signal-yellow);
+  background: var(--wino-signal-yellowlight);
+}
+
+/* Wide status tables scroll sideways inside the white panel instead of spilling over its edge. */
+.hn-st-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+}
+
+/* Band row above the column headers: which Datenträger / Status area each group of columns belongs to. */
+.hn-st-bands {
+  display: grid;
+  grid-template-columns: var(--st-cols);
+  column-gap: 2px;
+}
+
+.hn-st-band {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 16px;
+  background: var(--wino-bg-light);
+  border: 1px solid var(--wino-bg-darker);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.13px;
+}
+
+.hn-st-band:first-child {
+  border-radius: 16px 0 0 0;
+}
+
+.hn-st-band:last-child {
+  border-radius: 0 16px 0 0;
+}
+
+/* Dark divider at the start of the Stati group and after every collapsible column (Figma: 2px Wino-Black-Light, full table height), drawn on the next cell in the header, sum row and data rows. The bands above stay untouched. */
+.hn-status-table.rechnungen .hn-st-head > :nth-child(2),
+.hn-status-table.rechnungen .hn-st-head > :nth-child(3),
+.hn-status-table.rechnungen .hn-st-head > :nth-child(7),
+.hn-status-table.rechnungen .hn-st-head > :nth-child(8),
+.hn-status-table.rechnungen .hn-st-head > :nth-child(9),
+.hn-status-table.rechnungen .hn-st-head > :nth-child(10),
+.hn-status-table.rechnungen .hn-st-head > :nth-child(11),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(2),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(3),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(7),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(8),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(9),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(10),
+.hn-status-table.rechnungen .hn-st-sum > :nth-child(11),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(2),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(3),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(7),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(8),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(9),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(10),
+.hn-status-table.rechnungen .hn-st-row > :nth-child(11) {
+  box-shadow: inset 2px 0 0 var(--wino-black-light);
+}
+
+.hn-st-th {
+  position: relative;
+}
+
+.hn-st-th.has-tab {
+  padding-right: 30px;
+}
+
+/* ">" tab at the end of a column group: full header height, rounded on the left, flush against the divider. */
+.hn-st-tab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px 0 0 10px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.85));
+}
+
+.hn-st-tab img {
+  margin: 0;
+}
+
+.hn-st-row > div.hn-st-tone-muted {
+  background: #f3f6f8;
+  color: var(--wino-black-light);
+}
+
+.hn-st-row > div.hn-st-tone-ok {
+  background: var(--wino-signal-greenlight);
+}
+
+.hn-st-row > div.hn-st-tone-warn {
+  background: var(--wino-signal-yellowlight);
+}
+
+.hn-st-row > div.hn-st-tone-fail {
+  background: var(--wino-signal-redlight);
+}
+
+.hn-status-table.rechnungen .hn-st-row > .hn-st-stack {
+  align-items: flex-start;
+}
+
+.hn-st-amount {
+  justify-content: flex-end;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* RE / ZZ / ZE Datum box in the Fälligkeitsdatum column. */
+.hn-st-dates {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 6px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.hn-st-dates.hn-st-tone-muted {
+  background: #f3f6f8;
+}
+
+.hn-st-dates.hn-st-tone-warn {
+  background: var(--wino-signal-yellowlight);
+}
+
+.hn-st-dates.hn-st-tone-fail {
+  background: var(--wino-signal-redlight);
+}
+
+/* The rounded top corners belong to the bands row now - the header row right under it stays square. */
+.hn-st-bands + .hn-st-head .hn-st-th:first-child,
+.hn-st-bands + .hn-st-head .hn-st-th:last-child {
+  border-radius: 0;
+}
+
 .hn-st-group {
   display: grid;
   grid-template-columns: var(--st-cols);
@@ -10026,9 +10763,12 @@ body.historical-version .shell {
 
 .hn-st-label {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.13px;
@@ -10038,6 +10778,19 @@ body.historical-version .shell {
 .hn-st-label img {
   margin: -6px -8px 0 0;
   flex: none;
+}
+
+.hn-st-label .hn-st-expand img {
+  margin: 0;
+}
+
+/* Filter and ">" box sit together on the right edge of every header; they drop below the title when it fills the line. */
+.hn-st-ctrls {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
 }
 
 .hn-st-sum > div,
@@ -10660,6 +11413,15 @@ body.historical-version .shell {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.hn-st-wf-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  cursor: pointer;
 }
 
 .hn-link {
@@ -11446,6 +12208,28 @@ body.historical-version .shell {
   display: block;
 }
 
+/* ">" placeholder next to a column title - marks headers that will fold out into sub-columns later. */
+.hn-st-expand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 4px;
+  background: var(--wino-white);
+}
+
+.hn-st-more-head {
+  min-height: 96px;
+}
+
+.hn-st-more {
+  justify-content: center;
+  color: var(--wino-black-light);
+}
+
 .hn-filter-pop {
   position: fixed;
   z-index: 60;
@@ -11871,12 +12655,17 @@ button.person-tab-open {
 }
 
 /* Widget bar (right-hand side, switched on in the profile menu) */
-body.widget-on .app {
-  padding-right: 437px;
+/* Widget bar width (392px) + the gap to the page (21px). The bar itself sits 24px from the edge, like the page. */
+body.widget-on {
+  --widget-space: 413px;
+}
+
+.hn-test {
+  transition: right 0.25s ease;
 }
 
 body.widget-on .hn-test {
-  right: 437px;
+  right: calc(24px + var(--widget-space));
 }
 
 .wg-bar {
@@ -12191,4 +12980,1033 @@ body.widget-on .hn-test {
   font-size: 13px;
   line-height: 15px;
   letter-spacing: 0.13px;
+}
+
+/* Home area: partner list (Bestand › Dashboard) and workflow list (Mein Bereich › Workflows) */
+.mb-page {
+  display: block;
+  padding: 24px;
+  background: var(--wino-white);
+}
+
+.mb-partners-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.mb-partners-head h1 {
+  margin: 0;
+  font-size: 27px;
+  line-height: 34px;
+  font-weight: 500;
+}
+
+.mb-partners-head p {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--wino-black-light);
+}
+
+.mb-partners-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-width: 720px;
+}
+
+.mb-partners-list button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border: 0;
+  background: var(--wino-bg-lighter);
+  text-align: left;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.mb-partners-list li:first-child button {
+  border-radius: 16px 16px 0 0;
+}
+
+.mb-partners-list li:last-child button {
+  border-radius: 0 0 16px 16px;
+}
+
+.mb-partners-list button:hover {
+  background: var(--wino-bg-light);
+}
+
+.mb-partner-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.mb-partner-avatar img {
+  display: block;
+  border-radius: 50%;
+}
+
+.mb-partner-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mb-partner-copy {
+  flex: 1;
+}
+
+.mb-partner-copy strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.mb-partner-copy small {
+  font-size: 12px;
+  color: var(--wino-black-light);
+}
+
+/* Planner › Workflows & To-Dos (Figma "Workflows"): left filter panel, header card, tree table on the Bestand list styles. */
+.hw-page {
+  display: block;
+  padding: 16px;
+  background: var(--wino-bg-lighter);
+}
+
+.hw-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.hw-side,
+.hw-main {
+  border-radius: 16px;
+  background: var(--wino-white);
+  overflow: hidden;
+}
+
+.hw-side-head,
+.hw-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-darker) 100%);
+}
+
+.hw-side-head img {
+  border-radius: 50%;
+}
+
+.hw-side-head span,
+.hw-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.hw-side-head strong,
+.hw-head strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.hw-side-head small,
+.hw-head small {
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.hw-side-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+.hw-side-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 8px 0 14px;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-lighter) 100%);
+  font-size: 14px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.hw-side-item.active {
+  border-color: var(--wino-black-light);
+  background: linear-gradient(180deg, var(--wino-bg-lighter) 0%, var(--wino-bg-darker) 100%);
+}
+
+.hw-count {
+  margin-left: auto;
+  min-width: 34px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--wino-white);
+  font-size: 12px;
+  text-align: center;
+}
+
+.hw-head {
+  justify-content: space-between;
+  min-height: 72px;
+}
+
+.hw-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.hw-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 0;
+  background: none;
+  font-size: 11px;
+  line-height: 13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.hw-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 50%;
+  background: var(--wino-white);
+  cursor: pointer;
+}
+
+.hw-body {
+  padding: 20px 24px 24px;
+}
+
+.hw-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.hw-toolbar h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.hw-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--wino-bg-lighter);
+  font-size: 13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.hw-chip.active {
+  background: var(--wino-black-dark);
+  color: var(--wino-white);
+}
+
+.hw-select select {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  cursor: pointer;
+}
+
+.hw-scroll {
+  overflow-x: auto;
+}
+
+.hw-table {
+  --col-title: minmax(280px, 280fr);
+  --col-due: minmax(130px, 130fr);
+  --col-cat: minmax(170px, 170fr);
+  --col-step: minmax(200px, 200fr);
+  --col-tags: minmax(250px, 250fr);
+  --col-owner: minmax(100px, 100fr);
+  --col-state: minmax(110px, 110fr);
+  min-width: 1240px;
+}
+
+.hw-table .req-head,
+.hw-table .req-row {
+  grid-template-columns:
+    var(--col-title) var(--col-due) var(--col-cat) var(--col-step) var(--col-tags) var(--col-owner)
+    var(--col-state);
+}
+
+.hw-table .req-th {
+  padding: 18px 16px 0;
+}
+
+.hw-row {
+  cursor: pointer;
+}
+
+.hw-table .req-row .cell {
+  padding: 10px 16px;
+  font-size: 13px;
+}
+
+.hw-row:hover .cell {
+  background: var(--wino-bg-lighter);
+}
+
+.hw-child .cell {
+  background: rgba(235, 241, 245, 0.8);
+}
+
+.hw-title-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hw-title-copy strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hw-title-copy small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.hw-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.hw-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wino-bg-lighter);
+  cursor: pointer;
+}
+
+.hw-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* The tree line from the workflow down to its step. */
+.hw-child .hw-title {
+  position: relative;
+  padding-left: 40px;
+}
+
+.hw-elbow {
+  position: absolute;
+  left: 24px;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+}
+
+.hw-elbow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: -1px;
+  bottom: 0;
+  border-left: 1px solid var(--wino-violet-light);
+}
+
+.hw-child.last .hw-elbow::before {
+  bottom: 50%;
+}
+
+.hw-elbow::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px solid var(--wino-violet-light);
+}
+
+.hw-due,
+.hw-category,
+.hw-partner span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hw-partner {
+  flex-direction: column;
+  align-items: flex-start !important;
+  justify-content: center;
+  gap: 2px !important;
+}
+
+.hw-tag {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.hw-person {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.hw-person img,
+.hw-initials {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.hw-initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--wino-bg-darker);
+  font-size: 11px;
+}
+
+.hw-status {
+  justify-content: flex-start;
+}
+
+.status-pill.hw-overdue {
+  background: var(--wino-signal-redlight);
+  border: 1px solid #e699b5;
+  color: #a3283f;
+  gap: 4px;
+}
+
+.status-pill.hw-waiting {
+  background: var(--wino-bg-lighter);
+  border: 1px solid var(--wino-bg-darker);
+  color: var(--wino-black-light);
+}
+
+/* Verlauf sits at the right end of the module bar (Figma Home). */
+.module-nav .module-history {
+  margin-left: auto;
+}
+
+/* Partner Dashboard (Figma Dashboard Privatperson / Unternehmen) */
+.pd-page {
+  display: grid;
+  grid-template-columns: 406px minmax(320px, 1fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: stretch;
+  align-content: start;
+  padding: 16px 24px 24px;
+  background: var(--wino-bg-lighter);
+  flex: 1;
+}
+
+.pd-column {
+  display: grid;
+  gap: 16px;
+  /* The profile card sets the row height; the two cards of every other column share it evenly. */
+  grid-template-rows: 1fr 1fr;
+  height: 0;
+  min-height: 100%;
+}
+
+.pd-column > .pd-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pd-column .pd-team {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.pd-card {
+  position: relative;
+  border-radius: 24px;
+  background: var(--wino-white);
+  padding: 20px;
+}
+
+.pd-card h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 400;
+}
+
+.pd-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pd-profile {
+  padding: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f1f5f8 0%, var(--wino-bg-darker) 100%);
+}
+
+.pd-kebab {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: inline-flex;
+  border: 0;
+  border-radius: 50%;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+}
+
+.pd-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 24px 20px;
+  text-align: center;
+}
+
+/* Figma note: the name takes two lines at most, then it is cut with "…". */
+.pd-identity h1 {
+  margin: 0;
+  max-width: 320px;
+  font-size: 22px;
+  line-height: 26px;
+  font-weight: 400;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.pd-vulgo {
+  margin: 0;
+  font-size: 14px;
+}
+
+.pd-chip {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--wino-green-homeoffice);
+  border-radius: 4px;
+  background: var(--wino-signal-greenlight);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.pd-avatar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.pd-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pd-avatar .glyph {
+  inset: 30px;
+  width: 36px;
+  height: 36px;
+}
+
+.pd-meta {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.pd-tiles {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.pd-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 78px;
+  height: 78px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-darker) 100%);
+  font-size: 11px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.pd-switch-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px 20px;
+  background: rgba(186, 204, 213, 0.45);
+  border-radius: 24px 24px 0 0;
+}
+
+.pd-switch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--wino-white);
+}
+
+.pd-switch button,
+.pd-subtabs button {
+  border: 0;
+  background: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.pd-switch button.active {
+  background: var(--wino-black-dark);
+  color: var(--wino-white);
+}
+
+.pd-folder {
+  width: 100%;
+}
+
+.pd-folder-tab {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 8px 16px 6px;
+  border-radius: 12px 12px 0 0;
+  background: var(--wino-white);
+  font-size: 13px;
+}
+
+.pd-folder-tab small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pd-folder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 0 12px 12px 12px;
+  background: var(--wino-white);
+}
+
+.pd-subtabs {
+  display: flex;
+  gap: 4px;
+}
+
+.pd-subtabs button {
+  padding: 8px 16px;
+  border-radius: 12px 12px 0 0;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.pd-subtabs button.active {
+  background: var(--wino-white);
+}
+
+.pd-subtabs + .pd-folder-body {
+  border-radius: 0 0 12px 12px;
+}
+
+.pd-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 4px;
+  border-radius: 9px;
+  background: var(--wino-bg-lighter);
+  font-size: 11px;
+}
+
+.pd-contact-row {
+  display: grid;
+  grid-template-columns: 30px auto 1fr 22px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--wino-bg-lighter);
+  font-size: 13px;
+}
+
+.pd-contact-row strong {
+  justify-self: end;
+  font-weight: 500;
+}
+
+.pd-contact-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--wino-bg-lighter);
+}
+
+.pd-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--wino-bg-lighter);
+}
+
+.pd-note small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pd-note p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.pd-more {
+  align-self: center;
+  margin-top: 6px;
+  cursor: pointer;
+}
+
+.pd-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pd-links li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--wino-bg-lighter);
+  font-size: 13px;
+}
+
+.pd-link-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--wino-bg-lighter);
+}
+
+.pd-link-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pd-open {
+  flex: none;
+  opacity: 0.8;
+}
+
+.pd-group-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pd-quiet {
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.pd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.pd-empty-art {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 40%, var(--wino-bg-darker) 100%);
+  box-shadow: 0 0 0 14px rgba(255, 255, 255, 0.35);
+  margin-bottom: 10px;
+}
+
+.pd-empty strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pd-empty p {
+  margin: 0;
+  max-width: 260px;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.pd-system {
+  padding: 24px;
+  background: var(--wino-white);
+}
+
+.pd-system h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pd-system-group {
+  padding: 8px 0;
+  border-top: 1px dashed var(--wino-violet-light);
+}
+
+.pd-system-group small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pd-system dl {
+  margin: 6px 0 0;
+}
+
+.pd-system dl div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.pd-system dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.pd-overview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pd-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 140px;
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(160deg, var(--wino-bg-lighter) 0%, var(--wino-bg-darker) 100%);
+}
+
+.pd-stat strong {
+  font-size: 22px;
+  font-weight: 400;
+}
+
+.pd-stat small {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pd-abo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--wino-bg-lighter) 0%, #ffffff 100%);
+}
+
+.pd-abo > span:last-child {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.pd-team {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.pd-team li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 6px 8px;
+  border: 1px solid var(--wino-bg-lighter);
+  border-radius: 28px;
+}
+
+.pd-team-photo img {
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pd-team-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.pd-team-copy small {
+  font-size: 12px;
+  color: var(--wino-black-light);
+}
+
+.pd-team-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 22px;
+  background: var(--wino-bg-lighter);
+}
+
+.pd-team-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wino-white);
+  cursor: pointer;
+}
+
+.pd-wip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.pd-wip .mb-art {
+  transform: scale(0.55);
+  margin: -40px 0;
+}
+
+.pd-wip.dark {
+  background: linear-gradient(160deg, #4b555c 0%, #2d3133 100%);
+  color: var(--wino-white);
+}
+
+/* A request whose partner has no file: the open icon stays, greyed out. */
+.cell-open:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Inkasso Forderung: the invoice status from the Honorarverrechnung, above its rows. */
+.ik-status {
+  margin: 4px 0 10px;
+  font-size: 13px;
+}
+
+/* Where the Rechnungskorrektur / Einzelfaktura stands, under the status. */
+.ik-step {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--wino-black-light);
+}
+
+/* The whole parked tab is clickable, not only its name. */
+.main-nav .person-tab.inactive .person-tab-body {
+  cursor: pointer;
 }

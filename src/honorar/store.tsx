@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createSeedState, ROLE_USER } from "../mocks/honorar/seed";
 import * as t from "../lib/honorar/transitions";
-import type { CorrectionKind, Fee, HistoryEntry, HonorarRole, HonorarState } from "../types/honorar";
+import type { CorrectionKind, Fee, HistoryEntry, HonorarRole, HonorarState, InvoiceCorrection, InvoiceWorkflowType } from "../types/honorar";
 
 export const STORAGE_KEY = "wino.honorar.v1";
 
@@ -63,7 +63,10 @@ function loadState(): HonorarState {
           ]
         : seed.singleInvoices,
       history: keepListHistory(seed.history, parsed),
-      notices: parsed.notices ?? seed.notices,
+      // Saved notices stay; the seeded advisor messages of the scenarios are added when they are missing.
+      notices: parsed.notices
+        ? [...parsed.notices, ...seed.notices.filter((demo) => !parsed.notices!.some((saved) => saved.id === demo.id))]
+        : seed.notices,
     };
   } catch {
     return seed;
@@ -174,6 +177,18 @@ function useHonorarState() {
     markNoticeRead: (noticeId: string) => apply((prev) => t.markNoticeRead(prev, noticeId)),
     notifyAdvisor: (feeId: string, reason: string) =>
       asUser((prev, actor) => t.notifyAdvisor(prev, feeId, reason, actor)),
+    // Info zur Rechnung acts as the chosen role, so the acting person is passed in.
+    requestInvoiceCorrection: (
+      feeId: string,
+      request: Pick<InvoiceCorrection, "kind" | "amount" | "dueDate" | "reason">,
+      actor: string,
+    ) => apply((prev) => t.requestInvoiceCorrection(prev, feeId, request, actor)),
+    decideInvoiceCorrection: (feeId: string, approve: boolean, comment: string, actor: string) =>
+      apply((prev) => t.decideInvoiceCorrection(prev, feeId, approve, comment, actor)),
+    bookInvoiceCorrection: (feeId: string, actor: string) => apply((prev) => t.bookInvoiceCorrection(prev, feeId, actor)),
+    startInvoiceWorkflow: (feeId: string, workflow: InvoiceWorkflowType) =>
+      asUser((prev, actor) => t.startInvoiceWorkflow(prev, feeId, workflow, actor)),
+    cancelInvoiceWorkflow: (feeId: string, actor: string) => apply((prev) => t.cancelInvoiceWorkflow(prev, feeId, actor)),
   };
 }
 

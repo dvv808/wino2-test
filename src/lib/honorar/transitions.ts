@@ -1,4 +1,4 @@
-import { createImportFees, hasBmdDeviation, incompleteImportIds, partners as seedPartners } from "../../mocks/honorar/seed";
+import { ROLE_USER, createImportFees, hasBmdDeviation, incompleteImportIds, partners as seedPartners } from "../../mocks/honorar/seed";
 import type {
   CorrectionKind,
   Fee,
@@ -6,6 +6,9 @@ import type {
   HonorarNotice,
   HonorarRole,
   HonorarState,
+  InvoiceCorrection,
+  InvoiceCorrectionKind,
+  InvoiceWorkflowType,
   PaymentReason,
 } from "../../types/honorar";
 import { addDays, money, servicePeriod, uid } from "./format";
@@ -49,7 +52,9 @@ export function markPaid(
   comment: string,
 ): HonorarState {
   const fees = state.fees.map((fee) =>
-    fee.id === feeId ? { ...fee, paymentStatus: "paid" as const, paid: fee.amount, paymentReason: undefined } : fee,
+    fee.id === feeId
+      ? { ...fee, paymentStatus: "paid" as const, paid: fee.amount, paidAt: state.today, paymentReason: undefined }
+      : fee,
   );
   return withHistory({ ...state, fees }, [history(state, user, "fee", feeId, "Doch bezahlt markiert", comment)]);
 }
@@ -441,6 +446,7 @@ export function finishMonthWithFailures(state: HonorarState, monthId: string, us
     return {
       ...fee,
       paid: fee.amount,
+      paidAt: state.today,
       paymentStatus: "paid" as const,
       paymentReason: undefined,
       invoiceStatus: fee.paymentMethod === "Abbucher" ? fee.invoiceStatus : ("sent" as const),
@@ -635,7 +641,7 @@ export function syncInfinity(state: HonorarState, monthId: string, user: string)
     if (failed.has(fee.id)) {
       return { ...fee, paid: 0, paymentStatus: "unpaid" as const, paymentReason: "direct_debit_failed" as PaymentReason };
     }
-    return { ...fee, paid: fee.amount, paymentStatus: "paid" as const, paymentReason: undefined };
+    return { ...fee, paid: fee.amount, paidAt: state.today, paymentStatus: "paid" as const, paymentReason: undefined };
   });
   return withHistory({ ...state, fees }, [
     history(state, user, "month", monthId, "Abbucher mit Infinity synchronisiert"),
@@ -992,4 +998,147 @@ export function markNoticeRead(state: HonorarState, noticeId: string): HonorarSt
     ...state,
     notices: state.notices.map((notice) => (notice.id === noticeId ? { ...notice, read: true } : notice)),
   };
+}
+
+function feeEvent(state: HonorarState, user: string, feeId: string, action: string, comment?: string): HistoryEntry {
+  return { ...history(state, user, "fee", feeId, action, comment), timestamp: noticeStamp(state) };
+}
+
+function patchFeeCorrection(state: HonorarState, feeId: string, patch: Partial<InvoiceCorrection>): HonorarState {
+  const fees = state.fees.map((fee) =>
+    fee.id === feeId && fee.correction ? { ...fee, correction: { ...fee.correction, ...patch } } : fee,
+  );
+  return { ...state, fees };
+}
+
+/** Default correction for each workflow; the Antrag can still pick another one where the workflow allows it. */
+const WORKFLOW_KIND: Record<InvoiceWorkflowType, InvoiceCorrectionKind> = {
+  Gutschrift: "Vollgutschrift",
+  "Zahlungsziel anpassen": "Zahlungsziel ändern",
+  "Doch bezahlt markieren": "Doch bezahlt",
+  Rechnungskorrektur: "Zahlungsziel ändern",
+};
+
+/** Tells the person whose turn it is in an invoice workflow (shows up in the widget). */
+function workflowNotice(state: HonorarState, feeId: string, to: string, title: string, text: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  const partner = fee ? partnerOf(state, fee.partnerId) : undefined;
+  return addNotice(state, { kind: "workflow", title: `${title} · an ${to}`, subject: partner?.name ?? "", text, feeId });
+}
+
+function advisorOfFee(state: HonorarState, feeId: string) {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  return (fee ? partnerOf(state, fee.partnerId)?.advisor : undefined) ?? "Kundenberater";
+}
+
+/** Starts the workflow of one invoice; the Kundenberater is asked to fill in the Antrag. */
+export function startInvoiceWorkflow(state: HonorarState, feeId: string, workflow: InvoiceWorkflowType, user: string): HonorarState {
+  const correction: InvoiceCorrection = {
+    workflow,
+    kind: WORKFLOW_KIND[workflow],
+    reason: "",
+    status: "entwurf",
+    startedBy: user,
+    startedAt: noticeStamp(state),
+  };
+  const fees = state.fees.map((fee) => (fee.id === feeId ? { ...fee, correction } : fee));
+  const advisor = advisorOfFee(state, feeId);
+  const started = withHistory({ ...state, fees }, [feeEvent(state, user, feeId, `Workflow gestartet: ${workflow}`)]);
+  return workflowNotice(started, feeId, advisor, `Workflow ${workflow}`, "Du bist dran: Antrag ausfüllen und zur Freigabe senden.");
+}
+
+/** Kundenberater (or Bestandsmanager): sends the Antrag of the running workflow to the Bestandsmanager. */
+export function requestInvoiceCorrection(
+  state: HonorarState,
+  feeId: string,
+  request: Pick<InvoiceCorrection, "kind" | "amount" | "dueDate" | "reason">,
+  user: string,
+): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  if (!fee?.correction) return state;
+  const correction: InvoiceCorrection = {
+    ...fee.correction,
+    amount: undefined,
+    dueDate: undefined,
+    ...request,
+    status: "beantragt",
+    requestedBy: user,
+    requestedAt: noticeStamp(state),
+    decidedBy: undefined,
+    decidedAt: undefined,
+    decisionComment: undefined,
+  };
+  const fees = state.fees.map((entry) => (entry.id === feeId ? { ...entry, correction } : entry));
+  const sent = withHistory({ ...state, fees }, [feeEvent(state, user, feeId, `Antrag gestellt: ${request.kind}`, request.reason)]);
+  return workflowNotice(sent, feeId, ROLE_USER.head, `Workflow ${correction.workflow}`, "Du bist dran: Antrag freigeben oder ablehnen.");
+}
+
+/** Ends a workflow before it is booked (started by mistake, or not needed after a rejection). */
+export function cancelInvoiceWorkflow(state: HonorarState, feeId: string, user: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  if (!fee?.correction) return state;
+  const fees = state.fees.map((entry) => (entry.id === feeId ? { ...entry, correction: undefined } : entry));
+  return withHistory({ ...state, fees }, [feeEvent(state, user, feeId, `Workflow abgebrochen: ${fee.correction.workflow}`)]);
+}
+
+/** Bestandsmanager: approves or rejects the requested Rechnungskorrektur. */
+export function decideInvoiceCorrection(
+  state: HonorarState,
+  feeId: string,
+  approve: boolean,
+  comment: string,
+  user: string,
+): HonorarState {
+  const next = patchFeeCorrection(state, feeId, {
+    status: approve ? "freigegeben" : "abgelehnt",
+    decidedBy: user,
+    decidedAt: noticeStamp(state),
+    decisionComment: comment || undefined,
+  });
+  const decided = withHistory(next, [
+    feeEvent(state, user, feeId, approve ? "Antrag freigegeben" : "Antrag abgelehnt", comment || undefined),
+  ]);
+  const workflow = next.fees.find((fee) => fee.id === feeId)?.correction?.workflow ?? "Rechnungskorrektur";
+  return approve
+    ? workflowNotice(decided, feeId, ROLE_USER.backoffice, `Workflow ${workflow}`, "Du bist dran: freigegebenen Antrag verbuchen.")
+    : workflowNotice(decided, feeId, advisorOfFee(state, feeId), `Workflow ${workflow}`, "Antrag abgelehnt. Antrag anpassen oder Workflow abbrechen.");
+}
+
+/** Honorarverwalter: books the approved Rechnungskorrektur as Einzelfaktura (Gutschrift or new Zahlungsziel). */
+export function bookInvoiceCorrection(state: HonorarState, feeId: string, user: string): HonorarState {
+  const fee = state.fees.find((entry) => entry.id === feeId);
+  const correction = fee?.correction;
+  if (!fee || correction?.status !== "freigegeben") return state;
+  if (correction.kind === "Doch bezahlt") {
+    const paid = markPaid(state, feeId, user, correction.reason);
+    const at = noticeStamp(state);
+    const done = patchFeeCorrection(
+      { ...paid, history: paid.history.map((entry, index) => (index >= state.history.length ? { ...entry, timestamp: at } : entry)) },
+      feeId,
+      { status: "verbucht", bookedBy: user, bookedAt: at },
+    );
+    const booked = withHistory(done, [feeEvent(state, user, feeId, "Als bezahlt verbucht")]);
+    return workflowNotice(booked, feeId, advisorOfFee(state, feeId), `Workflow ${correction.workflow}`, "Workflow abgeschlossen: Rechnung als bezahlt verbucht.");
+  }
+  const moved = moveFeeToSingleInvoice(state, feeId, user);
+  const invoice = moved.singleInvoices.find((entry) => entry.feeId === feeId);
+  if (!invoice) return state;
+  const credit =
+    correction.kind === "Vollgutschrift" ? Math.max(0, fee.amount - fee.paid) : correction.kind === "Teilgutschrift" ? correction.amount ?? 0 : 0;
+  const due = correction.kind === "Zahlungsziel ändern" ? correction.dueDate : undefined;
+  const granted = grantSingleCredit(moved, invoice.id, credit, correction.reason, user, due);
+  // The Einzelfaktura steps stamp a fixed time; give them the booking time so the Verlauf keeps its order.
+  const at = noticeStamp(state);
+  const booked = {
+    ...granted,
+    history: granted.history.map((entry, index) => (index >= state.history.length ? { ...entry, timestamp: at } : entry)),
+  };
+  const next = patchFeeCorrection(booked, feeId, {
+    status: "verbucht",
+    bookedBy: user,
+    bookedAt: at,
+    ...(correction.kind === "Vollgutschrift" ? { amount: credit } : {}),
+  });
+  const done = withHistory(next, [feeEvent(state, user, feeId, `Einzelfaktura verbucht: ${correction.kind}`)]);
+  return workflowNotice(done, feeId, advisorOfFee(state, feeId), `Workflow ${correction.workflow}`, `Workflow abgeschlossen: ${correction.kind} verbucht.`);
 }

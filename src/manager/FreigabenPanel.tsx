@@ -1,6 +1,8 @@
 import { useState } from "react";
 import * as a from "../assets/index";
+import { FILE_PARTNERS, type PartnerId } from "../person/partners";
 import { ContextMenu, Icon } from "../ui";
+import { useWorkflow } from "../workflow";
 import {
   STEP_LABEL,
   STEP_POSITION,
@@ -200,6 +202,10 @@ function WorkflowRow({
 }) {
   const [lead] = rows;
   const { partner } = lead;
+  const { openPartner } = useWorkflow();
+  // The partner's file, opened as a tab (on its Dashboard); requests for partners without a file have none.
+  const fileId: PartnerId | undefined =
+    lead.partnerId ?? (Object.values(FILE_PARTNERS).find((file) => file.name === partner.name)?.id as PartnerId | undefined);
   /* Opening the workflow lands on its first Freigabe that actually exists. */
   const entry = rows.find((row) => !row.pending) ?? lead;
   const done = rows.every((row) => !row.pending && row.status === "abgeschlossen");
@@ -241,7 +247,14 @@ function WorkflowRow({
           ) : null}
         </span>
 
-        <button type="button" className="cell-open" aria-label={`${partner.name} öffnen`}>
+        <button
+          type="button"
+          className="cell-open"
+          aria-label={`${partner.name} als Tab öffnen`}
+          disabled={!fileId}
+          title={fileId ? "Als Tab öffnen" : "Für diesen Partner gibt es keine Akte"}
+          onClick={() => fileId && openPartner(fileId)}
+        >
           <Icon src={a.openTab} size={18} />
         </button>
       </div>

@@ -1,7 +1,14 @@
-import { useState, type MouseEvent } from "react";
+import { Fragment, useState, type MouseEvent } from "react";
 import * as a from "../assets/index";
 import { monthLabel } from "../lib/honorar/format";
-import { isOpenItemFee, monthOf } from "../lib/honorar/queries";
+import {
+  RECHNUNGSVERSAND_STEPS,
+  isOpenItemFee,
+  monthFinished,
+  monthOf,
+  monthStatusDone,
+  rechnungsversandDone,
+} from "../lib/honorar/queries";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "./store";
@@ -9,7 +16,6 @@ import { StatusBadge } from "./ui";
 
 const EXTRA_YEARS = [2026, 2027, 2028];
 const EARLIEST_YEAR = 2021;
-const ALL_YEARS_VALUE = "alle";
 
 function yearOf(id: string) {
   return Number(id.slice(0, 4));
@@ -46,6 +52,7 @@ export function HonorarSidebar() {
   const {
     finanzenPage,
     finanzenMonth,
+    finanzenStep,
     finanzenYear,
     openFinanzen,
     openSammelfaktura,
@@ -55,7 +62,6 @@ export function HonorarSidebar() {
   const [query, setQuery] = useState("");
   const currentYear = yearOf(finanzenMonth) || 2027;
   const [sammelOpen, setSammelOpen] = useState(true);
-  const [yearFilter, setYearFilter] = useState<string>(ALL_YEARS_VALUE);
   const [openYears, setOpenYears] = useState<Set<number>>(
     () => new Set([currentYear]),
   );
@@ -68,10 +74,6 @@ export function HonorarSidebar() {
     { length: maxYear - EARLIEST_YEAR + 1 },
     (_, index) => maxYear - index,
   );
-  const visibleYears =
-    yearFilter === ALL_YEARS_VALUE
-      ? years
-      : years.filter((option) => option === Number(yearFilter));
   const showSingle = matches(query, "Einzelfaktura");
   const hasOpenSingle = state.singleInvoices.some(
     (invoice) => invoice.status === "open",
@@ -167,34 +169,8 @@ export function HonorarSidebar() {
             <Icon src={a.chevronDown} size={18} className="hn-folder-caret" />
           </summary>
 
-          <div className="hn-year hn-year-compact">
-            <span className="hn-year-btn" aria-hidden>
-              Jahr: {yearFilter === ALL_YEARS_VALUE ? "Alle" : yearFilter}
-              <Icon src={a.chevronDown} size={18} />
-            </span>
-            <select
-              className="hn-year-select"
-              aria-label="Jahr"
-              value={yearFilter}
-              onChange={(event) => {
-                const value = event.target.value;
-                setYearFilter(value);
-                if (value !== ALL_YEARS_VALUE) {
-                  setOpenYears(new Set([Number(value)]));
-                }
-              }}
-            >
-              <option value={ALL_YEARS_VALUE}>Jahr: Alle</option>
-              {years.map((option) => (
-                <option key={option} value={option}>
-                  Jahr: {option}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <div className="pp-tree hn-year-groups">
-            {visibleYears.map((yearOption) => {
+            {years.map((yearOption) => {
               const monthIds = monthIdsForYear(yearOption).filter((id) =>
                 matches(query, monthLabel(id)),
               );
@@ -239,10 +215,13 @@ export function HonorarSidebar() {
                       const exists = Boolean(month);
                       const current =
                         finanzenPage === "month" && finanzenMonth === id;
+                      const done = rechnungsversandDone(state, id);
+                      const nextStep = RECHNUNGSVERSAND_STEPS.find((step) => !done[step]) ?? "data";
+                      const inVersand = current && finanzenStep !== "status";
                       return (
+                        <Fragment key={id}>
                         <button
                           type="button"
-                          key={id}
                           className={`hn-tree-item${current ? " active" : ""}${exists ? "" : " muted"}`}
                           disabled={!exists}
                           title={
@@ -260,9 +239,46 @@ export function HonorarSidebar() {
                             {monthLabel(id)}
                           </span>
                           <StatusBadge
-                            kind={month?.closed ? "fertig" : "offen"}
+                            kind={exists && monthFinished(state, id) ? "fertig" : "offen"}
                           />
                         </button>
+                        {current ? (
+                          <div className="pp-tree hn-tree hn-month-pages">
+                            <button
+                              type="button"
+                              className={`hn-tree-item hn-month-page${inVersand ? "" : " active"}`}
+                              aria-current={inVersand ? undefined : "page"}
+                              onClick={() => openFinanzen("month", id, "status")}
+                            >
+                              <span className="hn-tree-name">
+                                <Icon src={a.tickList} size={18} />
+                                Status
+                              </span>
+                              {monthStatusDone(state, id) ? (
+                                <Icon src={a.confirm} size={16} alt="Fertig" />
+                              ) : (
+                                <Icon src={a.onhold} size={16} alt="Offen" />
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              className={`hn-tree-item hn-month-page${inVersand ? " active" : ""}`}
+                              aria-current={inVersand ? "page" : undefined}
+                              onClick={() => openFinanzen("month", id, inVersand ? finanzenStep : nextStep)}
+                            >
+                              <span className="hn-tree-name">
+                                <Icon src={a.mail} size={18} />
+                                Rechnungsversand
+                              </span>
+                              {RECHNUNGSVERSAND_STEPS.every((step) => done[step]) ? (
+                                <Icon src={a.confirm} size={16} alt="Fertig" />
+                              ) : (
+                                <Icon src={a.onhold} size={16} alt="Offen" />
+                              )}
+                            </button>
+                          </div>
+                        ) : null}
+                        </Fragment>
                       );
                     })}
                   </div>

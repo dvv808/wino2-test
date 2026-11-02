@@ -1,10 +1,10 @@
 import { useState } from "react";
 import * as a from "../assets/index";
-import { CreditModal } from "../honorar/SingleInvoicesPage";
+import { InvoiceInfoModal } from "../honorar/InvoiceInfoModal";
+import { rechnungenCells, statusPillOf } from "../honorar/invoiceCells";
 import { useHonorar } from "../honorar/store";
-import { setFocusFee } from "../honorar/focusFee";
 import { formatDay, money } from "../lib/honorar/format";
-import { isOpenItemFee, partnerOf } from "../lib/honorar/queries";
+import { isOpenItemFee } from "../lib/honorar/queries";
 import type { Fee, SingleInvoice } from "../types/honorar";
 import { ContextMenu, Icon } from "../ui";
 import { useWorkflow } from "../workflow";
@@ -17,19 +17,6 @@ function isSettled(fee: Fee, invoice?: SingleInvoice) {
 
 function paymentLabel(fee: Fee, invoice?: SingleInvoice) {
   return isSettled(fee, invoice) ? "Bezahlt" : "Offen";
-}
-
-function draftInvoice(fee: Fee): SingleInvoice {
-  return {
-    id: "draft",
-    correctionId: "",
-    feeId: fee.id,
-    partnerId: fee.partnerId,
-    amount: fee.amount,
-    kind: "Einzelfaktura/Gutschrift",
-    status: "open",
-    month: fee.month,
-  };
 }
 
 function yearOf(fee: Fee) {
@@ -60,11 +47,14 @@ function yearlyFees(fees: Fee[], invoiceOf: (feeId: string) => SingleInvoice | u
     });
 }
 
-/** Inkasso Forderungen: one yearly invoice, with Gutschrift / Zahlungsziel in the profile. */
+/**
+ * Inkasso Forderungen: one yearly invoice per row. Its menu opens "Info zur Rechnung" for this partner's invoice,
+ * the same overlay as in the Honorarverrechnung; Gutschrift, Zahlungsziel and Berater are decided there.
+ */
 export function InkassoForderungenCard() {
-  const { inkassoPartnerId, openFinanzen } = useWorkflow();
-  const { state, settleFeeViaInkasso, moveFeeToSingleInvoice } = useHonorar();
-  const [adjust, setAdjust] = useState<{ feeId: string; withDueDate: boolean } | null>(null);
+  const { inkassoPartnerId, personName, finanzenProfileOpen } = useWorkflow();
+  const { state } = useHonorar();
+  const [infoFeeId, setInfoFeeId] = useState<string | null>(null);
 
   const relevant = state.fees.filter((fee) => {
     if (fee.hiddenOpen) return false;
@@ -74,16 +64,19 @@ export function InkassoForderungenCard() {
       state.singleInvoices.some((invoice) => invoice.feeId === fee.id)
     );
   });
+  // The Forderungen of the partner whose file is open: the one passed in from the Honorarverrechnung, else the
+  // Honorar partner with this file's name. Opened from Finanzen without a partner, the first open Forderung stands in.
+  const ownPartnerId = state.partners.find((partner) => partner.name === personName)?.id;
   const partnerId =
-    inkassoPartnerId || relevant[0]?.partnerId || state.fees.find((fee) => isOpenItemFee(state, fee))?.partnerId || "";
+    inkassoPartnerId ||
+    ownPartnerId ||
+    (finanzenProfileOpen ? relevant[0]?.partnerId || state.fees.find((fee) => isOpenItemFee(state, fee))?.partnerId : "") ||
+    "";
   const invoiceOf = (feeId: string) => state.singleInvoices.find((invoice) => invoice.feeId === feeId);
   const fees = yearlyFees(
     relevant.filter((fee) => fee.partnerId === partnerId),
     invoiceOf,
   );
-  const adjustingFee = adjust ? state.fees.find((fee) => fee.id === adjust.feeId) : undefined;
-  const adjustingInvoice = adjustingFee ? invoiceOf(adjustingFee.id) ?? draftInvoice(adjustingFee) : undefined;
-  const adjustingPartner = adjustingFee ? partnerOf(state, adjustingFee.partnerId) : undefined;
 
   return (
     <article className="pp-card" id="inkasso-forderungen">
@@ -100,27 +93,23 @@ export function InkassoForderungenCard() {
           const year = yearOf(fee);
           const originalDue = invoice?.dueDateOriginal ?? fee.dueDate;
           const newDue = invoice?.dueDate && invoice.dueDate !== originalDue ? invoice.dueDate : undefined;
+          const cells = rechnungenCells(state, fee);
+          const pill = statusPillOf(cells, fee);
+          const correction = cells.correction.lines[0] === "-" ? "" : cells.correction.lines.join(" ");
           return (
             <div className="pp-group" key={year}>
               <span className="ik-fee-head">
                 <span className="pp-caption">Jahr {year}</span>
                 <ContextMenu
-                  label="Forderung bearbeiten"
-                  items={[
-                    { label: "Gutschrift erstellen", icon: a.docList, onSelect: () => setAdjust({ feeId: fee.id, withDueDate: false }) },
-                    { label: "Zahlungsziel anpassen", icon: a.calendar, onSelect: () => setAdjust({ feeId: fee.id, withDueDate: true }) },
-                    {
-                      label: "In Inkasso Forderungen ansehen",
-                      icon: a.openTab,
-                      onSelect: () => {
-                        moveFeeToSingleInvoice(fee.id);
-                        setFocusFee(fee.id);
-                        openFinanzen("singleInvoices");
-                      },
-                    },
-                  ]}
+                  label="Forderung"
+                  items={[{ label: "Info zur Rechnung", icon: a.info, onSelect: () => setInfoFeeId(fee.id) }]}
                 />
               </span>
+              {/* Same status as in the Honorarverrechnung (Offene Posten / Einzelfaktura): what went wrong, and where the correction stands. */}
+              {pill.tone === "fail" || pill.tone === "warn" ? (
+                <span className={`hn-inv-pill hn-st-tone-${pill.tone} ik-status`}>{pill.text}</span>
+              ) : null}
+              {correction ? <p className="ik-step">{correction}</p> : null}
               <div className="pp-group-body">
                 <div className="pp-row">
                   <span className="pp-label">Honorarmodell</span>
@@ -160,20 +149,7 @@ export function InkassoForderungenCard() {
         })}
       </div>
 
-      {adjust && adjustingInvoice ? (
-        <CreditModal
-          invoice={adjustingInvoice}
-          fee={adjustingFee}
-          partner={adjustingPartner}
-          withDueDate={adjust.withDueDate}
-          today={state.today}
-          onCancel={() => setAdjust(null)}
-          onConfirm={(amount, comment, dueDate) => {
-            settleFeeViaInkasso(adjust.feeId, amount, comment, dueDate);
-            setAdjust(null);
-          }}
-        />
-      ) : null}
+      {infoFeeId ? <InvoiceInfoModal feeId={infoFeeId} onClose={() => setInfoFeeId(null)} /> : null}
     </article>
   );
 }

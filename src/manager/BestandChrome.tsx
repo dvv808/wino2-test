@@ -1,5 +1,6 @@
 import * as a from "../assets/index";
 import { LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
+import { getPartner } from "../person/partners";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 
@@ -22,37 +23,86 @@ export function ManagementAreaIcon() {
   );
 }
 
+/**
+ * Partner tabs that were open before Management: they stay in the header, parked, with Management beside them.
+ * `hide` skips the file that the header already shows as its own partner tab.
+ */
+function ParkedFileTabs({ hide }: { hide?: string }) {
+  const { openFileIds, filePartnerId, activateFile, openPerson, dropFileTab } = useWorkflow();
+
+  return (
+    <>
+      {openFileIds
+        .filter((id) => getPartner(id).name !== hide)
+        .map((id) => {
+          const file = getPartner(id);
+          return (
+            <div className="person-tab inactive" key={id}>
+              <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+              <span className="person-tab-body">
+                <Icon src={file.fileKind === "company" ? a.company : a.person} size={24} />
+                <button
+                  type="button"
+                  className="person-tab-open"
+                  onClick={() => (id === filePartnerId ? openPerson() : activateFile(id))}
+                >
+                  {file.name}
+                </button>
+                <button type="button" className="close-icon" aria-label={`${file.name} schließen`} onClick={() => dropFileTab(id)}>
+                  <img src={a.iconClose} alt="" width={18} height={18} />
+                </button>
+              </span>
+              <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+            </div>
+          );
+        })}
+    </>
+  );
+}
+
 /** `partner` opens a second tab: the Bestandsmanager looking into someone's file. */
 export function BestandMainNav({
   partner,
   onClosePartner,
   onOpenPartner,
+  onOpenManagement,
 }: {
   partner?: string;
   onClosePartner?: () => void;
   /** Makes the partner tab a button that switches to the partner's file. */
   onOpenPartner?: () => void;
+  /** Parks the Management tab (the partner tab is the current one) and makes it a way back. */
+  onOpenManagement?: () => void;
 } = {}) {
-  const { leaveManager } = useWorkflow();
+  const { closeManagement } = useWorkflow();
 
   return (
     <header className="main-nav">
       <div className="main-nav-left">
         <LogoButton />
-        <div className="person-tab">
+        <ParkedFileTabs hide={partner} />
+        <div className={onOpenManagement ? "person-tab inactive" : "person-tab"}>
           <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
           <span className="person-tab-body mgmt-tab">
             <ManagementAreaIcon />
-            <span className="mgmt-tab-copy">
-              Management
-              <br />
-              Winter Vers.
-            </span>
+            {onOpenManagement ? (
+              <button type="button" className="mgmt-tab-copy person-tab-open" onClick={onOpenManagement}>
+                Management
+                <br />
+                Winter Vers.
+              </button>
+            ) : (
+              <span className="mgmt-tab-copy">
+                Management
+                <br />
+                Winter Vers.
+              </span>
+            )}
             <button
               type="button"
               className="close-icon"
               aria-label="Bestandsmanagement schließen"
-              onClick={() => leaveManager()}
+              onClick={closeManagement}
             >
               <img src={a.iconClose} alt="" width={18} height={18} />
             </button>

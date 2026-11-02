@@ -7,6 +7,10 @@ import {
   type Section,
   type StammdatenAreaId,
 } from "../person/stammdaten";
+import { formatDate } from "../lib/honorar/format";
+import { partnerOf } from "../lib/honorar/queries";
+import { ROLE_USER } from "../mocks/honorar/seed";
+import type { HonorarState } from "../types/honorar";
 import type { Approval, ApprovalStep, PostedComment, RequestStamp } from "../workflow";
 import { JULIA_STAMMDATEN_DIFF, LUNIXO_WICO_DIFF, type StammdatenDiff } from "./stammdatenDiff";
 
@@ -60,7 +64,9 @@ export type RequestRow = {
   stepLabel?: string;
   stepPosition?: string;
   /** Maklervereinbarung is the default; Stammdaten rows live on their own tab. */
-  kind?: "makler" | "stammdaten";
+  kind?: "makler" | "stammdaten" | "rechnung";
+  /** Rechnungskorrektur: the invoice whose Antrag the Bestandsmanager decides. */
+  feeId?: string;
   /** Who authored the change — an employee, or WICO as an outside source. */
   source?: "person" | "wico";
   /** Partner file opened by „Zum Workflow“. */
@@ -73,6 +79,10 @@ export const WICO_SOURCE = { name: "WICO", role: "Externe Quelle", photo: a.gisa
 
 export function isStammdatenRequest(row: RequestRow) {
   return row.kind === "stammdaten";
+}
+
+export function isRechnungRequest(row: RequestRow) {
+  return row.kind === "rechnung";
 }
 
 export function isWicoRequest(row: RequestRow) {
@@ -486,4 +496,42 @@ export function liveStammdatenDraftRows({
       stepPosition: `Schritt: ${index < 0 ? 1 : index + 1}/${total}`,
     };
   });
+}
+
+/**
+ * One Freigabe per invoice workflow whose Antrag has been sent. The Bestandsmanager decides it here;
+ * the advisor and Honorarverwalter only follow the result in the invoice workflow.
+ */
+export function liveRechnungRows(state: HonorarState): RequestRow[] {
+  const rows: RequestRow[] = [];
+  for (const fee of state.fees) {
+    const correction = fee.correction;
+    if (!correction || !correction.requestedAt) continue;
+    const partner = partnerOf(state, fee.partnerId);
+    const [date, time = ""] = formatDate(correction.requestedAt).split(" ");
+    const status: RequestStatus =
+      correction.status === "beantragt" ? "offen" : correction.status === "abgelehnt" ? "abgelehnt" : "abgeschlossen";
+    rows.push({
+      id: `rechnung-${fee.id}`,
+      group: `rechnung-${fee.id}`,
+      partner: { name: partner?.name ?? "Partner", kind: partner?.type === "company" ? "company" : "person", winter: partner?.type === "company" },
+      types: ["Kunde"],
+      art: `Rechnung: ${correction.workflow}`,
+      schritt: "Antrag freigeben",
+      stepLabel: "Antrag freigeben",
+      stepPosition: "Schritt: 2/3",
+      requester: { name: correction.requestedBy ?? ROLE_USER.advisor, role: "Kundenberater", photo: a.reqMike },
+      reviewer: { name: ROLE_USER.head, role: "Bestandsmanager", photo: a.reqAnna },
+      date,
+      time,
+      status,
+      decided: correction.decidedAt ? `${formatDate(correction.decidedAt).split(" ")[0]}, ${ROLE_USER.head.split(" ").map((part) => part[0]).join("")}` : undefined,
+      comment: correction.decisionComment,
+      note: correction.reason,
+      commentCount: (correction.reason ? 1 : 0) + (correction.decisionComment ? 1 : 0),
+      kind: "rechnung",
+      feeId: fee.id,
+    });
+  }
+  return rows;
 }

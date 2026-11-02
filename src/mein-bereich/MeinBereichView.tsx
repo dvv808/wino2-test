@@ -21,7 +21,7 @@ const PAGES: Record<Area, { label: string; icon: string }[]> = {
 };
 
 /** "Seite noch im Aufbau" illustration: a sphere with a crane, and the Winter + W badges on its lower edge. */
-function ConstructionArt() {
+export function ConstructionArt() {
   return (
     <div className="mb-art" aria-hidden>
       <img className="mb-sphere" src={a.mbSphere} alt="" />

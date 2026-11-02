@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useHonorar } from "../honorar/store";
+import { ROLE_USER } from "../mocks/honorar/seed";
 import { useWorkflow } from "../workflow";
 import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrome";
 import { DeleteWarning } from "./DeleteWarning";
@@ -10,6 +12,7 @@ import {
   DEMO_REQUESTS,
   STAMMDATEN_REQUESTS,
   liveMaklerRows,
+  liveRechnungRows,
   type RequestRow,
   type RequestStatus,
 } from "./requests";
@@ -40,6 +43,7 @@ export function ManagerView() {
   /** Workflows deleted from the list, and the one waiting on the warning prompt. */
   const [deleted, setDeleted] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<RequestRow | null>(null);
+  const { state: honorar, decideInvoiceCorrection } = useHonorar();
   const [listenTab, setListenTab] = useState<BestandListenTab>("freigaben");
 
   const liveRows = liveMaklerRows({
@@ -54,6 +58,7 @@ export function ManagerView() {
   const rows = [
     /* The workflow only reaches this list once the advisor has asked for something. */
     ...(liveRows.every((row) => row.pending) ? [] : liveRows),
+    ...liveRechnungRows(honorar),
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...ADVISOR_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...STAMMDATEN_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
@@ -64,6 +69,11 @@ export function ManagerView() {
 
   function decide(decision: "granted" | "rejected", note: string) {
     if (!reviewing) return;
+    if (reviewing.feeId) {
+      /* An invoice Antrag goes back to the invoice workflow, where the Honorarverwalter books it. */
+      decideInvoiceCorrection(reviewing.feeId, decision === "granted", note || FALLBACK_NOTE[decision], ROLE_USER.head);
+      return;
+    }
     if (reviewing.step) {
       /* A live request hands the workflow back to the advisor. */
       decideRequest(reviewing.step, decision, note || FALLBACK_NOTE[decision]);

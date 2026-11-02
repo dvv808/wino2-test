@@ -1,31 +1,31 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
-import { formatDate, formatDay, monthLabel, servicePeriod } from "../lib/honorar/format";
-import { abbucherSynced, feesOfMonth, missingFields, monthOf, partnerOf, rechnungOverdue, totals } from "../lib/honorar/queries";
-import type { Fee, Partner } from "../types/honorar";
-import { Icon, InfoBox, Snackbar } from "../ui";
+import { formatDay, monthLabel } from "../lib/honorar/format";
+import { feesOfMonth, missingFields, monthOf, partnerOf, totals } from "../lib/honorar/queries";
+import type { Fee, HonorarState, Partner } from "../types/honorar";
+import { money, rechnungenCells, zahlartLabel, type Cell } from "./invoiceCells";
+import { InvoiceInfoModal } from "./InvoiceInfoModal";
+import { Icon, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
-import { PartnerAvatar, ProfileDueMenu, StatCards, StepEmpty, type StatFilter } from "./ui";
+import { PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
 
+/** Status zu Rechnungen columns. `groupEnd` columns are collapsible: they carry the ">" tab and a dark divider follows them (Figma). */
 const COLUMNS = [
-  { key: "partner", label: "Partner", filter: false },
-  { key: "invoice", label: "Status Rechnungsversand", filter: true },
-  { key: "payment", label: "Status zur Zahlung", filter: true },
+  { key: "partner", label: "Partner", filter: false, groupEnd: true },
+  { key: "agreement", label: "Vereinbarung", filter: true, groupEnd: true },
+  { key: "invoiceNumber", label: "Rechnungsnummer & Rechnungsdatum", filter: true },
   { key: "method", label: "Zahlart", filter: true },
-  { key: "period", label: "Leistungszeitraum", filter: true },
-  { key: "due", label: "Zu zahlender Honorarbetrag", filter: true },
-  { key: "paid", label: "Bezahlter Honorarbetrag", filter: true },
-  { key: "captured", label: "Erfasst", filter: true },
+  { key: "due", label: "Rechnungsbetrag", filter: true },
+  { key: "paid", label: "Zahlungseingang", filter: true },
+  { key: "status", label: "Status Zahlung korrekt", filter: true, groupEnd: true },
+  { key: "dueDate", label: "Fälligkeitsdatum der Rechnung (Zahlungsziel)", filter: true, groupEnd: true },
+  { key: "openItem", label: "Status \"Offene Posten\"", filter: true, groupEnd: true },
+  { key: "correction", label: "Status Rechnungskorrektur & Einzelfaktura", filter: true, groupEnd: true },
 ] as const;
 
 type ColumnKey = (typeof COLUMNS)[number]["key"];
-
-function money(value: number) {
-  const [whole, frac] = value.toFixed(2).split(".");
-  return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ".")},${frac}`;
-}
 
 /** Mail or Post, taken from the partner's delivery method. */
 function channelOf(partner: Partner | undefined) {
@@ -224,86 +224,76 @@ export function PaymentCell({ fee, credit, compact = false }: { fee: Fee; credit
   );
 }
 
-function capturedWhen(iso: string) {
-  const formatted = formatDate(iso);
-  const [day, time] = formatted.split(" ");
-  return time ? `${day} - ${time}` : formatted;
-}
-
-function partnerMeta(partner: Partner) {
-  const bits = [partner.birthDate, partner.nickname ? `(vulgo ${partner.nickname})` : ""].filter(Boolean);
-  return bits.join(" ");
-}
-
-function rowText(fee: Fee, partner: Partner | undefined, credit: number | undefined): Record<ColumnKey, string> {
+function rechnungenRowText(state: HonorarState, fee: Fee, partner: Partner | undefined): Record<string, string> {
+  const cells = rechnungenCells(state, fee);
   return {
-    partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
-    invoice: `${invoiceLine(fee)} ${reminderLine(fee)}`,
-    method: fee.paymentMethod,
-    period: servicePeriod(fee.month),
-    payment: paymentLine(fee, credit),
-    due: `${money(fee.amount)} ${fee.tariff}`,
-    paid: `${money(fee.paid)} ${fee.tariff}`,
-    captured: `${capturedWhen(fee.createdAt)} ${fee.createdBy}`,
+    partner: `${partner?.name ?? ""} ${partner?.address ?? ""}`,
+    agreement: cells.agreement.join(" "),
+    invoiceNumber: cells.invoice.join(" "),
+    method: zahlartLabel(fee.paymentMethod),
+    due: `€ ${money(fee.amount)}`,
+    paid: `€ ${money(fee.paid)}`,
+    status: cells.status.lines.join(" "),
+    dueDate: cells.dates.lines.join(" "),
+    openItem: cells.openItem.lines.join(" "),
+    correction: cells.correction.lines.join(" "),
   };
 }
 
-/**
- * Status zu Rechnungen lists every fee of the month. With mode "abbucher" it is step 4: only the direct debits,
- * which show up once step 2 is done and get their result when synced with Infinity.
- */
-export function StatusStep({ mode = "all" }: { mode?: "all" | "abbucher" }) {
-  const { finanzenMonth, openFinanzenStep } = useWorkflow();
+/** "01.04.2027, 13:33": the demo date with the real time of day, ticking every minute. */
+function useNow(today: string) {
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const time = `${String(clock.getHours()).padStart(2, "0")}:${String(clock.getMinutes()).padStart(2, "0")}`;
+  return { iso: `${today}T${time}`, label: `${formatDay(today)}, ${time}` };
+}
+
+/** Status zu Rechnungen: every fee of the month with its invoice and payment state (Status page of the month). */
+export function StatusStep() {
+  const { finanzenMonth } = useWorkflow();
   const { state, importCaptureData, syncInfinity } = useHonorar();
-  const abbucherMode = mode === "abbucher";
   const [toast, setToast] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [stat, setStat] = useState<StatFilter>(null);
-  const [openGroups, setOpenGroups] = useState({ abbucher: true, rechnung: true });
 
-  // A direct debit never goes through the invoice dispatch, so that column is dropped in step 4.
-  const columns = abbucherMode ? COLUMNS.filter((column) => column.key !== "invoice") : COLUMNS;
-
+  const now = useNow(state.today);
   const month = monthOf(state, finanzenMonth);
-  const monthFees = feesOfMonth(state, finanzenMonth);
-  const fees = abbucherMode ? monthFees.filter((fee) => fee.paymentMethod === "Abbucher") : monthFees;
-  // Keeps "vor"/"nach Zahlungsziel" consistent for every Rechnung fee of this month (see rechnungOverdue).
-  const rechnungExpired = rechnungOverdue(monthFees);
-  // The direct debits appear as soon as step 2 is finished (earlier months already carry their results).
-  const debitsReady = !abbucherMode || Boolean(month?.steps.dataCarrier) || abbucherSynced(state, finanzenMonth);
-  const creditOf = (fee: Fee) => {
-    if (fee.creditAmount !== undefined) return fee.creditAmount;
-    const granted = state.singleInvoices.find((invoice) => invoice.feeId === fee.id && invoice.credit);
-    return granted?.credit;
-  };
+  const fees = feesOfMonth(state, finanzenMonth);
   const statDone = fees.filter((fee) => fee.paymentStatus === "paid").length;
   const statOpen = fees.length - statDone;
-  const baseRows = useMemo(() => {
-    return fees
-      .filter((fee) => stat === null || (stat === "done") === (fee.paymentStatus === "paid"))
-      .map((fee) => {
-        const partner = partnerOf(state, fee.partnerId);
-        const credit = creditOf(fee);
-        return { fee, partner, credit, text: rowText(fee, partner, credit) };
-      });
-  }, [fees, state, stat]);
-  const rows = useMemo(
-    () => baseRows.filter((row) => columns.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
-    [baseRows, filters, columns],
-  );
-  const sum = totals(rows.map((row) => row.fee));
-  const abbucherRows = rows.filter((row) => row.fee.paymentMethod === "Abbucher");
-  const rechnungRows = rows.filter((row) => row.fee.paymentMethod === "Rechnung");
+  // SEPA-Lastschriften get their result from Infinity once their Datenträger exists (step 2 of Rechnungsversand).
+  const sepaPending = fees.some((fee) => fee.paymentMethod === "Abbucher" && fee.paymentStatus === "open_before_due");
+  const canSync = Boolean(month?.steps.dataCarrier) && sepaPending;
+  const shownFees = fees.filter((fee) => stat === null || (stat === "done") === (fee.paymentStatus === "paid"));
 
-  function download() {
-    const header = abbucherMode
-      ? ["Partner", "Status zur Zahlung", "Zahlart", "Leistungszeitraum", "Zu zahlender Honorarbetrag", "Bezahlter Honorarbetrag", "Erfasst"]
-      : ["Partner", "Status Rechnungsversand", "Zahlart", "Leistungszeitraum", "Status zur Zahlung", "Zu zahlender Honorarbetrag", "Bezahlter Honorarbetrag", "Erfasst"];
+  function download(rows: StatusRow[]) {
+    const header = [
+      "Partner",
+      "Vereinbarung",
+      "Rechnungsnummer & Rechnungsdatum",
+      "Zahlart",
+      "Rechnungsbetrag",
+      "Zahlungseingang",
+      "Status Zahlung korrekt",
+      "Fälligkeitsdatum der Rechnung (Zahlungsziel)",
+      "Status Offene Posten",
+      "Status Rechnungskorrektur & Einzelfaktura",
+    ];
     const lines = rows.map((row) =>
-      (abbucherMode
-        ? [row.partner?.name ?? "", row.text.payment, row.text.method, row.text.period, money(row.fee.amount), money(row.fee.paid), row.text.captured]
-        : [row.partner?.name ?? "", row.text.invoice, row.text.method, row.text.period, row.text.payment, money(row.fee.amount), money(row.fee.paid), row.text.captured]
-      )
+      [
+        row.partner?.name ?? "",
+        row.text.agreement,
+        row.text.invoiceNumber,
+        row.text.method,
+        money(row.fee.amount),
+        money(row.fee.paid),
+        row.text.status,
+        row.text.dueDate,
+        row.text.openItem,
+        row.text.correction,
+      ]
         .map((value) => `"${value.replaceAll('"', '""')}"`)
         .join(";"),
     );
@@ -311,112 +301,131 @@ export function StatusStep({ mode = "all" }: { mode?: "all" | "abbucher" }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${abbucherMode ? "Abbucher" : "Honorare"}_${finanzenMonth}.csv`;
+    link.download = `Honorare_${finanzenMonth}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
 
   function syncWithInfinity() {
-    const pending = fees.some((fee) => fee.paymentStatus === "open_before_due");
-    if (!pending) {
-      setToast("Die Abbucher sind bereits mit Infinity synchronisiert.");
-      return;
-    }
     syncInfinity(finanzenMonth);
-    setToast("Abbucher mit Infinity synchronisiert.");
+    setToast("SEPA-Lastschriften mit Infinity synchronisiert.");
   }
-
-  const heading = (
-    <>
-      <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
-      <p className="hn-month">
-        <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
-      </p>
-      <h2 className="hn-h2 hn-status-title">{abbucherMode ? "Status zu Zahlungen (Abbucher)" : "Status zu Rechnungen"}</h2>
-    </>
-  );
 
   return (
     <section className="freigaben hn-panel hn-status">
-      {abbucherMode ? (
-        <>
-          <div className="hn-step-hint hn-step-hint-top">
-            <InfoBox>
-              Die Abbuchung muss in Infinity durchgeführt werden, damit hier der Status sichtbar wird. Die Abbucher
-              sollten rund um den 10. des Monats geprüft werden – die Abbuchung in Infinity und BMD muss davor
-              erledigt sein. Klicke danach auf „Synchronisiere mit Infinity“, um die Liste zu aktualisieren.
-            </InfoBox>
-          </div>
-          <div className="hn-dispatch-bar">
-            <div>{heading}</div>
-            <button type="button" className="hn-send" disabled={!debitsReady || fees.length === 0} onClick={syncWithInfinity}>
-              Synchronisiere mit Infinity
-            </button>
-          </div>
-        </>
-      ) : (
-        heading
-      )}
+      <div className="hn-status-head">
+        <div>
+          <h1 className="freigaben-title hn-kicker">Status zu Rechnungen</h1>
+          <p className="hn-month">
+            <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
+          </p>
+        </div>
+        <time className="hn-status-stamp" dateTime={now.iso}>
+          {now.label}
+        </time>
+      </div>
 
-      {fees.length === 0 || !debitsReady ? (
-        abbucherMode ? (
-          <StepEmpty
-            icon={a.tickList}
-            title={fees.length === 0 ? "Keine Abbucher in diesem Monat" : "Noch keine Abbucher sichtbar"}
-            {...(fees.length === 0
-              ? {}
-              : {
-                  lead: "Sobald Schritt 2 abgeschlossen ist, erscheinen hier alle Abbucher des Monats. Du kannst",
-                  link: "Schritt 2 jetzt öffnen",
-                  onLink: () => openFinanzenStep("carrier"),
-                })}
-          />
-        ) : (
-          <StepEmpty
-            icon={a.tickList}
-            title="Noch keine Rechnungen vorhanden"
-            lead="Du kannst"
-            link="Daten hier importieren"
-            onLink={() => importCaptureData(finanzenMonth)}
-          />
-        )
+      {fees.length === 0 ? (
+        <StepEmpty
+          icon={a.tickList}
+          title="Noch keine Rechnungen vorhanden"
+          lead="Du kannst"
+          link="Daten hier importieren"
+          onLink={() => importCaptureData(finanzenMonth)}
+        />
       ) : (
       <>
       <StatCards open={statOpen} done={statDone} unit="Zahlungen" value={stat} onChange={setStat} />
 
+      <StatusTable fees={shownFees} label="Status zu Rechnungen" tools={(rows) => (
       <div className="hn-status-tools">
-        {abbucherMode ? (
-          <span />
-        ) : (
-          <button type="button" className="hn-drop" onClick={() => importCaptureData(finanzenMonth)}>
-            Daten importieren
-            <Icon src={a.chevronDown} size={18} />
-          </button>
-        )}
         <div className="hn-status-tools-end">
-          <button type="button" className="hn-drop" onClick={download}>
+          {canSync ? (
+            <button type="button" className="hn-drop" onClick={syncWithInfinity}>
+              Synchronisiere mit Infinity
+            </button>
+          ) : null}
+          <button type="button" className="hn-drop" onClick={() => download(rows)}>
             Liste herunterladen
             <Icon src={a.chevronDown} size={18} />
           </button>
         </div>
       </div>
+      )} />
+      </>
+      )}
+      {toast ? <Snackbar message={toast} onClose={() => setToast(null)} /> : null}
+    </section>
+  );
+}
 
-      <div
-        className={`hn-status-table${abbucherMode ? " abbucher" : ""}`}
-        role="table"
-        aria-label={abbucherMode ? "Status zu Zahlungen (Abbucher)" : "Status zu Rechnungen"}
-      >
+export type StatusRow = { fee: Fee; partner: Partner | undefined; text: Record<string, string> };
+
+/** The Sammelfaktura table: one row per invoice with its payment, Offene-Posten and correction status. Shared by Status zu Rechnungen, Offene Posten and Einzelfaktura. */
+export function StatusTable({
+  fees,
+  label,
+  tools,
+  empty,
+}: {
+  fees: Fee[];
+  label: string;
+  tools?: (rows: StatusRow[]) => React.ReactNode;
+  empty?: React.ReactNode;
+}) {
+  const { state } = useHonorar();
+  const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
+  const baseRows = useMemo(
+    () =>
+      fees.map((fee) => {
+        const partner = partnerOf(state, fee.partnerId);
+        return { fee, partner, text: rechnungenRowText(state, fee, partner) };
+      }),
+    [fees, state],
+  );
+  const rows = useMemo(
+    () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
+    [baseRows, filters],
+  );
+  const sum = totals(rows.map((row) => row.fee));
+
+  return (
+    <>
+      {tools?.(rows)}
+      <div className="hn-st-scroll">
+      <div className="hn-status-table rechnungen" role="table" aria-label={label}>
+        <div className="hn-st-bands" role="row" aria-hidden>
+          <div className="hn-st-band" style={{ gridColumn: "1 / 3" }}>
+            Daten für Datenträger PERSON
+          </div>
+          <div className="hn-st-band" style={{ gridColumn: "3 / 7" }}>
+            Daten für Datenträger RECHNUNG
+          </div>
+          <div className="hn-st-band" style={{ gridColumn: "7 / 12" }}>
+            Stati zur Rechnung
+          </div>
+        </div>
+
         <div className="hn-st-head" role="row">
-          {columns.map((column) => (
-            <div className="hn-st-th" role="columnheader" key={column.key}>
+          {COLUMNS.map((column) => (
+            <div className={"groupEnd" in column ? "hn-st-th has-tab" : "hn-st-th"} role="columnheader" key={column.key}>
+              {"groupEnd" in column ? (
+                <span className="hn-st-tab" aria-hidden title="Weitere Spalten folgen">
+                  <Icon src={a.chevronDark} size={12} className="caret-side" />
+                </span>
+              ) : null}
               <span className="hn-st-label">
                 {column.label}
-                {column.filter ? <ColumnFilter
-                    label={column.label}
-                    value={filters[column.key] ?? ""}
-                    samples={baseRows.map((row) => row.text[column.key])}
-                    onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
-                  /> : null}
+                {column.filter ? (
+                  <span className="hn-st-ctrls">
+                    <ColumnFilter
+                      label={column.label}
+                      value={filters[column.key] ?? ""}
+                      samples={baseRows.map((row) => row.text[column.key] ?? "")}
+                      onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
+                    />
+                  </span>
+                ) : null}
               </span>
               <input
                 className="col-input"
@@ -425,6 +434,7 @@ export function StatusStep({ mode = "all" }: { mode?: "all" | "abbucher" }) {
               />
             </div>
           ))}
+          <div className="hn-st-th hn-st-more-head" role="columnheader" aria-label="Aktionen" />
         </div>
 
         <div className="hn-st-sum" role="row">
@@ -432,127 +442,181 @@ export function StatusStep({ mode = "all" }: { mode?: "all" | "abbucher" }) {
           <div />
           <div />
           <div />
-          {abbucherMode ? null : <div />}
           <div className="hn-st-total">
-            <strong>{money(sum.due)}</strong>
+            <strong>€ {money(sum.due)}</strong>
             <small>Summe Total</small>
           </div>
           <div className="hn-st-total">
-            <strong>{money(sum.paid)}</strong>
+            <strong>€ {money(sum.paid)}</strong>
             <small>Summe Total</small>
           </div>
           <div />
+          <div />
+          <div />
+          <div />
+          <div />
         </div>
 
-        {abbucherMode ? (
-          <Group open onToggle={() => undefined} rows={rows} hideInvoice />
-        ) : (
-          <>
-            <Group
-              label="Abbucher"
-              open={openGroups.abbucher}
-              onToggle={() => setOpenGroups((current) => ({ ...current, abbucher: !current.abbucher }))}
-              rows={abbucherRows}
-            />
-            <Group
-              label="Rechnung"
-              open={openGroups.rechnung}
-              onToggle={() => setOpenGroups((current) => ({ ...current, rechnung: !current.rechnung }))}
-              rows={rechnungRows}
-              rechnungExpired={rechnungExpired}
-            />
-          </>
-        )}
+        {rows.length === 0 && empty ? empty : <RechnungenRows rows={rows} />}
       </div>
-      </>
-      )}
-      {toast ? <Snackbar message={toast} onClose={() => setToast(null)} /> : null}
-    </section>
+      </div>
+    </>
   );
 }
 
-type StatusRow = { fee: Fee; partner: Partner | undefined; credit: number | undefined; text: Record<ColumnKey, string> };
-
-/** Groups the rows by Zahlart (Abbucher / Rechnung), the same way Postversand groups by Mail / Post. */
-function Group({
-  label,
-  open,
-  onToggle,
-  rows,
-  hideInvoice,
-  rechnungExpired = false,
-}: {
-  label?: string;
-  open: boolean;
-  onToggle: () => void;
-  rows: StatusRow[];
-  hideInvoice?: boolean;
-  rechnungExpired?: boolean;
-}) {
-  const { openFinanzenStep } = useWorkflow();
-  if (rows.length === 0) return null;
+function Lines({ lines }: { lines: string[] }) {
   return (
     <>
-      {label ? (
-        <div className="hn-st-group" role="row">
-          <div className="hn-st-group-bar">
-            <button type="button" className={open ? undefined : "closed"} aria-expanded={open} onClick={onToggle}>
-              <Icon src={a.chevronDown} size={18} />
-              {label}
-            </button>
+      {lines.map((line, index) => (
+        <span key={index}>{line}</span>
+      ))}
+    </>
+  );
+}
+
+function ToneCell({ cell }: { cell: Cell }) {
+  return (
+    <div className={`hn-st-stack hn-st-tone-${cell.tone}`}>
+      <Lines lines={cell.lines} />
+    </div>
+  );
+}
+
+/** Status zu Rechnungen rows: one flat list - the Zahlart is a column, no longer a group. */
+function RechnungenRows({ rows }: { rows: StatusRow[] }) {
+  const { state } = useHonorar();
+  const { openFinanzen, openRechnungWorkflow } = useWorkflow();
+  const [menu, setMenu] = useState<{ feeId: string; top: number; left: number; anchor: HTMLElement } | null>(null);
+  const [infoFeeId, setInfoFeeId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeInfo = useCallback(() => setInfoFeeId(null), []);
+
+  useEffect(() => {
+    if (!menu) return;
+    function away(event: MouseEvent) {
+      if (menuRef.current?.contains(event.target as Node)) return;
+      if ((event.target as HTMLElement).closest(".hn-st-menu")) return;
+      setMenu(null);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenu(null);
+    }
+    // The menu is fixed to the screen, so it closes once its dots button has scrolled away from under it.
+    function onScroll() {
+      if (!menu) return;
+      const rect = menu.anchor.getBoundingClientRect();
+      if (Math.abs(rect.bottom + 4 - menu.top) > 2 || Math.abs(Math.max(8, rect.right - 224) - menu.left) > 2) setMenu(null);
+    }
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [menu]);
+  return (
+    <>
+      {rows.map(({ fee, partner, text }) => {
+        const locked = missingFields(fee, partner).length > 0;
+        const cells = rechnungenCells(state, fee);
+        return (
+          <div className="hn-st-row" role="row" key={fee.id}>
+            <div className="hn-st-partner">
+              <span className="partner-avatar">
+                <PartnerAvatar company={partner?.type === "company"} />
+                {partner?.type === "company" ? <img className="winter" src={a.winterMark} alt="" /> : null}
+              </span>
+              <span className="partner-copy">
+                <strong>
+                  {partner?.name}
+                  {locked ? <img className="hn-lock" src={a.hnLock} alt="" width={16} height={16} /> : null}
+                </strong>
+                {partner?.address
+                  ? partner.address.split(", ").map((line) => <small key={line}>{line}</small>)
+                  : null}
+              </span>
+              <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
+            </div>
+            <div className="hn-st-stack">
+              <Lines lines={cells.agreement} />
+            </div>
+            <div className="hn-st-stack">
+              <Lines lines={cells.invoice} />
+            </div>
+            <div>{text.method}</div>
+            <div className="hn-st-amount">€ {money(fee.amount)}</div>
+            <div className="hn-st-amount">€ {money(fee.paid)}</div>
+            <ToneCell cell={cells.status} />
+            <div>
+              {cells.dates.lines.length > 1 ? (
+                <span className={`hn-st-dates hn-st-tone-${cells.dates.tone}`}>
+                  <Lines lines={cells.dates.lines} />
+                </span>
+              ) : (
+                cells.dates.lines[0]
+              )}
+            </div>
+            <ToneCell cell={cells.openItem} />
+            {fee.correction ? (
+              /* A started or booked workflow opens its workflow page, beside the partner tab. */
+              <div className={`hn-st-stack hn-st-tone-${cells.correction.tone}`}>
+                <button
+                  type="button"
+                  className="hn-link hn-st-wf-link"
+                  title="Workflow öffnen"
+                  onClick={() => openRechnungWorkflow(fee.id)}
+                >
+                  <Lines lines={cells.correction.lines} />
+                </button>
+              </div>
+            ) : cells.correction.link ? (
+              <div className="hn-st-stack">
+                <button type="button" className="hn-link" onClick={() => openFinanzen("openItems")}>
+                  {cells.correction.lines[0]}
+                </button>
+              </div>
+            ) : (
+              <ToneCell cell={cells.correction} />
+            )}
+            <div className="hn-st-more">
+              <button
+                type="button"
+                className="hn-st-menu"
+                aria-label={`Aktionen für ${partner?.name ?? "Rechnung"}`}
+                aria-haspopup="menu"
+                aria-expanded={menu?.feeId === fee.id}
+                onClick={(event) => {
+                  const anchor = event.currentTarget;
+                  const rect = anchor.getBoundingClientRect();
+                  setMenu(menu?.feeId === fee.id ? null : { feeId: fee.id, top: rect.bottom + 4, left: Math.max(8, rect.right - 224), anchor });
+                }}
+              >
+                <Icon src={a.contextMenu} size={24} />
+              </button>
+            </div>
           </div>
+        );
+      })}
+      {menu ? (
+        <div className="hn-row-menu" ref={menuRef} role="menu" style={{ top: menu.top, left: menu.left }}>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setInfoFeeId(menu.feeId);
+              setMenu(null);
+            }}
+          >
+            <span className="hn-menu-ico">
+              <Icon src={a.info} size={18} />
+            </span>
+            Info zur Rechnung
+          </button>
         </div>
       ) : null}
-      {open
-        ? rows.map(({ fee, partner, text, credit }) => {
-            const locked = missingFields(fee, partner).length > 0;
-            return (
-              <div className="hn-st-row" role="row" key={fee.id}>
-                <div className="hn-st-partner">
-                  <span className="partner-avatar">
-                    <PartnerAvatar company={partner?.type === "company"} />
-                    {partner?.type === "company" ? <img className="winter" src={a.winterMark} alt="" /> : null}
-                  </span>
-                  <span className="partner-copy">
-                    <strong>
-                      {partner?.name}
-                      {locked ? <img className="hn-lock" src={a.hnLock} alt="" width={16} height={16} /> : null}
-                    </strong>
-                    {partner ? <small>{partnerMeta(partner)}</small> : null}
-                  </span>
-                  <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
-                </div>
-                {hideInvoice ? null : (
-                  <DispatchStatus
-                    fee={fee}
-                    partner={partner}
-                    clickable={fee.paymentMethod === "Rechnung"}
-                    onInvoice={() => openFinanzenStep("dispatch")}
-                    onReminder={() => openFinanzenStep("reminders")}
-                  />
-                )}
-                <PaymentCell fee={fee} credit={credit} compact={fee.paymentMethod === "Rechnung" && rechnungExpired} />
-                <div>{text.method}</div>
-                <div className="hn-st-period">{text.period}</div>
-                <div className="hn-st-money">
-                  <strong>{money(fee.amount)}</strong>
-                  <small>{fee.tariff}</small>
-                </div>
-                <div className="hn-st-money">
-                  <strong>{money(fee.paid)}</strong>
-                  <small>{fee.tariff}</small>
-                </div>
-                <div className="hn-st-captured">
-                  <span>
-                    {capturedWhen(fee.createdAt)}
-                    <small>{fee.createdBy}</small>
-                  </span>
-                  <ProfileDueMenu />
-                </div>
-              </div>
-            );
-          })
-        : null}
+      {infoFeeId ? <InvoiceInfoModal feeId={infoFeeId} onClose={closeInfo} /> : null}
     </>
   );
 }

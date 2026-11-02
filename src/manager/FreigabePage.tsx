@@ -21,7 +21,11 @@ import { useWorkflow, type PostedComment } from "../workflow";
 import { BestandAreaNav, BestandMainNav } from "./BestandChrome";
 import { Requester, StatusPill } from "./FreigabenPanel";
 import { StammdatenChangeCard } from "./StammdatenChangeCard";
-import { isStammdatenRequest, isWicoRequest, SCHRITT, type RequestRow } from "./requests";
+import { formatDay } from "../lib/honorar/format";
+import { partnerOf } from "../lib/honorar/queries";
+import { invoiceNumberOf, money, openAmount } from "../honorar/invoiceCells";
+import { useHonorar } from "../honorar/store";
+import { isRechnungRequest, isStammdatenRequest, isWicoRequest, SCHRITT, type RequestRow } from "./requests";
 
 const STAMMDATEN_TASKS = [
   {
@@ -31,6 +35,17 @@ const STAMMDATEN_TASKS = [
   {
     title: "Was wurde geändert",
     text: "Vergleiche die Winmakler-Werte mit den neuen Wino-2-Werten.",
+  },
+];
+
+const RECHNUNG_TASKS = [
+  {
+    title: "Antrag prüfen",
+    text: "Prüfe Art der Korrektur, Betrag oder Zahlungsziel und die Begründung des Kundenberaters.",
+  },
+  {
+    title: "Freigeben oder ablehnen",
+    text: "Bei Freigabe verbucht der Honorarverwalter die Korrektur. Bei Ablehnung geht der Antrag zurück an den Kundenberater (Kommentar Pflicht).",
   },
 ];
 
@@ -45,7 +60,7 @@ function localStamp() {
 
 function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
   const { partner } = row;
-  const stammdaten = isStammdatenRequest(row);
+  const stammdaten = isStammdatenRequest(row) || isRechnungRequest(row);
   const wico = isWicoRequest(row);
 
   return (
@@ -127,7 +142,8 @@ function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
 }
 
 function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
-  const stammdaten = isStammdatenRequest(row);
+  const rechnung = isRechnungRequest(row);
+  const stammdaten = isStammdatenRequest(row) || rechnung;
 
   if (row.status === "abgeschlossen") {
     return (
@@ -135,9 +151,11 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
         <div className="rev-banner-line">
           <Icon src={a.checkGreen} size={24} />
           <p>
-            <strong>{stammdaten ? "Änderung freigegeben" : "Dokument freigegeben"}</strong>
+            <strong>{rechnung ? "Antrag freigegeben" : stammdaten ? "Änderung freigegeben" : "Dokument freigegeben"}</strong>
             <br />
-            {stammdaten
+            {rechnung
+              ? "Der Bestandsmanager hat diesen Antrag freigegeben. Der Honorarverwalter verbucht ihn als Nächstes."
+              : stammdaten
               ? "Der Bestandsmanager hat diese Stammdaten-Änderung freigegeben."
               : "Der Bestandsmanager hat dieses Dokument freigegeben."}
           </p>
@@ -154,7 +172,7 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
           <p>
             <strong>Freigabe abgelehnt</strong>
             <br />
-            Achtung, die Freigabe wurde abgelehnt.
+            {rechnung ? "Der Antrag ging zur Anpassung zurück an den Kundenberater." : "Achtung, die Freigabe wurde abgelehnt."}
           </p>
         </div>
       </div>
@@ -168,11 +186,59 @@ function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
         <p>
           <strong>Freigabe ausstehend</strong>
           <br />
-          {stammdaten
+          {rechnung
+            ? "Der Bestandsmanager muss diesen Antrag noch genehmigen."
+            : stammdaten
             ? "Der Bestandsmanager muss diese Stammdaten-Änderung noch genehmigen."
             : `Der Bestandsmanager muss diese ${signed ? "Signatur noch genehmigen" : "Dokument noch genehmigen"}.`}
         </p>
       </div>
+    </div>
+  );
+}
+
+/** The Antrag of an invoice workflow, shown where a Maklervereinbarung shows the PDF. */
+function RechnungAntragCard({ row }: { row: RequestRow }) {
+  const { state } = useHonorar();
+  const fee = state.fees.find((entry) => entry.id === row.feeId);
+  const correction = fee?.correction;
+  if (!fee || !correction) return <p className="atab-empty center">Der Antrag ist nicht mehr verfügbar.</p>;
+  const partner = partnerOf(state, fee.partnerId);
+  const open = openAmount(state, fee);
+  const summary =
+    correction.kind === "Zahlungsziel ändern"
+      ? `Neues Zahlungsziel ${correction.dueDate ? formatDay(correction.dueDate) : "-"}`
+      : correction.kind === "Teilgutschrift"
+        ? `Gutschrift € ${money(correction.amount ?? 0)}`
+        : correction.kind === "Doch bezahlt"
+          ? "Rechnung als bezahlt verbuchen"
+          : `Gutschrift € ${money(correction.amount ?? open)}${correction.amount === undefined ? " (offener Betrag)" : ""}`;
+  return (
+    <div className="rw-card">
+      <span className="hn-inv-label">Antrag {correction.workflow}</span>
+      <h2 className="rw-title">
+        {partner?.name} - Rechnung {invoiceNumberOf(fee) ?? ""}
+      </h2>
+      <dl className="hn-inv-figures">
+        <div>
+          <dt>Rechnungsbetrag</dt>
+          <dd>€ {money(fee.amount)}</dd>
+        </div>
+        <div>
+          <dt>Offen</dt>
+          <dd>€ {money(open)}</dd>
+        </div>
+        <div>
+          <dt>Zahlungsziel</dt>
+          <dd>{formatDay(fee.dueDate)}</dd>
+        </div>
+      </dl>
+      <p className="hn-inv-fact">
+        <span>
+          <strong>{correction.kind}</strong>: {summary}
+        </span>
+        <small>Begründung: {correction.reason}</small>
+      </p>
     </div>
   );
 }
@@ -237,16 +303,18 @@ export function FreigabePage({
     editComment,
     removeComment,
     openStammdaten,
+    openRechnungWorkflow,
   } = useWorkflow();
   const [pane, setPane] = useState<ContentPane>("freigabe");
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
   const [stammdatenPosted, setStammdatenPosted] = useState<PostedComment[]>([]);
-  const stammdaten = isStammdatenRequest(row);
+  const rechnung = isRechnungRequest(row);
+  const stammdaten = isStammdatenRequest(row) || rechnung;
   const signed = row.schritt === SCHRITT.sign;
   const decided = row.status !== "offen";
   const step = signed ? "sign" : "docs";
-  const tasks = stammdaten ? STAMMDATEN_TASKS : MANAGER_TASKS[step];
+  const tasks = rechnung ? RECHNUNG_TASKS : stammdaten ? STAMMDATEN_TASKS : MANAGER_TASKS[step];
   const sentAt = { date: row.date, time: row.time };
   const comments = buildComments({
     note: row.note,
@@ -326,8 +394,8 @@ export function FreigabePage({
                     <div className="doc-heading">
                       <strong>{row.partner.name}</strong>
                       <span>
-                        <Icon src={a.stammdaten} size={18} />
-                        Stammdaten-Freigabe
+                        <Icon src={rechnung ? a.request : a.stammdaten} size={18} />
+                        {rechnung ? "Rechnungs-Freigabe" : "Stammdaten-Freigabe"}
                       </span>
                     </div>
                   ) : (
@@ -386,7 +454,9 @@ export function FreigabePage({
                 </section>
 
                 <section className="review-viewer">
-                  {stammdaten && row.diff ? (
+                  {rechnung ? (
+                    <RechnungAntragCard row={row} />
+                  ) : stammdaten && row.diff ? (
                     <StammdatenChangeCard diff={row.diff} />
                   ) : (
                     <PdfViewer signature={signed && signMode === "digital" ? signature : null} />
@@ -408,6 +478,11 @@ export function FreigabePage({
                       openStammdaten(row.stammdatenArea!, row.stammdatenCardId, row.partnerId)
                     }
                   >
+                    Zum Workflow
+                  </button>
+                ) : null}
+                {rechnung && row.feeId ? (
+                  <button type="button" className="btn-secondary" onClick={() => openRechnungWorkflow(row.feeId!)}>
                     Zum Workflow
                   </button>
                 ) : null}

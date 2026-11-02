@@ -786,6 +786,33 @@ export function liveFileIdentity(sections: Section[]) {
   };
 }
 
+/**
+ * What the partner Dashboard shows from the live Stammdaten: the name with titles, the Rufname, and the first
+ * contact card (Kontaktdaten von … / Zentraler Kontakt) with its note. Empty values stay empty.
+ */
+export function liveDashboardData(sections: Section[]) {
+  const partner = liveCards(sections, "personendaten")[0];
+  const form = partner ? partnerForm(partner) : null;
+  const contactCards = liveCards(sections, "kontakte");
+  const primary = contactCards[0];
+  const contact = primary ? contactForm(primary) : null;
+  return {
+    titelVor: form?.titelVor.trim() ?? "",
+    titelNach: form?.titelNach.trim() ?? "",
+    rufname: form?.rufname.trim() ?? "",
+    contact: contact
+      ? {
+          name: contact.partner,
+          role: contact.bezeichnung,
+          note: contact.notiz.trim(),
+          phones: contact.phones.map((phone) => phone.value).filter((value) => value.trim()),
+          mails: contact.mails.map((mail) => mail.value).filter((value) => value.trim()),
+        }
+      : null,
+    moreContacts: Math.max(contactCards.length - 1, 0),
+  };
+}
+
 export function navLabel(item: { label: string; target?: string }, sections: Section[]) {
   if (item.target === "kontakte" || item.target === "adressen" || item.target === "bankverbindungen") {
     const section = sections.find((entry) => entry.id === item.target);

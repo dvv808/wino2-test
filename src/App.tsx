@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as a from "./assets/index";
-import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab } from "./chrome";
+import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab, useParkedTabClicks } from "./chrome";
 import { CommentPrompt } from "./CommentPrompt";
 import { WicoDeviationBox } from "./Summary";
 import { ConsentWarning } from "./ConsentWarning";
@@ -15,7 +15,9 @@ import { TermsStep } from "./steps/TermsStep";
 import { ManagerView } from "./manager/ManagerView";
 import { HonorarProvider } from "./honorar/store";
 import { HonorarView } from "./honorar/HonorarView";
+import { RechnungWorkflowPage } from "./honorar/RechnungWorkflow";
 import { MeinBereichView } from "./mein-bereich/MeinBereichView";
+import { HomeView } from "./home/HomeView";
 import { CompanyGroupsProvider } from "./person/companyGroups";
 import { FamilyLinksProvider } from "./person/familyLinks";
 import { KonzernLinksProvider } from "./person/konzernLinks";
@@ -205,10 +207,28 @@ function LeavePrompt() {
 function Screen() {
   const { activeStep, view, workflowPane, setWorkflowPane, isHistorical } = useWorkflow();
 
+  if (view === "home") {
+    return (
+      <>
+        <HomeView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
   if (view === "meinBereich") {
     return (
       <>
         <MeinBereichView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
+  if (view === "rechnung") {
+    return (
+      <>
+        <RechnungWorkflowPage />
         <VersionLayer />
         <LeavePrompt />
       </>
@@ -313,6 +333,7 @@ function Screen() {
 }
 
 export default function App() {
+  useParkedTabClicks();
   return (
     <WorkflowProvider>
       <HonorarProvider>

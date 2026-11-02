@@ -9,6 +9,7 @@ import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
 import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
+import { PartnerDashboard } from "./PartnerDashboard";
 import { WorkflowsPage } from "./WorkflowsPage";
 import { getPartner } from "./partners";
 import { familyKindLabel, familyMember, type FamilyMemberId } from "./family";
@@ -94,11 +95,11 @@ function konzernOverviewCards(partyId: string, kind: PartyKind, groups: KonzernG
 }
 
 /** Same apps as the workflow bar. Only Person is open in the prototype. */
-const AREAS = ["Person", "Risk Management", "Verträge", "Schäden", "Angebote"];
+const AREAS = ["Person", "Verträge", "Schäden", "Angebote"];
 
-/** The module row under it. Profil and Workflows & To-Dos are wired. */
+/** The module row under it. Dashboard, Profil and Workflows & To-Dos are wired. */
 const MODULES = [
-  { label: "Dashboard", icon: a.dashboard },
+  { label: "Dashboard", icon: a.dashboard, module: "dashboard" as const },
   { label: "Profil", icon: a.moduleProfile, module: "profil" as const },
   { label: "Kommunikation", icon: a.moduleCommunication },
   { label: "Workflows & To-Dos", icon: a.moduleWorkflow, module: "workflows" as const },
@@ -139,7 +140,7 @@ function PersonAreaNav() {
 
 function PersonModuleNav() {
   const { personModule, openPersonModule } = useWorkflow();
-  const active = personModule === "workflows" ? "workflows" : "profil";
+  const active = personModule === "workflows" || personModule === "dashboard" ? personModule : "profil";
 
   return (
     <div className="module-nav">
@@ -433,7 +434,9 @@ export function PersonPage() {
         <PersonAreaNav />
         <PersonModuleNav />
 
-        {personModule === "workflows" ? (
+        {personModule === "dashboard" ? (
+          <PartnerDashboard key={filePartnerId} familyCards={familyCards} holdingName={holdingName} />
+        ) : personModule === "workflows" ? (
           <WorkflowsPage />
         ) : personArea === "inkasso" ? (
           <div className="pp-body">

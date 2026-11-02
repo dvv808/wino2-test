@@ -224,7 +224,7 @@ export function DispatchStep() {
       ) : null}
       <div className="hn-dispatch-bar">
         <div>
-          <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
+          <h1 className="freigaben-title hn-kicker">Rechnungsversand</h1>
           <p className="hn-month">
             <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
           </p>

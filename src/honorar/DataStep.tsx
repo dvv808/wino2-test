@@ -60,21 +60,11 @@ function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, stri
 
 type DataRow = { fee: Fee; partner: Partner | undefined; text: Record<ColumnKey, string> };
 
-/** Groups the rows by Zahlart (Abbucher / Rechnung), the same way Status zu Rechnungen does. */
-function DataGroup({ label, open, onToggle, rows }: { label: string; open: boolean; onToggle: () => void; rows: DataRow[] }) {
-  if (rows.length === 0) return null;
+/** Flat list of the captured rows - no Zahlart group headers. */
+function DataRows({ rows }: { rows: DataRow[] }) {
   return (
     <>
-      <div className="hn-st-group" role="row">
-        <div className="hn-st-group-bar">
-          <button type="button" className={open ? undefined : "closed"} aria-expanded={open} onClick={onToggle}>
-            <Icon src={a.chevronDown} size={18} />
-            {label}
-          </button>
-        </div>
-      </div>
-      {open
-        ? rows.map(({ fee, partner, text }) => {
+      {rows.map(({ fee, partner, text }) => {
             const locked = missingFields(fee, partner).length > 0;
             const address = addressLines(partner?.address ?? "");
             return (
@@ -116,8 +106,7 @@ function DataGroup({ label, open, onToggle, rows }: { label: string; open: boole
                 </div>
               </div>
             );
-          })
-        : null}
+          })}
     </>
   );
 }
@@ -128,7 +117,6 @@ export function DataStep() {
   const dataDone = Boolean(monthOf(state, finanzenMonth)?.steps.data);
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
-  const [openGroups, setOpenGroups] = useState({ abbucher: true, rechnung: true });
 
   const fees = feesOfMonth(state, finanzenMonth);
   const baseRows = useMemo(() => {
@@ -143,8 +131,6 @@ export function DataStep() {
     [baseRows, filters],
   );
   const sum = totals(rows.map((row) => row.fee));
-  const abbucherRows = rows.filter((row) => row.fee.paymentMethod === "Abbucher");
-  const rechnungRows = rows.filter((row) => row.fee.paymentMethod === "Rechnung");
 
   function download() {
     const header = ["Partner", "Anschrift", "Zahlart", "Leistungszeitraum", "Bankverbindung", "Zu zahlender Honorarbetrag", "Erfasst"];
@@ -164,7 +150,7 @@ export function DataStep() {
 
   return (
     <section className="freigaben hn-panel hn-status">
-      <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
+      <h1 className="freigaben-title hn-kicker">Rechnungsversand</h1>
       <p className="hn-month">
         <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
       </p>
@@ -238,18 +224,7 @@ export function DataStep() {
           <div />
         </div>
 
-        <DataGroup
-          label="Abbucher"
-          open={openGroups.abbucher}
-          onToggle={() => setOpenGroups((current) => ({ ...current, abbucher: !current.abbucher }))}
-          rows={abbucherRows}
-        />
-        <DataGroup
-          label="Rechnung"
-          open={openGroups.rechnung}
-          onToggle={() => setOpenGroups((current) => ({ ...current, rechnung: !current.rechnung }))}
-          rows={rechnungRows}
-        />
+        <DataRows rows={rows} />
       </div>
       {confirmClear ? (
         <ConfirmModal

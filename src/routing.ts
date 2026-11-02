@@ -5,7 +5,7 @@ import type { StepId, View, WorkflowPane } from "./workflow";
 import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
 
 /** Profil is the default person module; Workflows & To-Dos is the advisor inbox. */
-export type PersonModule = "profil" | "workflows";
+export type PersonModule = "profil" | "workflows" | "dashboard";
 export type PersonArea = "stammdaten" | "maklermandat" | "inkasso";
 
 /**
@@ -71,7 +71,6 @@ const FINANZEN_STEP_SLUGS: Record<HonorarStepKey, string> = {
   status: "status",
   data: "daten",
   carrier: "datentraeger",
-  abbucher: "abbucher",
   dispatch: "versand",
   reminders: "erinnerungen",
 };
@@ -97,6 +96,8 @@ export type Route = {
   /** Year dashboard of the Sammelfaktura; empty means the overview of all years. */
   finanzenYear?: string;
   konzernHubId?: string;
+  /** Invoice workflow: the fee it belongs to. */
+  rechnungFeeId?: string;
 };
 
 function partnerOf(parts: string[]): PartnerId {
@@ -119,7 +120,9 @@ export function routeToHash({
   finanzenPartnerId,
   finanzenYear,
   konzernHubId,
+  rechnungFeeId,
 }: Route): string {
+  if (view === "rechnung" && rechnungFeeId) return `#/${FINANZEN}/rechnung/${rechnungFeeId}`;
   if (view === "konzernHub" && konzernHubId) {
     return `#/${personRoot(partnerId)}/konzern/${konzernHubId}`;
   }
@@ -131,11 +134,13 @@ export function routeToHash({
   if (view === "person") {
     const root = personRoot(partnerId);
     if (personModule === "workflows") return `#/${root}/${PERSON_WORKFLOWS}`;
+    if (personModule === "dashboard") return `#/${root}/dashboard`;
     if (personArea === "inkasso") return `#/${root}/${INKASSO_AREA}`;
     if (personArea === "maklermandat") return `#/${root}/${MAKLERMANDAT_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
   if (view === "meinBereich") return "#/mein-bereich";
+  if (view === "home") return "#/home";
   if (view === "finanzen") {
     if (finanzenPage === "sammelfaktura") return `#/${FINANZEN}/sammelfaktura${finanzenYear ? `/${finanzenYear}` : ""}`;
     if (finanzenPage === "openItems") return `#/${FINANZEN}/offene-posten`;
@@ -157,12 +162,14 @@ export function routeToHash({
 export function hashToRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "mein-bereich") return { view: "meinBereich" };
+  if (parts[0] === "home") return { view: "home" };
   if (parts[0] === "bestandsmanager" && parts[1] === "finanzen") {
     const rest = parts.slice(2);
     if (rest[0] === "sammelfaktura") {
       const year = /^\d{4}$/.test(rest[1] ?? "") ? rest[1] : "";
       return { view: "finanzen", finanzenPage: "sammelfaktura", finanzenYear: year };
     }
+    if (rest[0] === "rechnung" && rest[1]) return { view: "rechnung", rechnungFeeId: rest[1] };
     if (rest[0] === "offene-posten") return { view: "finanzen", finanzenPage: "openItems" };
     if (rest[0] === "einzelfaktura") return { view: "finanzen", finanzenPage: "singleInvoices" };
     if (rest[0] === "mein-bereich") return { view: "finanzen", finanzenPage: "meinBereich" };
@@ -189,6 +196,9 @@ export function hashToRoute(hash: string): Route {
   }
   if (parts[0] === "person" && parts[2] === "konzern" && parts[3]) {
     return { view: "konzernHub", partnerId: partnerOf(parts), konzernHubId: parts[3], personArea: "stammdaten" };
+  }
+  if (parts[0] === "person" && parts[2] === "dashboard") {
+    return { view: "person", partnerId: partnerOf(parts), personModule: "dashboard" };
   }
   if (parts[0] === "person" && parts[2] === PERSON_WORKFLOWS) {
     return { view: "person", partnerId: partnerOf(parts), personModule: "workflows" };
