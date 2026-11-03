@@ -161,7 +161,7 @@ export function HonorarCard({ onEdit }: { onEdit?: () => void } = {}) {
           {dueDay}.{dueMonth}.
         </dd>
         <dt>Zahlart</dt>
-        <dd>{payment === "debit" ? "Abbuchung" : "Rechnung"}</dd>
+        <dd>{payment === "debit" ? "SEPA-Lastschrift" : "Überweisung"}</dd>
         {payment === "debit" && (
           <>
             <dt>Bankverbindung für Abbuchung</dt>

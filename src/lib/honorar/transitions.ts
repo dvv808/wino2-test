@@ -1,6 +1,7 @@
 import { ROLE_USER, createImportFees, hasBmdDeviation, incompleteImportIds, partners as seedPartners } from "../../mocks/honorar/seed";
 import type {
   CorrectionKind,
+  DispatchTab,
   Fee,
   HistoryEntry,
   HonorarNotice,
@@ -10,6 +11,7 @@ import type {
   InvoiceCorrectionKind,
   InvoiceWorkflowType,
   PaymentReason,
+  ReminderTab,
 } from "../../types/honorar";
 import { addDays, money, servicePeriod, uid } from "./format";
 import { actionNeeded, isOpenItemFee, partnerOf, previousFees } from "./queries";
@@ -152,7 +154,7 @@ export function fillRequiredFields(state: HonorarState, monthId: string, user: s
 export function patchFee(
   state: HonorarState,
   feeId: string,
-  patch: Partial<Pick<Fee, "servicePeriod" | "freeText" | "amount" | "tariff" | "paymentMethod">> & {
+  patch: Partial<Pick<Fee, "servicePeriod" | "freeText" | "amount" | "tariff" | "paymentMethod" | "paymentMethodChange">> & {
     extraFields?: Record<string, string>;
   },
 ): HonorarState {
@@ -263,7 +265,7 @@ export function resetOpenCarrier(state: HonorarState, monthId: string): HonorarS
 
   const months = state.months.map((entry) =>
     entry.id === monthId
-      ? { ...entry, steps: { ...entry.steps, dataCarrier: false, dispatch: false }, bmdDataLoaded: false }
+      ? { ...entry, steps: { ...entry.steps, dataCarrier: false, dispatch: false }, dispatchDone: {}, remindersDone: {}, bmdDataLoaded: false }
       : entry,
   );
   const fees = state.fees.map((fee) => {
@@ -307,6 +309,52 @@ export function loadBmd(state: HonorarState, monthId: string, mismatches: boolea
   const months = state.months.map((month) => (month.id === monthId ? { ...month, bmdDataLoaded: true } : month));
   return withHistory({ ...state, fees, months, bmdCorrectionImported: false }, [
     history(state, user, "month", monthId, mismatches ? "BMD-Daten geladen (2 Abweichungen)" : "BMD-Daten geladen"),
+  ]);
+}
+
+const DISPATCH_TAB_LABEL: Record<DispatchTab, string> = { check: "Plausibilitätscheck", mail: "Mail-Versand", post: "Post-Versand" };
+
+/** One tab of Rechnungsversand marked Fertig (or open again). */
+export function setDispatchTabDone(state: HonorarState, monthId: string, tab: DispatchTab, value: boolean, user: string): HonorarState {
+  const months = state.months.map((month) =>
+    month.id === monthId ? { ...month, dispatchDone: { ...month.dispatchDone, [tab]: value } } : month,
+  );
+  const label = DISPATCH_TAB_LABEL[tab];
+  return withHistory({ ...state, months }, [history(state, user, "month", monthId, value ? `${label} fertig` : `${label} wieder offen`)]);
+}
+
+/** One tab of Zahlungserinnerungen (Mail or Post) marked Fertig (or open again). */
+export function setReminderTabDone(state: HonorarState, monthId: string, tab: ReminderTab, value: boolean, user: string): HonorarState {
+  const months = state.months.map((month) =>
+    month.id === monthId ? { ...month, remindersDone: { ...month.remindersDone, [tab]: value } } : month,
+  );
+  const label = tab === "mail" ? "Zahlungserinnerungen Mail" : "Zahlungserinnerungen Post";
+  return withHistory({ ...state, months }, [history(state, user, "month", monthId, value ? `${label} fertig` : `${label} wieder offen`)]);
+}
+
+/**
+ * Demo of the month end (the 24.): the sent Rechnungen that are still open either got paid by now or ran past
+ * their Zahlungsziel. Every other one is paid, so the reminder list shows a realistic mix.
+ */
+export function simulateMonthEnd(state: HonorarState, monthId: string, user: string): HonorarState {
+  const targets = state.fees.filter(
+    (fee) => fee.month === monthId && fee.paymentMethod === "Rechnung" && fee.invoiceStatus === "sent" && fee.paymentStatus === "open_before_due",
+  );
+  if (targets.length === 0) return state;
+  const monthEnd = `${monthId}-24`;
+  const today = monthEnd > state.today ? monthEnd : state.today;
+  const paidIds = new Set(targets.filter((_, index) => index % 2 === 1).map((fee) => fee.id));
+  const ids = new Set(targets.map((fee) => fee.id));
+  const dueDate = addDays(today, -1);
+  const fees = state.fees.map((fee) => {
+    if (!ids.has(fee.id)) return fee;
+    if (paidIds.has(fee.id)) {
+      return { ...fee, paymentStatus: "paid" as const, paid: fee.amount, paidAt: addDays(today, -3), paymentReason: undefined };
+    }
+    return { ...fee, paymentStatus: "unpaid" as const, paymentReason: "due_date_exceeded" as PaymentReason, dueDate };
+  });
+  return withHistory({ ...state, today, fees }, [
+    history(state, user, "month", monthId, `Monatsende simuliert (${targets.length - paidIds.size} offen nach Zahlungsziel)`),
   ]);
 }
 

@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import { hashToRoute, routeToHash, type PersonArea, type PersonModule } from "./routing";
-import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
+import type { FinanzenPage, HonorarStepKey, Partner as HonorarPartner } from "./types/honorar";
+import { buildHonorarPartner } from "./person/createDraft";
 import { getPartner, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
 import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
@@ -373,6 +374,8 @@ function useWorkflowState() {
   const [reviewStep, setReviewStep] = useState<ApprovalStep | null>(null);
   /** The id of the request opened as a full Freigabe page. */
   const [freigabeId, setFreigabeId] = useState<string | null>(initialRoute.freigabeId ?? null);
+  /** Partner shown on the Freigabe tab while it is parked behind another tab. */
+  const [freigabeName, setFreigabeName] = useState<string | null>(null);
   const [workflowPane, setWorkflowPane] = useState<WorkflowPane>(
     initialRoute.workflowPane ?? "workflow",
   );
@@ -507,7 +510,8 @@ function useWorkflowState() {
       const route = hashToRoute(window.location.hash);
       setView(route.view);
       if (route.activeStep) setActiveStep(route.activeStep);
-      setFreigabeId(route.freigabeId ?? null);
+      // A Freigabe left for another page stays parked; only a link to one opens it.
+      if (route.freigabeId) setFreigabeId(route.freigabeId);
       if (route.stammdatenArea) setStammdatenArea(route.stammdatenArea);
       setStammdatenCardId(route.stammdatenCardId ?? null);
       setWorkflowPane(route.workflowPane ?? "workflow");
@@ -662,7 +666,6 @@ function useWorkflowState() {
     if (target) setActiveStep(target);
     setReturnStep(null);
     setReviewStep(null);
-    setFreigabeId(null);
     setWorkflowPane("workflow");
     setMaklerOpen(true);
     setView("workflow");
@@ -682,9 +685,22 @@ function useWorkflowState() {
   }
 
   /** Open one request from the Bestandsmanager's list as its own page. */
-  function openFreigabe(id: string) {
+  function openFreigabe(id: string, partnerName?: string) {
     setFreigabeId(id);
+    if (partnerName) setFreigabeName(partnerName);
     setView("freigabe");
+  }
+
+  /** Back to the Management list; the open Freigabe stays parked as its own tab. */
+  function parkFreigabe() {
+    setView("manager");
+  }
+
+  /** Closes the Freigabe tab only, wherever it is parked. */
+  function dropFreigabe() {
+    setFreigabeId(null);
+    setFreigabeName(null);
+    if (view === "freigabe") setView("manager");
   }
 
   /** Opens the person file. Open workflow tabs stay parked until their own close control. */
@@ -709,6 +725,28 @@ function useWorkflowState() {
     setPersonArea(id === "ashley" ? "maklermandat" : "stammdaten");
     setVersionHistoryOpen(false);
     setView("person");
+  }
+
+  /** Forderungen tables: opens the Honorar partner's own file as a tab, on its Dashboard. */
+  function openHonorarPartner(partner: HonorarPartner) {
+    const seq = 90000 + [...partner.id].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 9999, 0);
+    const id = `neu-${seq}` as PartnerId;
+    if (!extraPartners.some((entry) => entry.id === id)) {
+      const built = buildHonorarPartner(partner, seq);
+      registerPartner(built.file);
+      setExtraPartners((all) => [...all, built.file]);
+      setPartnerFiles((all) => ({
+        ...all,
+        [id]: {
+          sections: built.sections,
+          versions: built.versions,
+          viewingVersionId: built.viewingVersionId,
+          stammdatenBaseline: null,
+          stammdatenPublished: null,
+        },
+      }));
+    }
+    openPartner(id);
   }
 
   /** Park the current file and open the other partner's Stammdaten workflow at Verknüpfung. */
@@ -976,7 +1014,6 @@ function useWorkflowState() {
       setStammdatenPublished(publishedSnapshot(built.sections));
       setStammdatenArea("personendaten");
       setStammdatenCardId(firstCardId("personendaten", built.sections));
-      setFreigabeId(null);
       setView("stammdaten");
       return;
     }
@@ -1016,7 +1053,6 @@ function useWorkflowState() {
     setStammdatenPublished((current) => current ?? publishedSnapshot(source));
     setStammdatenArea(area);
     setStammdatenCardId(cardId ?? firstCardId(area, source));
-    setFreigabeId(null);
     setView("stammdaten");
   }
 
@@ -1309,12 +1345,12 @@ function useWorkflowState() {
   /** Back to the Bestandsmanager's list. */
   function closeFreigabe() {
     setFreigabeId(null);
+    setFreigabeName(null);
     setView("manager");
   }
 
-  /** Opens the Winter Versicherung Bestandsmanager tab (Freigaben list). */
+  /** Opens the Winter Versicherung Bestandsmanager tab (Freigaben list). An open Freigabe stays parked. */
   function openManager() {
-    setFreigabeId(null);
     setReviewStep(null);
     setView("manager");
   }
@@ -1328,7 +1364,8 @@ function useWorkflowState() {
 
   /** Back to the parked Management tab, on the page it was left on. */
   function openManagement() {
-    if (lastManagementView === "freigabe" && !freigabeId) setView("manager");
+    // The Freigabe has its own tab: Management always comes back to its list.
+    if (lastManagementView === "freigabe") setView("manager");
     else if (lastManagementView === "rechnung" && !rechnungFeeId) setView("finanzen");
     else setView(lastManagementView);
   }
@@ -1346,7 +1383,6 @@ function useWorkflowState() {
   function openHome(area?: string, page?: string) {
     if (area && page) setHomeNav({ area, page });
     if (view !== "home") setHomeFrom(view);
-    setFreigabeId(null);
     setReviewStep(null);
     setView("home");
   }
@@ -1359,7 +1395,6 @@ function useWorkflowState() {
   function openMeinBereich() {
     if (view !== "meinBereich") setMeinBereichFrom(view);
     setMeinBereichOpen(true);
-    setFreigabeId(null);
     setReviewStep(null);
     setView("meinBereich");
   }
@@ -1532,12 +1567,16 @@ function useWorkflowState() {
     finanzenStep,
     finanzenPartnerId,
     freigabeId,
+    freigabeName,
     openFreigabe,
+    parkFreigabe,
+    dropFreigabe,
     closeFreigabe,
     openPerson,
     filePartnerId,
     openFileIds,
     openPartner,
+    openHonorarPartner,
     partnerCreateOpen,
     extraPartners,
     openPartnerCreate,

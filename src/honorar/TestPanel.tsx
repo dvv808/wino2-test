@@ -35,7 +35,7 @@ export function TestPanel() {
               setDoneToast(true);
             }}
           >
-            {monthLabel(finanzenMonth)} abschließen (1 Abbucher fehlgeschlagen + 1 Rechnung offen nach Zahlungsziel, Rest bezahlt)
+            {monthLabel(finanzenMonth)} abschließen (1 SEPA-Lastschrift fehlgeschlagen + 1 Überweisung offen nach Zahlungsziel, Rest bezahlt)
           </button>
           {doneToast ? <Snackbar message={`${monthLabel(finanzenMonth)} abgeschlossen.`} onClose={() => setDoneToast(false)} /> : null}
         </div>

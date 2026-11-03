@@ -1,13 +1,14 @@
-import { useMemo, useState } from "react";
+import { zahlartLabel } from "./invoiceCells";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { formatDate, monthLabel, servicePeriod } from "../lib/honorar/format";
-import { feesOfMonth, missingFields, monthOf, partnerOf, totals } from "../lib/honorar/queries";
-import type { Fee, Partner } from "../types/honorar";
+import { feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
+import type { Fee, Partner, PaymentMethod } from "../types/honorar";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
-import { ConfirmModal, PartnerAvatar, ProfileDueMenu, StepEmpty } from "./ui";
+import { ConfirmModal, PartnerAvatar, PartnerOpenButton, ProfileDueMenu, RequiredCommentModal, StepEmpty, HnKicker, StickyScroll } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
@@ -50,7 +51,7 @@ function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, stri
   return {
     partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
     address: partner?.address ?? "",
-    method: fee.paymentMethod,
+    method: [zahlartLabel(fee.paymentMethod), fee.paymentMethodChange?.comment ?? ""].join(" "),
     period: servicePeriod(fee.month),
     bank: bankText(partner),
     due: `${money(fee.amount)} ${fee.tariff}`,
@@ -60,8 +61,74 @@ function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, stri
 
 type DataRow = { fee: Fee; partner: Partner | undefined; text: Record<ColumnKey, string> };
 
+function otherMethod(method: PaymentMethod): PaymentMethod {
+  return method === "Abbucher" ? "Rechnung" : "Abbucher";
+}
+
+const METHODS: PaymentMethod[] = ["Abbucher", "Rechnung"];
+
+/** Zahlart dropdown in the row. Picking the other Zahlart asks for a comment before it changes. */
+function MethodSelect({ fee, onSwitch }: { fee: Fee; onSwitch: (fee: Fee) => void }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const away = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setPos(null);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPos(null);
+    };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [pos]);
+
+  return (
+    <>
+      <button
+        type="button"
+        className={pos ? "hn-st-method open" : "hn-st-method"}
+        aria-haspopup="listbox"
+        aria-expanded={Boolean(pos)}
+        onClick={(event) => {
+          if (pos) return setPos(null);
+          const rect = event.currentTarget.getBoundingClientRect();
+          setPos({ top: rect.bottom + 4, left: rect.left });
+        }}
+      >
+        {zahlartLabel(fee.paymentMethod)}
+        <Icon src={a.chevronDown} size={14} />
+      </button>
+      {pos ? (
+        <div className="hn-row-menu hn-method-menu" ref={ref} role="listbox" aria-label="Zahlart" style={{ top: pos.top, left: pos.left }}>
+          {METHODS.map((method) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={method === fee.paymentMethod}
+              key={method}
+              onClick={() => {
+                setPos(null);
+                if (method !== fee.paymentMethod) onSwitch(fee);
+              }}
+            >
+              {zahlartLabel(method)}
+              {method === fee.paymentMethod ? <Icon src={a.hnCheckTick} size={16} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /** Flat list of the captured rows - no Zahlart group headers. */
-function DataRows({ rows }: { rows: DataRow[] }) {
+function DataRows({ rows, onSwitchMethod }: { rows: DataRow[]; onSwitchMethod: (fee: Fee) => void }) {
   return (
     <>
       {rows.map(({ fee, partner, text }) => {
@@ -81,13 +148,22 @@ function DataRows({ rows }: { rows: DataRow[] }) {
                     </strong>
                     {partner ? <small>{partnerMeta(partner)}</small> : null}
                   </span>
-                  <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
+                  <PartnerOpenButton partner={partner} />
                 </div>
                 <div className="hn-st-stack">
                   <span>{address.street}</span>
                   {address.city ? <span>{address.city}</span> : null}
                 </div>
-                <div>{text.method}</div>
+                <div className="hn-st-stack">
+                  <MethodSelect fee={fee} onSwitch={onSwitchMethod} />
+                  {fee.paymentMethodChange ? (
+                    <small className="hn-st-edited">
+                      Geändert, vorher {zahlartLabel(fee.paymentMethodChange.from)}
+                      <br />
+                      „{fee.paymentMethodChange.comment}“
+                    </small>
+                  ) : null}
+                </div>
                 <div className="hn-st-period">{text.period}</div>
                 <div className="hn-st-stack">
                   <span>{partner?.name}</span>
@@ -113,10 +189,12 @@ function DataRows({ rows }: { rows: DataRow[] }) {
 
 export function DataStep() {
   const { finanzenMonth } = useWorkflow();
-  const { state, importCaptureData, clearMonthFees, setStepDone } = useHonorar();
+  const { state, importCaptureData, clearMonthFees, setStepDone, patchFee } = useHonorar();
   const dataDone = Boolean(monthOf(state, finanzenMonth)?.steps.data);
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [confirmClear, setConfirmClear] = useState(false);
+  // Zahlart switch waiting for its confirmation comment.
+  const [switchFee, setSwitchFee] = useState<Fee | null>(null);
 
   const fees = feesOfMonth(state, finanzenMonth);
   const baseRows = useMemo(() => {
@@ -130,7 +208,6 @@ export function DataStep() {
     () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
   );
-  const sum = totals(rows.map((row) => row.fee));
 
   function download() {
     const header = ["Partner", "Anschrift", "Zahlart", "Leistungszeitraum", "Bankverbindung", "Zu zahlender Honorarbetrag", "Erfasst"];
@@ -150,7 +227,7 @@ export function DataStep() {
 
   return (
     <section className="freigaben hn-panel hn-status">
-      <h1 className="freigaben-title hn-kicker">Rechnungsversand</h1>
+      <HnKicker>Rechnungsversand</HnKicker>
       <p className="hn-month">
         <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
       </p>
@@ -189,7 +266,16 @@ export function DataStep() {
         </div>
       </div>
 
+      <StickyScroll>
       <div className="hn-status-table data" role="table" aria-label="Daten erfassen">
+        <div className="hn-st-bands" role="row" aria-hidden>
+          <div className="hn-st-band" style={{ gridColumn: "1 / 3" }}>
+            Daten für Datenträger PERSON
+          </div>
+          <div className="hn-st-band" style={{ gridColumn: "3 / 8" }}>
+            Daten für Datenträger RECHNUNG
+          </div>
+        </div>
         <div className="hn-st-head" role="row">
           {COLUMNS.map((column) => (
             <div className="hn-st-th" role="columnheader" key={column.key}>
@@ -211,21 +297,24 @@ export function DataStep() {
           ))}
         </div>
 
-        <div className="hn-st-sum" role="row">
-          <div className="hn-st-sum-label">Alle Honorare</div>
-          <div />
-          <div />
-          <div />
-          <div />
-          <div className="hn-st-total">
-            <strong>{money(sum.due)}</strong>
-            <small>Summe Total</small>
-          </div>
-          <div />
-        </div>
-
-        <DataRows rows={rows} />
+        <DataRows rows={rows} onSwitchMethod={setSwitchFee} />
       </div>
+      </StickyScroll>
+      {switchFee ? (
+        <RequiredCommentModal
+          title={`Zahlart auf ${zahlartLabel(otherMethod(switchFee.paymentMethod))} ändern`}
+          text={`${partnerOf(state, switchFee.partnerId)?.name ?? "Der Partner"} zahlt dann per ${zahlartLabel(otherMethod(switchFee.paymentMethod))} statt per ${zahlartLabel(switchFee.paymentMethod)}. Bitte begründe die Änderung.`}
+          confirmLabel="Änderung bestätigen"
+          onCancel={() => setSwitchFee(null)}
+          onConfirm={(comment) => {
+            patchFee(switchFee.id, {
+              paymentMethod: otherMethod(switchFee.paymentMethod),
+              paymentMethodChange: { from: switchFee.paymentMethod, comment },
+            });
+            setSwitchFee(null);
+          }}
+        />
+      ) : null}
       {confirmClear ? (
         <ConfirmModal
           title="Liste wirklich leeren?"

@@ -1,3 +1,4 @@
+import { zahlartLabel } from "./invoiceCells";
 import { useEffect, useState } from "react";
 import * as a from "../assets/index";
 import { monthLabel, servicePeriod } from "../lib/honorar/format";
@@ -7,7 +8,7 @@ import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "./store";
 import { StatusTable } from "./StatusStep";
-import { PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
+import { PartnerAvatar, StatCards, StepEmpty, type StatFilter, HnKicker } from "./ui";
 
 function money(value: number) {
   const [whole, frac] = value.toFixed(2).split(".");
@@ -107,17 +108,9 @@ export function SingleInvoicesPage() {
       >
         Datenträger erzeugen
       </button>
-      <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
+      <HnKicker>Honorarverrechnung</HnKicker>
       <p className="hn-month">{finanzenMonth.slice(0, 4)}</p>
       <h2 className="hn-h2 hn-status-title">Einzelfaktura</h2>
-
-      <StatCards
-        open={openCount}
-        done={closedCount}
-        unit="Zahlungen"
-        value={stat}
-        onChange={setStat}
-      />
 
       {askCarrier ? (
         <div className="wmodal" role="dialog" aria-label="Datenträger erzeugen?">
@@ -146,6 +139,7 @@ export function SingleInvoicesPage() {
       <StatusTable
         fees={fees}
         label="Einzelfaktura"
+        stats={<StatCards open={openCount} done={closedCount} unit="Zahlungen" value={stat} onChange={setStat} />}
         tools={() => (
           <div className="hn-status-tools">
             <button type="button" className="hn-drop">
@@ -246,7 +240,7 @@ export function CreditModal({
               </span>
               <span>
                 <small>Zahlart / Leist.-zeitraum</small>
-                <em>{fee?.paymentMethod}</em>
+                <em>{fee ? zahlartLabel(fee.paymentMethod) : "-"}</em>
                 <em>{servicePeriod(month)}</em>
               </span>
               <span>

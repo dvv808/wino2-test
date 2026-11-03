@@ -74,7 +74,9 @@ export function BestandMainNav({
   /** Parks the Management tab (the partner tab is the current one) and makes it a way back. */
   onOpenManagement?: () => void;
 } = {}) {
-  const { closeManagement } = useWorkflow();
+  const { closeManagement, view, freigabeId, freigabeName, openFreigabe, dropFreigabe } = useWorkflow();
+  // A Freigabe left for another tab stays open in the background, after Management.
+  const parkedFreigabe = freigabeId && freigabeName && view !== "freigabe" && partner !== freigabeName ? freigabeName : null;
 
   return (
     <header className="main-nav">
@@ -109,6 +111,21 @@ export function BestandMainNav({
           </span>
           <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
         </div>
+        {parkedFreigabe && freigabeId ? (
+          <div className="person-tab inactive">
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body">
+              <Icon src={a.person} size={24} />
+              <button type="button" className="person-tab-open" onClick={() => openFreigabe(freigabeId)}>
+                {parkedFreigabe}
+              </button>
+              <button type="button" className="close-icon" aria-label={`${parkedFreigabe} schließen`} onClick={dropFreigabe}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        ) : null}
         {partner ? (
           <div className={onOpenPartner ? "person-tab inactive" : "person-tab"}>
             <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />

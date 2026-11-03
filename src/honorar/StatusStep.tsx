@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { formatDay, monthLabel } from "../lib/honorar/format";
-import { feesOfMonth, missingFields, monthOf, partnerOf, totals } from "../lib/honorar/queries";
+import { feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
 import type { Fee, HonorarState, Partner } from "../types/honorar";
-import { money, rechnungenCells, zahlartLabel, type Cell } from "./invoiceCells";
+import { WORKFLOW_STEPS, money, rechnungenCells, workflowStepIndex, zahlartLabel, type Cell } from "./invoiceCells";
 import { InvoiceInfoModal } from "./InvoiceInfoModal";
 import { Icon, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
-import { PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
+import { ADVISORS, PEOPLE, ROLE_USER } from "../mocks/honorar/seed";
+import { PartnerAvatar, PartnerOpenButton, StatCards, StepEmpty, type StatFilter, HnKicker, StatsRow, StickyScroll } from "./ui";
 
 /** Status zu Rechnungen columns. `groupEnd` columns are collapsible: they carry the ">" tab and a dark divider follows them (Figma). */
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false, groupEnd: true },
   { key: "agreement", label: "Vereinbarung", filter: true, groupEnd: true },
-  { key: "invoiceNumber", label: "Rechnungsnummer & Rechnungsdatum", filter: true },
+  { key: "invoiceNumber", label: "Re-Nr & Re-Datum", filter: true },
   { key: "method", label: "Zahlart", filter: true },
   { key: "due", label: "Rechnungsbetrag", filter: true },
   { key: "paid", label: "Zahlungseingang", filter: true },
@@ -25,7 +26,61 @@ const COLUMNS = [
   { key: "correction", label: "Status Rechnungskorrektur & Einzelfaktura", filter: true, groupEnd: true },
 ] as const;
 
-type ColumnKey = (typeof COLUMNS)[number]["key"];
+/** Folded out by the Partner ">" tab: shown right after Partner. */
+const PARTNER_COLUMNS = [
+  { key: "delivery", label: "Versandart", filter: true },
+  { key: "advisor", label: "Kundenberater", filter: true },
+  { key: "tariff", label: "Honorarmodell", filter: true },
+  { key: "bank", label: "Bankverbindung", filter: true },
+  { key: "lorem", label: "Dolor sit amet", filter: true },
+] as const;
+
+type ColumnKey = (typeof COLUMNS)[number]["key"] | (typeof PARTNER_COLUMNS)[number]["key"];
+
+const PHOTOS: Record<string, string> = { [PEOPLE.mike]: a.reqMike, [PEOPLE.lucy]: a.empLucy };
+
+/** Small avatar + name: photo where one exists, initials otherwise. */
+function PersonChip({ name }: { name: string }) {
+  const photo = PHOTOS[name];
+  const initials = name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2);
+  return (
+    <span className="hn-person-chip">
+      {photo ? (
+        <img className="hn-st-advisor-photo" src={photo} alt="" width={20} height={20} />
+      ) : (
+        <span className="hn-st-advisor-photo initials">{initials}</span>
+      )}
+      {name}
+    </span>
+  );
+}
+
+/** Who works on the workflow's current step: Kundenberater (Antrag), Bestandsmanager (Freigabe), Honorarverwalter (Verbuchung). */
+function workflowOwner(correction: NonNullable<Fee["correction"]>, partner: Partner | undefined) {
+  const step = workflowStepIndex(correction);
+  if (step === 3) return correction.bookedBy ?? ROLE_USER.backoffice;
+  if (step === 2) return ROLE_USER.backoffice;
+  if (step === 1) return ROLE_USER.head;
+  return correction.requestedBy ?? partner?.advisor ?? ROLE_USER.advisor;
+}
+
+/** Kundenberater photo by name; colleagues without one show initials. */
+function advisorOf(name: string) {
+  const known = Object.values(ADVISORS).find((advisor) => advisor.name === name);
+  // Only Mike has a real photo; Sandra's seed photo is Anna's, so she shows initials.
+  return { name, department: known?.department ?? "Kundenberatung", photo: name === PEOPLE.mike ? a.reqMike : undefined };
+}
+
+function deliveryOf(partner: Partner | undefined) {
+  if (!partner) return { label: "-", lines: [] as string[] };
+  return partner.deliveryMethod === "print"
+    ? { label: "Post", lines: partner.address.split(", ") }
+    : { label: "Mail", lines: [partner.email] };
+}
 
 /** Mail or Post, taken from the partner's delivery method. */
 function channelOf(partner: Partner | undefined) {
@@ -140,7 +195,7 @@ export function paymentInfo(fee: Fee, credit: number | undefined, overdue = fals
   if (!invoiceOut && !debitKnown) {
     // Once the Datenträger exists the debit is only waiting for Infinity.
     if (fee.paymentMethod === "Abbucher" && fee.invoiceStatus === "created") {
-      return { main: "Abbucher ausstehend", notes: [], tone: "open" };
+      return { main: "SEPA-Lastschrift ausstehend", notes: [], tone: "open" };
     }
     return { main: "Rechnung noch nicht versendet", notes: [], tone: "open" };
   }
@@ -160,9 +215,9 @@ export function paymentInfo(fee: Fee, credit: number | undefined, overdue = fals
     // A direct debit either goes through or it does not: there is only ever one failure status, regardless
     // of a partial amount, so "Zu wenig bezahlt" never applies to Abbucher.
     if (fee.paymentStatus === "open_before_due") {
-      main = "Abbucher ausstehend";
+      main = "SEPA-Lastschrift ausstehend";
     } else {
-      main = "Abbucher fehlgeschlagen";
+      main = "SEPA-Lastschrift fehlgeschlagen";
       notes.push("Berater Nachricht schicken");
       tone = "fail";
     }
@@ -228,6 +283,11 @@ function rechnungenRowText(state: HonorarState, fee: Fee, partner: Partner | und
   const cells = rechnungenCells(state, fee);
   return {
     partner: `${partner?.name ?? ""} ${partner?.address ?? ""}`,
+    delivery: [deliveryOf(partner).label, ...deliveryOf(partner).lines].join(" "),
+    advisor: partner?.advisor ?? "",
+    tariff: `${fee.tariff} ${money(fee.amount)} ${formatDay(fee.createdAt)}`,
+    bank: partner?.bankAccount ?? "",
+    lorem: "",
     agreement: cells.agreement.join(" "),
     invoiceNumber: cells.invoice.join(" "),
     method: zahlartLabel(fee.paymentMethod),
@@ -315,7 +375,7 @@ export function StatusStep() {
     <section className="freigaben hn-panel hn-status">
       <div className="hn-status-head">
         <div>
-          <h1 className="freigaben-title hn-kicker">Status zu Rechnungen</h1>
+          <HnKicker>Status zu Rechnungen</HnKicker>
           <p className="hn-month">
             <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
           </p>
@@ -335,9 +395,7 @@ export function StatusStep() {
         />
       ) : (
       <>
-      <StatCards open={statOpen} done={statDone} unit="Zahlungen" value={stat} onChange={setStat} />
-
-      <StatusTable fees={shownFees} label="Status zu Rechnungen" tools={(rows) => (
+      <StatusTable fees={shownFees} label="Status zu Rechnungen" stats={<StatCards open={statOpen} done={statDone} unit="Zahlungen" value={stat} onChange={setStat} />} tools={(rows) => (
       <div className="hn-status-tools">
         <div className="hn-status-tools-end">
           {canSync ? (
@@ -367,14 +425,23 @@ export function StatusTable({
   label,
   tools,
   empty,
+  stats,
+  defaultPartnerOpen = false,
 }: {
   fees: Fee[];
   label: string;
+  /** Opens the Partner fold-out (Versandart, Kundenberater, Honorarmodell, Bankverbindung) from the start. */
+  defaultPartnerOpen?: boolean;
+  /** Offen / Abgeschlossen cards; the totals of the shown rows sit at the right end of the same row. */
+  stats?: React.ReactNode;
   tools?: (rows: StatusRow[]) => React.ReactNode;
   empty?: React.ReactNode;
 }) {
   const { state } = useHonorar();
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
+  const [partnerOpen, setPartnerOpen] = useState(defaultPartnerOpen);
+  const [onlyDue, setOnlyDue] = useState(false);
+  const columns = partnerOpen ? [COLUMNS[0], ...PARTNER_COLUMNS, ...COLUMNS.slice(1)] : [...COLUMNS];
   const baseRows = useMemo(
     () =>
       fees.map((fee) => {
@@ -383,33 +450,38 @@ export function StatusTable({
       }),
     [fees, state],
   );
-  const rows = useMemo(
-    () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
+  const filteredRows = useMemo(
+    () => baseRows.filter((row) => [...COLUMNS, ...PARTNER_COLUMNS].every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
-  );
-  const sum = totals(rows.map((row) => row.fee));
+  );  // Ausstehend tile: only invoices with something still to pay.
+  const rows = onlyDue ? filteredRows.filter((row) => row.fee.amount - row.fee.paid > 0) : filteredRows;
+
 
   return (
     <>
+      <StatsRow
+        stats={stats}
+        fees={filteredRows.map((row) => row.fee)}
+        onlyDue={onlyDue}
+        onToggleDue={() => setOnlyDue((value) => !value)}
+      />
       {tools?.(rows)}
-      <div className="hn-st-scroll">
-      <div className="hn-status-table rechnungen" role="table" aria-label={label}>
-        <div className="hn-st-bands" role="row" aria-hidden>
-          <div className="hn-st-band" style={{ gridColumn: "1 / 3" }}>
-            Daten für Datenträger PERSON
-          </div>
-          <div className="hn-st-band" style={{ gridColumn: "3 / 7" }}>
-            Daten für Datenträger RECHNUNG
-          </div>
-          <div className="hn-st-band" style={{ gridColumn: "7 / 12" }}>
-            Stati zur Rechnung
-          </div>
-        </div>
-
+      <StickyScroll>
+      <div className={partnerOpen ? "hn-status-table rechnungen partner-open" : "hn-status-table rechnungen"} role="table" aria-label={label}>
         <div className="hn-st-head" role="row">
-          {COLUMNS.map((column) => (
+          {columns.map((column) => (
             <div className={"groupEnd" in column ? "hn-st-th has-tab" : "hn-st-th"} role="columnheader" key={column.key}>
-              {"groupEnd" in column ? (
+              {column.key === "partner" ? (
+                <button
+                  type="button"
+                  className={partnerOpen ? "hn-st-tab open" : "hn-st-tab"}
+                  aria-expanded={partnerOpen}
+                  title={partnerOpen ? "Spalten einklappen" : "Versandart, Kundenberater, Honorarmodell und mehr anzeigen"}
+                  onClick={() => setPartnerOpen((value) => !value)}
+                >
+                  <Icon src={a.chevronDark} size={12} className="caret-side" />
+                </button>
+              ) : "groupEnd" in column ? (
                 <span className="hn-st-tab" aria-hidden title="Weitere Spalten folgen">
                   <Icon src={a.chevronDark} size={12} className="caret-side" />
                 </span>
@@ -437,29 +509,11 @@ export function StatusTable({
           <div className="hn-st-th hn-st-more-head" role="columnheader" aria-label="Aktionen" />
         </div>
 
-        <div className="hn-st-sum" role="row">
-          <div className="hn-st-sum-label">Alle Honorare</div>
-          <div />
-          <div />
-          <div />
-          <div className="hn-st-total">
-            <strong>€ {money(sum.due)}</strong>
-            <small>Summe Total</small>
-          </div>
-          <div className="hn-st-total">
-            <strong>€ {money(sum.paid)}</strong>
-            <small>Summe Total</small>
-          </div>
-          <div />
-          <div />
-          <div />
-          <div />
-          <div />
-        </div>
-
-        {rows.length === 0 && empty ? empty : <RechnungenRows rows={rows} />}
+        {rows.length === 0 && empty ? null : <RechnungenRows rows={rows} partnerOpen={partnerOpen} />}
       </div>
-      </div>
+      </StickyScroll>
+      {/* Outside the sideways scroll, so it centres in the panel and not in the wide grid. */}
+      {rows.length === 0 && empty ? empty : null}
     </>
   );
 }
@@ -483,7 +537,7 @@ function ToneCell({ cell }: { cell: Cell }) {
 }
 
 /** Status zu Rechnungen rows: one flat list - the Zahlart is a column, no longer a group. */
-function RechnungenRows({ rows }: { rows: StatusRow[] }) {
+function RechnungenRows({ rows, partnerOpen }: { rows: StatusRow[]; partnerOpen: boolean }) {
   const { state } = useHonorar();
   const { openFinanzen, openRechnungWorkflow } = useWorkflow();
   const [menu, setMenu] = useState<{ feeId: string; top: number; left: number; anchor: HTMLElement } | null>(null);
@@ -537,8 +591,9 @@ function RechnungenRows({ rows }: { rows: StatusRow[] }) {
                   ? partner.address.split(", ").map((line) => <small key={line}>{line}</small>)
                   : null}
               </span>
-              <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
+              <PartnerOpenButton partner={partner} />
             </div>
+            {partnerOpen ? <PartnerExtraCells partner={partner} fee={fee} /> : null}
             <div className="hn-st-stack">
               <Lines lines={cells.agreement} />
             </div>
@@ -564,11 +619,22 @@ function RechnungenRows({ rows }: { rows: StatusRow[] }) {
               <div className={`hn-st-stack hn-st-tone-${cells.correction.tone}`}>
                 <button
                   type="button"
-                  className="hn-link hn-st-wf-link"
+                  className="hn-st-wf-link"
                   title="Workflow öffnen"
                   onClick={() => openRechnungWorkflow(fee.id)}
                 >
-                  <Lines lines={cells.correction.lines} />
+                  <span className="hn-st-wf-title">
+                    <Icon src={a.moduleWorkflow} size={16} />
+                    {fee.correction.workflow}
+                  </span>
+                  <span className="hn-st-wf-step">
+                    {fee.correction.status === "verbucht"
+                      ? "Verbucht"
+                      : fee.correction.status === "abgelehnt"
+                        ? "Antrag abgelehnt"
+                        : `${WORKFLOW_STEPS[Math.min(workflowStepIndex(fee.correction), 2)].label} offen`}
+                  </span>
+                  <PersonChip name={workflowOwner(fee.correction, partner)} />
                 </button>
               </div>
             ) : cells.correction.link ? (
@@ -614,9 +680,76 @@ function RechnungenRows({ rows }: { rows: StatusRow[] }) {
             </span>
             Info zur Rechnung
           </button>
+          {(() => {
+            // A running workflow (not booked yet) of this invoice opens from the menu as well.
+            const running = state.fees.find((entry) => entry.id === menu.feeId)?.correction;
+            if (!running || running.status === "verbucht") return null;
+            return (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  openRechnungWorkflow(menu.feeId);
+                  setMenu(null);
+                }}
+              >
+                <span className="hn-menu-ico">
+                  <Icon src={a.moduleWorkflow} size={18} />
+                </span>
+                Workflow {running.workflow}
+              </button>
+            );
+          })()}
         </div>
       ) : null}
       {infoFeeId ? <InvoiceInfoModal feeId={infoFeeId} onClose={closeInfo} /> : null}
+    </>
+  );
+}
+
+/** Versandart, Kundenberater and a placeholder column, folded out from Partner. */
+function PartnerExtraCells({ partner, fee }: { partner: Partner | undefined; fee: Fee }) {
+  const delivery = deliveryOf(partner);
+  const advisor = advisorOf(partner?.advisor ?? "");
+  const initials = advisor.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2);
+  return (
+    <>
+      <div className="hn-st-stack hn-st-delivery">
+        <strong>{delivery.label}</strong>
+        <Lines lines={delivery.lines} />
+      </div>
+      <div className="hn-st-advisor">
+        {advisor.photo ? (
+          <img className="hn-st-advisor-photo" src={advisor.photo} alt="" width={28} height={28} />
+        ) : (
+          <span className="hn-st-advisor-photo initials">{initials}</span>
+        )}
+        <span className="hn-st-stack">
+          <strong>{advisor.name || "-"}</strong>
+          <small>{advisor.department}</small>
+        </span>
+      </div>
+      <div className="hn-st-stack">
+        <strong className="hn-st-strong">
+          {fee.tariff} · € {money(fee.amount)} /Jahr
+        </strong>
+        <span className="hn-st-sub">Erstm. Verrechnung {formatDay(fee.createdAt)}</span>
+      </div>
+      <div className="hn-st-stack">
+        {partner?.bankAccount ? (
+          <>
+            <strong className="hn-st-strong">{partner.name}</strong>
+            <span className="hn-st-sub">{partner.bankAccount}</span>
+          </>
+        ) : (
+          "-"
+        )}
+      </div>
+      <div className="hn-st-muted">Lorem ipsum</div>
     </>
   );
 }

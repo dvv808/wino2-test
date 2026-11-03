@@ -7,8 +7,8 @@ import { useHonorar } from "./store";
 const LABELS: Record<RechnungsversandStep, string> = {
   data: "Daten erfassen",
   carrier: "Datenträger erstellen",
-  dispatch: "Rechnungsversand (Rechnungen)",
-  reminders: "Zahlungserinnerungen (Rechnungen)",
+  dispatch: "Rechnungsversand",
+  reminders: "Zahlungserinnerungen",
 };
 
 /** The Rechnungsversand workflow of a month: four steps that act on all invoices at once. */

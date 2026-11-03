@@ -43,6 +43,10 @@ export function FileTabs() {
     konzernHubId,
     activateKonzernHub,
     closeKonzernHub,
+    freigabeId,
+    freigabeName,
+    openFreigabe,
+    dropFreigabe,
   } = useWorkflow();
 
   return (
@@ -157,6 +161,22 @@ export function FileTabs() {
               Winter Vers.
             </button>
             <button type="button" className="close-icon" aria-label="Management schließen" onClick={closeManagement}>
+              <img src={a.iconClose} alt="" width={18} height={18} />
+            </button>
+          </span>
+          <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+        </div>
+      ) : null}
+      {/* A Freigabe left for another tab stays open in the background, after Management. */}
+      {freigabeId && freigabeName && !MANAGEMENT_VIEWS.includes(view) ? (
+        <div className="person-tab inactive" key="freigabe">
+          <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+          <span className="person-tab-body">
+            <Icon src={a.person} size={24} />
+            <button type="button" className="person-tab-open" onClick={() => openFreigabe(freigabeId)}>
+              {freigabeName}
+            </button>
+            <button type="button" className="close-icon" aria-label={`${freigabeName} schließen`} onClick={dropFreigabe}>
               <img src={a.iconClose} alt="" width={18} height={18} />
             </button>
           </span>

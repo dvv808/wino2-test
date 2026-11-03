@@ -17,6 +17,7 @@ import { StatusStep } from "./StatusStep";
 import { HonorarStepper } from "./Stepper";
 import { TestPanel } from "./TestPanel";
 import { useHonorar } from "./store";
+import { HonorarSideContext } from "./ui";
 import { useEffect, useState } from "react";
 
 export function FinanzenModuleNav() {
@@ -117,6 +118,7 @@ export function HonorarView() {
     closeRechnungWorkflow,
   } = useWorkflow();
   const [history, setHistory] = useState(false);
+  const [sideCollapsed, setSideCollapsed] = useState(false);
   const workflowFee = rechnungFeeId ? state.fees.find((fee) => fee.id === rechnungFeeId) : undefined;
   const workflowPartner = workflowFee ? state.partners.find((partner) => partner.id === workflowFee.partnerId)?.name : undefined;
   const dashboard = finanzenPage === "sammelfaktura";
@@ -157,8 +159,11 @@ export function HonorarView() {
         />
         <FinanzenAreaNav />
         <FinanzenModuleNav />
+        <HonorarSideContext.Provider
+          value={{ collapsed: sideCollapsed, toggle: () => setSideCollapsed((value) => !value), sidebar: <HonorarSidebar /> }}
+        >
         <div className="content-shell bestand-body">
-          <HonorarSidebar />
+          {sideCollapsed ? null : <HonorarSidebar />}
           <div className="hn-main">
             {finanzenPage === "month" && finanzenStep !== "status" ? <HonorarStepper /> : null}
             {finanzenPage === "month" && finanzenStep === "status" ? (
@@ -183,6 +188,7 @@ export function HonorarView() {
             {finanzenPage === "meinBereich" ? <OpenItemsPage /> : null}
           </div>
         </div>
+        </HonorarSideContext.Provider>
       </div>
       <TestPanel />
       {history ? (

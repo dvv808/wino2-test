@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { formatDate, monthLabel } from "../lib/honorar/format";
-import { feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
-import type { Fee, Partner } from "../types/honorar";
+import { dispatchMismatches, feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
+import type { DispatchTab, Fee, Partner } from "../types/honorar";
 import { Icon, Snackbar, WarnBox } from "../ui";
 import { useWorkflow } from "../workflow";
 import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { INVOICE_FILE, InvoiceModal } from "./InvoiceModal";
 import { MailAddressModal } from "./MailAddressModal";
-import { ConfirmModal, PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
+import { PlausiCheck } from "./PlausiCheck";
+import { PartnerAvatar, PartnerOpenButton, StatCards, StepEmpty, type StatFilter, HnKicker, StatsRow } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
@@ -74,11 +75,22 @@ function rowText(fee: Fee, partner: Partner | undefined, bmdCreated: boolean): R
   };
 }
 
+const TABS: { id: DispatchTab; label: string; icon: string }[] = [
+  { id: "check", label: "Plausibilitätscheck", icon: a.plausiCheck },
+  { id: "mail", label: "Mail-Versand", icon: a.navMail },
+  { id: "post", label: "Post-Versand", icon: a.house },
+];
+
 export function DispatchStep() {
   const { finanzenMonth, openPartnerInkasso, openFinanzenStep } = useWorkflow();
-  const { state, importCaptureData, clearMonthFees, sendInvoices, sendFeeMail, setPostSent, printPostInvoices, notifyAdvisor } = useHonorar();
+  const { state, importCaptureData, sendInvoices, sendFeeMail, setPostSent, printPostInvoices, notifyAdvisor, setDispatchTabDone } =
+    useHonorar();
+  const month = monthOf(state, finanzenMonth);
+  const tabDone = month?.dispatchDone ?? {};
+  const closedMonth = Boolean(month?.closed || month?.steps.dispatch);
+  const isTabDone = (tab: DispatchTab) => closedMonth || Boolean(tabDone[tab]);
+  const [tab, setTab] = useState<DispatchTab>(() => TABS.find((entry) => !isTabDone(entry.id))?.id ?? "check");
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
-  const [confirmClear, setConfirmClear] = useState(false);
   const [askSend, setAskSend] = useState(false);
   const [askPost, setAskPost] = useState(false);
   const [stat, setStat] = useState<StatFilter>(null);
@@ -106,9 +118,9 @@ export function DispatchStep() {
     };
   }, [menu]);
 
+  const monthFees = feesOfMonth(state, finanzenMonth);
   // Abbucher never goes through the invoice dispatch (mail/post) - the debit is settled directly in Infinity.
-  const fees = feesOfMonth(state, finanzenMonth).filter((fee) => fee.paymentMethod !== "Abbucher");
-  const month = monthOf(state, finanzenMonth);
+  const fees = monthFees.filter((fee) => fee.paymentMethod !== "Abbucher");
   const carrierReady =
     Boolean(month?.closed) ||
     Boolean(month?.steps.dataCarrier) ||
@@ -118,45 +130,67 @@ export function DispatchStep() {
   // The invoice exists in BMD once step 2 is finished (all next steps ticked) or the invoice was already sent.
   const bmdCreated = Boolean(month?.closed) || Boolean(month?.steps.dataCarrier);
   const isBmdCreated = (fee: Fee) => bmdCreated || fee.invoiceStatus === "sent" || fee.invoiceStatus === "send_failed";
-  const statDone = fees.filter((fee) => fee.invoiceStatus === "sent").length;
-  const statOpen = fees.length - statDone;
+  const isPostFee = (fee: Fee) => partnerOf(state, fee.partnerId)?.deliveryMethod === "print";
+  const mailFees = fees.filter((fee) => !isPostFee(fee));
+  const postFees = fees.filter(isPostFee);
+  const tabFees = tab === "post" ? postFees : mailFees;
+  const statDone = tabFees.filter((fee) => fee.invoiceStatus === "sent").length;
+  const statOpen = tabFees.length - statDone;
   const baseRows = useMemo(() => {
-    return fees
+    return tabFees
       .filter((fee) => stat === null || (stat === "done") === (fee.invoiceStatus === "sent"))
       .map((fee) => {
         const partner = partnerOf(state, fee.partnerId);
         return { fee, partner, text: rowText(fee, partner, isBmdCreated(fee)) };
       });
-  }, [fees, state, stat]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabFees, state, stat]);
   const rows = useMemo(
     () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
   );
 
   const failed = rows.filter((row) => row.fee.invoiceStatus === "send_failed");
-  const post = rows.filter((row) => row.partner?.deliveryMethod === "print");
-  const mail = rows.filter(
-    (row) => row.partner?.deliveryMethod !== "print" && row.fee.invoiceStatus !== "send_failed",
-  );
-  const mailFees = fees.filter((fee) => partnerOf(state, fee.partnerId)?.deliveryMethod !== "print");
-  const postFees = fees.filter((fee) => partnerOf(state, fee.partnerId)?.deliveryMethod === "print");
+  const mail = rows.filter((row) => row.fee.invoiceStatus !== "send_failed");
   const mailSent = mailFees.length > 0 && mailFees.every((fee) => fee.invoiceStatus === "sent");
+  const mailFailed = mailFees.filter((fee) => fee.invoiceStatus === "send_failed").length;
+  const mailOk = mailFees.filter((fee) => fee.invoiceStatus === "sent").length;
+  const postAllSent = postFees.length > 0 && postFees.every((fee) => fee.invoiceStatus === "sent");
+  const checkClean =
+    Boolean(month?.bmdDataLoaded) && monthFees.every((fee) => dispatchMismatches(fee, partnerOf(state, fee.partnerId)).length === 0);
+  // Each tab can be marked Fertig only once its work is through.
+  const canFinish: Record<DispatchTab, boolean> = {
+    check: closedMonth || checkClean,
+    mail: closedMonth || mailFees.length === 0 || mailSent,
+    post: closedMonth || postFees.length === 0 || postAllSent,
+  };
+  const finishHint: Record<DispatchTab, string> = {
+    check: "Erst möglich, wenn alle Daten aus BMD übereinstimmen.",
+    mail: "Erst möglich, wenn alle E-Mail Rechnungen angekommen sind.",
+    post: "Erst möglich, wenn alle Post-Rechnungen als versendet markiert sind.",
+  };
 
   const menuFee = menu ? fees.find((entry) => entry.id === menu.feeId) : undefined;
   const menuPartner = menuFee ? partnerOf(state, menuFee.partnerId) : undefined;
   const menuIsMail = menuPartner ? menuPartner.deliveryMethod !== "print" : false;
   const sent = [...state.history]
     .reverse()
-    .find((entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action === "Rechnungen versendet");
+    .find((entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action.startsWith("Rechnungen") && entry.action.endsWith("versendet"));
+  // Seeded months never logged the send: the latest send date of their mails stands in.
+  const lastMailSent = mailFees.map((fee) => fee.sentAt ?? "").sort().pop();
+  const mailSentMeta = sent
+    ? createdLine(sent.timestamp, sent.user)
+    : lastMailSent
+      ? `Versendet am ${formatDate(lastMailSent)}`
+      : null;
 
   const postEntry = [...state.history]
     .reverse()
     .find((entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action === "Post-Rechnungen gedruckt");
-  const postAllSent = postFees.length > 0 && postFees.every((fee) => fee.invoiceStatus === "sent");
   const lastPostSent = postFees.map((fee) => fee.sentAt ?? "").sort().pop();
   const postDone = postEntry
     ? {
-        title: "Post-Rechnungen gedruckt.",
+        title: postAllSent ? "Post-Rechnungen gedruckt und versendet." : "Post-Rechnungen gedruckt.",
         meta: createdLine(postEntry.timestamp, postEntry.user),
       }
     : postAllSent
@@ -190,13 +224,19 @@ export function DispatchStep() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `Versand_${finanzenMonth}.csv`;
+    link.download = `Versand_${tab === "post" ? "Post" : "Mail"}_${finanzenMonth}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
 
   function toggle(group: "failed" | "post" | "mail") {
     setOpenGroups((current) => ({ ...current, [group]: !current[group] }));
+  }
+
+  function switchTab(next: DispatchTab) {
+    setTab(next);
+    setStat(null);
+    setFilters({});
   }
 
   const handlers: RowHandlers = {
@@ -208,6 +248,21 @@ export function DispatchStep() {
     onPostSent: setPostSent,
     menuFeeId: menu?.feeId,
   };
+
+  const doneToggle = (
+    <button
+      type="button"
+      className="hn-done-toggle"
+      role="switch"
+      aria-checked={isTabDone(tab)}
+      disabled={!isTabDone(tab) && !canFinish[tab]}
+      title={!isTabDone(tab) && !canFinish[tab] ? finishHint[tab] : undefined}
+      onClick={() => setDispatchTabDone(finanzenMonth, tab, !isTabDone(tab))}
+    >
+      Als Fertig markieren
+      <span className={isTabDone(tab) ? "switch on" : "switch"} />
+    </button>
+  );
 
   return (
     <section className="freigaben hn-panel hn-status">
@@ -224,63 +279,57 @@ export function DispatchStep() {
       ) : null}
       <div className="hn-dispatch-bar">
         <div>
-          <h1 className="freigaben-title hn-kicker">Rechnungsversand</h1>
+          <HnKicker>Rechnungsversand</HnKicker>
           <p className="hn-month">
             <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
           </p>
-          <h2 className="hn-h2 hn-status-title">Rechnungsversand (Rechnungen)</h2>
+          <h2 className="hn-h2 hn-status-title">Rechnungsversand</h2>
         </div>
-        {carrierReady && fees.length > 0 ? (
+        {carrierReady && tab === "mail" && mailFees.length > 0 ? (
           <div className="hn-send-actions">
-            <button
-              type="button"
-              className="hn-send"
-              disabled={!bmdCreated || mailFees.length === 0}
-              onClick={() => setAskSend(true)}
-            >
+            <button type="button" className="hn-send" disabled={!bmdCreated} onClick={() => setAskSend(true)}>
               Alle E-Mail Rechnungen verschicken
             </button>
-            <button
-              type="button"
-              className="hn-send"
-              disabled={!bmdCreated || postFees.length === 0}
-              onClick={() => setAskPost(true)}
-            >
+          </div>
+        ) : null}
+        {carrierReady && tab === "post" && postFees.length > 0 ? (
+          <div className="hn-send-actions">
+            <button type="button" className="hn-send" disabled={!bmdCreated} onClick={() => setAskPost(true)}>
               Post-Rechnungen drucken
             </button>
           </div>
         ) : null}
       </div>
-      {sent || postDone ? (
-        <div className="hn-carrier-done-group">
-          {sent ? (
-            <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
-              <p className="hn-carrier-done-title">
-                <img src={a.confirm} alt="" width={24} height={24} />
-                E-Mail Rechnungen versendet.
-              </p>
-              <p className="hn-carrier-done-meta">{createdLine(sent.timestamp, sent.user)}</p>
-              <p className="hn-carrier-done-link">
-                <img src={a.comment} alt="" width={12.5358} height={13.5} />
-                1 Kommentar
-              </p>
-            </article>
-          ) : null}
-          {postDone ? (
-            <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
-              <p className="hn-carrier-done-title">
-                <img src={a.confirm} alt="" width={24} height={24} />
-                {postDone.title}
-              </p>
-              <p className="hn-carrier-done-meta">{postDone.meta}</p>
-              <p className="hn-carrier-done-link">
-                <img src={a.comment} alt="" width={12.5358} height={13.5} />
-                1 Kommentar
-              </p>
-            </article>
-          ) : null}
+
+      <div className="hn-dispatch-tabs">
+        <div className="freigaben-tabs" role="tablist" aria-label="Rechnungsversand">
+          {TABS.map((entry) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === entry.id}
+              className={tab === entry.id ? "fg-tab active" : "fg-tab"}
+              key={entry.id}
+              onClick={() => switchTab(entry.id)}
+            >
+              <Icon src={entry.icon} size={20} />
+              {entry.label}
+              {isTabDone(entry.id) ? (
+                <span className="badge done">
+                  <Icon src={a.confirm} size={14} />
+                  Fertig
+                </span>
+              ) : (
+                <span className="badge">
+                  <Icon src={a.onhold} size={14} />
+                  Offen
+                </span>
+              )}
+            </button>
+          ))}
         </div>
-      ) : null}
+        {carrierReady ? doneToggle : null}
+      </div>
 
       {!carrierReady ? (
         <StepEmpty
@@ -288,15 +337,44 @@ export function DispatchStep() {
           title="Noch keine Daten empfangen"
           lead="Datenträger und BMD-Aufgaben müssen zuerst erledigt werden"
         />
-      ) : fees.length === 0 ? (
+      ) : tab === "check" ? (
+        <PlausiCheck key={finanzenMonth} monthId={finanzenMonth} fees={monthFees} loaded={Boolean(month?.bmdDataLoaded)} />
+      ) : tabFees.length === 0 ? (
         <StepEmpty
-          icon={a.navMail}
-          title="Noch keine Daten empfangen"
-          lead="Der Datenträger wird zuerst erstellt und in BMD verarbeitet"
+          icon={tab === "post" ? a.house : a.navMail}
+          title={tab === "post" ? "Keine Post-Rechnungen" : "Keine E-Mail Rechnungen"}
+          lead={`Diesen Monat geht keine Rechnung per ${tab === "post" ? "Post" : "Mail"} hinaus. Du kannst den Tab als Fertig markieren.`}
         />
       ) : (
         <>
-          <StatCards open={statOpen} done={statDone} unit="Rechnungen" value={stat} onChange={setStat} />
+          {tab === "mail" && mailSentMeta ? (
+            <div className="hn-carrier-done-group">
+              <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
+                <p className="hn-carrier-done-title">
+                  <img src={a.confirm} alt="" width={24} height={24} />
+                  E-Mail Rechnungen versendet.
+                </p>
+                <p className="hn-carrier-done-meta">{mailSentMeta}</p>
+                <p className="hn-carrier-done-meta">
+                  {mailOk} von {mailFees.length} angekommen
+                  {mailFailed ? ` · ${mailFailed} nicht empfangen, bitte Adresse ändern oder erneut senden` : ""}
+                </p>
+              </article>
+            </div>
+          ) : null}
+          {tab === "post" && postDone ? (
+            <div className="hn-carrier-done-group">
+              <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
+                <p className="hn-carrier-done-title">
+                  <img src={a.confirm} alt="" width={24} height={24} />
+                  {postDone.title}
+                </p>
+                <p className="hn-carrier-done-meta">{postDone.meta}</p>
+              </article>
+            </div>
+          ) : null}
+
+          <StatsRow fees={rows.map((row) => row.fee)} stats={<StatCards open={statOpen} done={statDone} unit="Rechnungen" value={stat} onChange={setStat} />} />
 
           <div className="hn-status-tools">
             <button type="button" className="hn-drop" onClick={() => importCaptureData(finanzenMonth)}>
@@ -311,7 +389,7 @@ export function DispatchStep() {
             </div>
           </div>
 
-          <div className="hn-status-table dispatch" role="table" aria-label="Rechnungsversand">
+          <div className="hn-status-table dispatch" role="table" aria-label={tab === "post" ? "Post-Versand" : "Mail-Versand"}>
             <div className="hn-st-head" role="row">
               {COLUMNS.map((column) => (
                 <div className="hn-st-th" role="columnheader" key={column.key}>
@@ -333,214 +411,197 @@ export function DispatchStep() {
               ))}
             </div>
 
-            <div className="hn-st-sum" role="row">
-              <div className="hn-st-sum-label">Alle Honorare</div>
-              <div />
-              <div />
-              <div />
-              <div />
-              <div />
-              <div />
-            </div>
-
-            <Group
-              label="Mail nicht empfangen"
-              open={openGroups.failed}
-              onToggle={() => toggle("failed")}
-              rows={failed}
-              handlers={handlers}
-            />
-            <Group
-              label="Postversand"
-              open={openGroups.post}
-              onToggle={() => toggle("post")}
-              rows={post}
-              handlers={handlers}
-              allMarked={post.every(({ fee }) => fee.invoiceStatus === "sent")}
-              onMarkAll={() =>
-                post.every(({ fee }) => fee.invoiceStatus === "sent")
-                  ? post.forEach(({ fee }) => setPostSent(fee.id, false))
-                  : post.forEach(({ fee }) => fee.invoiceStatus !== "sent" && setPostSent(fee.id, true))
-              }
-            />
-            <Group
-              label="Mailversand"
-              open={openGroups.mail}
-              onToggle={() => toggle("mail")}
-              rows={mail}
-              handlers={handlers}
-            />
-          </div>
-
-          {menu && menuFee ? (
-            <div
-              className="hn-row-menu wide"
-              ref={menuRef}
-              role="menu"
-              style={{ top: menu.top, left: menu.left }}
-            >
-              {menuIsMail ? (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      sendFeeMail(menuFee.id);
-                      setMenu(null);
-                    }}
-                  >
-                    E-Mail versenden
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setAddressFeeId(menuFee.id);
-                      setMenu(null);
-                    }}
-                  >
-                    E-Mail Adresse ändern (Einmalig)
-                  </button>
-                  <hr />
-                </>
-              ) : null}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  openPartnerInkasso();
-                  setMenu(null);
-                }}
-              >
-                Zahlungsziel im Profil anpassen
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  notifyAdvisor(menuFee.id, "Rückfrage zum Rechnungsversand");
-                  setToast(`${menuPartner?.advisor ?? "Der Berater"} wurde kontaktiert.`);
-                  setMenu(null);
-                }}
-              >
-                Berater kontaktieren
-              </button>
-            </div>
-          ) : null}
-
-          {addressFeeId
-            ? (() => {
-                const fee = fees.find((entry) => entry.id === addressFeeId);
-                if (!fee) return null;
-                const partner = partnerOf(state, fee.partnerId);
-                return (
-                  <MailAddressModal
-                    partnerName={partner?.name ?? ""}
-                    current={mailAddress(fee, partner)}
-                    onCancel={() => setAddressFeeId(null)}
-                    onSend={(email) => {
-                      sendFeeMail(fee.id, email);
-                      setAddressFeeId(null);
-                    }}
-                  />
-                );
-              })()
-            : null}
-
-          {toast ? <Snackbar message={toast} onClose={() => setToast(null)} /> : null}
-
-          {invoiceFeeId ? (
-            (() => {
-              const fee = fees.find((entry) => entry.id === invoiceFeeId);
-              if (!fee) return null;
-              return (
-                <InvoiceModal
-                  fee={fee}
-                  partner={partnerOf(state, fee.partnerId)}
-                  today={state.today}
-                  onClose={() => setInvoiceFeeId(null)}
+            {tab === "mail" ? (
+              <>
+                <Group
+                  label="Mail nicht empfangen"
+                  open={openGroups.failed}
+                  onToggle={() => toggle("failed")}
+                  rows={failed}
+                  handlers={handlers}
                 />
-              );
-            })()
-          ) : null}
-
-          {askSend ? (
-            <div className="wmodal" role="dialog" aria-label="E-Mail Rechnungen verschicken">
-              <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskSend(false)} />
-              <div className="wmodal-body send-ask">
-                <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskSend(false)}>
-                  <img src={a.iconCloseDark} alt="" width={16} height={16} />
-                </button>
-                <h2>{mailSent ? "E-Mail Rechnungen erneut verschicken?" : "E-Mail Rechnungen verschicken?"}</h2>
-                <p>
-                  {mailSent
-                    ? "Die E-Mail Rechnungen wurden bereits versendet. Möchtest du sie wirklich noch einmal an die Partner verschicken?"
-                    : `${mailFees.length} ${mailFees.length === 1 ? "Rechnung wird" : "Rechnungen werden"} per Mail an die Partner verschickt.`}
-                </p>
-                <footer className="wmodal-foot send-ask">
-                  <button type="button" className="btn-secondary" onClick={() => setAskSend(false)}>
-                    Abbrechen
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => {
-                      sendInvoices(finanzenMonth, mailSent);
-                      setAskSend(false);
-                      setToast("E-Mail Rechnungen erfolgreich verschickt.");
-                    }}
-                  >
-                    {mailSent ? "Erneut senden" : "Verschicken"}
-                  </button>
-                </footer>
-              </div>
-            </div>
-          ) : null}
-          {askPost ? (
-            <div className="wmodal" role="dialog" aria-label="Post-Rechnungen drucken">
-              <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskPost(false)} />
-              <div className="wmodal-body send-ask">
-                <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskPost(false)}>
-                  <img src={a.iconCloseDark} alt="" width={16} height={16} />
-                </button>
-                <h2>Post-Rechnungen drucken?</h2>
-                <p>
-                  {postFees.length} Post-Rechnungen werden an den Drucker gesendet und gedruckt. Vergewissere dich,
-                  dass du alle Postversand Rechnungen in der Tabelle als versendet markierst.
-                </p>
-                <footer className="wmodal-foot send-ask">
-                  <button type="button" className="btn-secondary" onClick={() => setAskPost(false)}>
-                    Abbrechen
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => {
-                      printPostInvoices(finanzenMonth);
-                      setAskPost(false);
-                      setToast("Post-Rechnungen erfolgreich an den Drucker gesendet.");
-                    }}
-                  >
-                    Drucken
-                  </button>
-                </footer>
-              </div>
-            </div>
-          ) : null}
-          {confirmClear ? (
-            <ConfirmModal
-              title="Liste wirklich leeren?"
-              text="Alle Honorare dieses Monats werden gelöscht."
-              confirmLabel="Liste leeren"
-              onCancel={() => setConfirmClear(false)}
-              onConfirm={() => {
-                clearMonthFees(finanzenMonth);
-                setConfirmClear(false);
-              }}
-            />
-          ) : null}
+                <Group
+                  label="Mailversand"
+                  open={openGroups.mail}
+                  onToggle={() => toggle("mail")}
+                  rows={mail}
+                  handlers={handlers}
+                />
+              </>
+            ) : (
+              <Group
+                label="Postversand"
+                open={openGroups.post}
+                onToggle={() => toggle("post")}
+                rows={rows}
+                handlers={handlers}
+                allMarked={rows.every(({ fee }) => fee.invoiceStatus === "sent")}
+                onMarkAll={() =>
+                  rows.every(({ fee }) => fee.invoiceStatus === "sent")
+                    ? rows.forEach(({ fee }) => setPostSent(fee.id, false))
+                    : rows.forEach(({ fee }) => fee.invoiceStatus !== "sent" && setPostSent(fee.id, true))
+                }
+              />
+            )}
+          </div>
         </>
       )}
+
+      {menu && menuFee ? (
+        <div
+          className="hn-row-menu wide"
+          ref={menuRef}
+          role="menu"
+          style={{ top: menu.top, left: menu.left }}
+        >
+          {menuIsMail ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  sendFeeMail(menuFee.id);
+                  setMenu(null);
+                }}
+              >
+                E-Mail versenden
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAddressFeeId(menuFee.id);
+                  setMenu(null);
+                }}
+              >
+                E-Mail Adresse ändern (Einmalig)
+              </button>
+              <hr />
+            </>
+          ) : null}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              openPartnerInkasso();
+              setMenu(null);
+            }}
+          >
+            Zahlungsziel im Profil anpassen
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              notifyAdvisor(menuFee.id, "Rückfrage zum Rechnungsversand");
+              setToast(`${menuPartner?.advisor ?? "Der Berater"} wurde kontaktiert.`);
+              setMenu(null);
+            }}
+          >
+            Berater kontaktieren
+          </button>
+        </div>
+      ) : null}
+
+      {addressFeeId
+        ? (() => {
+            const fee = fees.find((entry) => entry.id === addressFeeId);
+            if (!fee) return null;
+            const partner = partnerOf(state, fee.partnerId);
+            return (
+              <MailAddressModal
+                partnerName={partner?.name ?? ""}
+                current={mailAddress(fee, partner)}
+                onCancel={() => setAddressFeeId(null)}
+                onSend={(email) => {
+                  sendFeeMail(fee.id, email);
+                  setAddressFeeId(null);
+                }}
+              />
+            );
+          })()
+        : null}
+
+      {toast ? <Snackbar message={toast} onClose={() => setToast(null)} /> : null}
+
+      {invoiceFeeId ? (
+        (() => {
+          const fee = fees.find((entry) => entry.id === invoiceFeeId);
+          if (!fee) return null;
+          return (
+            <InvoiceModal
+              fee={fee}
+              partner={partnerOf(state, fee.partnerId)}
+              today={state.today}
+              onClose={() => setInvoiceFeeId(null)}
+            />
+          );
+        })()
+      ) : null}
+
+      {askSend ? (
+        <div className="wmodal" role="dialog" aria-label="E-Mail Rechnungen verschicken">
+          <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskSend(false)} />
+          <div className="wmodal-body send-ask">
+            <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskSend(false)}>
+              <img src={a.iconCloseDark} alt="" width={16} height={16} />
+            </button>
+            <h2>{mailSent ? "E-Mail Rechnungen erneut verschicken?" : "E-Mail Rechnungen verschicken?"}</h2>
+            <p>
+              {mailSent
+                ? "Die E-Mail Rechnungen wurden bereits versendet. Möchtest du sie wirklich noch einmal an die Partner verschicken?"
+                : `${mailFees.length} ${mailFees.length === 1 ? "Rechnung wird" : "Rechnungen werden"} per Mail an die Partner verschickt.`}
+            </p>
+            <footer className="wmodal-foot send-ask">
+              <button type="button" className="btn-secondary" onClick={() => setAskSend(false)}>
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  sendInvoices(finanzenMonth, mailSent);
+                  setAskSend(false);
+                  setToast("E-Mail Rechnungen verschickt. Prüfe unten, welche nicht angekommen sind.");
+                }}
+              >
+                {mailSent ? "Erneut senden" : "Verschicken"}
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
+      {askPost ? (
+        <div className="wmodal" role="dialog" aria-label="Post-Rechnungen drucken">
+          <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setAskPost(false)} />
+          <div className="wmodal-body send-ask">
+            <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setAskPost(false)}>
+              <img src={a.iconCloseDark} alt="" width={16} height={16} />
+            </button>
+            <h2>Post-Rechnungen drucken?</h2>
+            <p>
+              {postFees.length} Post-Rechnungen werden an den Drucker gesendet und gedruckt. Vergewissere dich,
+              dass du alle Postversand Rechnungen in der Tabelle als versendet markierst.
+            </p>
+            <footer className="wmodal-foot send-ask">
+              <button type="button" className="btn-secondary" onClick={() => setAskPost(false)}>
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  printPostInvoices(finanzenMonth);
+                  setAskPost(false);
+                  setToast("Post-Rechnungen erfolgreich an den Drucker gesendet.");
+                }}
+              >
+                Drucken
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -610,7 +671,7 @@ function Group({
                     </strong>
                     {partner ? <small>{partnerMeta(partner)}</small> : null}
                   </span>
-                  <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
+                  <PartnerOpenButton partner={partner} />
                 </div>
                 {failed ? (
                   <div className="hn-st-note fail">

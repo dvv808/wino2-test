@@ -1,3 +1,4 @@
+import { zahlartLabel } from "./invoiceCells";
 import { useEffect } from "react";
 import * as a from "../assets/index";
 import { formatDay, monthLabel, servicePeriod } from "../lib/honorar/format";
@@ -26,7 +27,7 @@ function invoiceData(fee: Fee, partner: Partner | undefined, today: string) {
     due: formatDay(`${fee.dueDate}T12:00:00`),
     tariff: fee.tariff,
     amount: money(fee.amount),
-    method: fee.paymentMethod,
+    method: zahlartLabel(fee.paymentMethod),
   };
 }
 

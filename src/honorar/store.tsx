@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { createSeedState, ROLE_USER } from "../mocks/honorar/seed";
 import * as t from "../lib/honorar/transitions";
-import type { CorrectionKind, Fee, HistoryEntry, HonorarRole, HonorarState, InvoiceCorrection, InvoiceWorkflowType } from "../types/honorar";
+import type { CorrectionKind, DispatchTab, Fee, ReminderTab, HistoryEntry, HonorarRole, HonorarState, InvoiceCorrection, InvoiceWorkflowType } from "../types/honorar";
 
 export const STORAGE_KEY = "wino.honorar.v1";
 
@@ -120,6 +120,11 @@ function useHonorarState() {
     resetOpenCarrier: (monthId: string) => apply((prev) => t.resetOpenCarrier(prev, monthId)),
     syncCarrierInvoices: (monthId: string) => apply((prev) => t.syncCarrierInvoices(prev, monthId)),
     loadBmd: (monthId: string, mismatches: boolean) => asUser((prev, actor) => t.loadBmd(prev, monthId, mismatches, actor)),
+    setDispatchTabDone: (monthId: string, tab: DispatchTab, value: boolean) =>
+      asUser((prev, actor) => t.setDispatchTabDone(prev, monthId, tab, value, actor)),
+    setReminderTabDone: (monthId: string, tab: ReminderTab, value: boolean) =>
+      asUser((prev, actor) => t.setReminderTabDone(prev, monthId, tab, value, actor)),
+    simulateMonthEnd: (monthId: string) => asUser((prev, actor) => t.simulateMonthEnd(prev, monthId, actor)),
     importBmdCorrection: (monthId: string) => asUser((prev, actor) => t.importBmdCorrection(prev, monthId, actor)),
     realignFee: (feeId: string) => asUser((prev, actor) => t.realignFee(prev, feeId, actor)),
     sendInvoices: (monthId: string, again = false) => asUser((prev, actor) => t.sendInvoices(prev, monthId, actor, again)),

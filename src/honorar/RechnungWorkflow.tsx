@@ -122,7 +122,7 @@ export function RechnungWorkflowPage() {
   );
 }
 
-function WorkflowSteps({ fee, partner, correction }: { fee: Fee; partner: Partner | undefined; correction: InvoiceCorrection }) {
+export function WorkflowSteps({ fee, partner, correction }: { fee: Fee; partner: Partner | undefined; correction: InvoiceCorrection }) {
   const { closeRechnungWorkflow } = useWorkflow();
   const { state } = useHonorar();
   const current = workflowStepIndex(correction);

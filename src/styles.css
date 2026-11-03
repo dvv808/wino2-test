@@ -2938,6 +2938,13 @@ input.text-field {
   margin-top: 26px;
 }
 
+.freigaben-statbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-width: 1482px;
+}
+
 .export-btn {
   height: 36px;
   border: 0;
@@ -4212,7 +4219,7 @@ input.text-field {
   display: flex;
   align-items: center;
   gap: 22px;
-  padding: 0 20px;
+  padding: 8px 20px;
   border-radius: 16px 16px 0 0;
   background: linear-gradient(90deg, #e5ebef 0%, #baccd5 100%);
 }
@@ -4245,9 +4252,9 @@ input.text-field {
 .fg-meta {
   flex: 1;
   min-width: 0;
-  height: 72px;
+  min-height: 72px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.4);
 }
@@ -4255,14 +4262,16 @@ input.text-field {
 .fg-meta-cell {
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 6px;
-  padding: 0 22px;
+  min-width: 0;
+  padding: 8px 22px;
 }
 
 .fg-meta-rule {
   flex: none;
   width: 1px;
-  height: 72px;
+  align-self: stretch;
   background: var(--wino-bg-darker);
 }
 
@@ -4380,12 +4389,14 @@ input.text-field {
 
 .fg-body {
   border-radius: 0;
+  /* From the header down to the buttons the Freigabe sits on one white panel. */
+  background: var(--wino-white);
 }
 
 .fg-foot {
   flex: none;
   border-radius: 0 0 16px 16px;
-  background: var(--wino-bg-lighter);
+  background: var(--wino-white);
   margin: 0;
 }
 
@@ -8498,7 +8509,16 @@ body.historical-version .shell {
   border-radius: 6px;
   background: linear-gradient(90deg, #c5d8e3 0%, #eef6fa 48%, #c5d8e3 100%);
   background-size: 200% 100%;
-  animation: pa-skel-shimmer 1.2s ease-in-out infinite;
+  animation: hn-plausi-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes hn-plausi-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.4;
+  }
 }
 
 .pa-skel-avatar {
@@ -9697,6 +9717,48 @@ body.historical-version .shell {
 
 .hn-row-menu.wide {
   width: 280px;
+}
+
+/* Daten erfassen: Zahlart switches between SEPA-Lastschrift and Überweisung (with a required comment). */
+.hn-st-method {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.hn-st-method:hover,
+.hn-st-method.open {
+  text-decoration: underline;
+}
+
+.hn-st-method.open .icon {
+  transform: rotate(180deg);
+}
+
+.hn-row-menu.hn-method-menu {
+  width: 200px;
+  padding: 10px;
+}
+
+.hn-method-menu button {
+  justify-content: space-between;
+}
+
+.hn-method-menu button[aria-selected="true"] {
+  font-weight: 500;
+}
+
+.prompt-text {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--wino-black-medium);
 }
 
 .hn-st-stack .hn-st-edited {
@@ -12641,19 +12703,6 @@ button.person-tab-open {
   right: 24px;
 }
 
-/* Inkasso Forderungen card in the profile */
-.ik-fee-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ik-new .pp-label,
-.ik-new .pp-val {
-  font-weight: 500;
-  color: var(--wino-black-dark);
-}
-
 /* Widget bar (right-hand side, switched on in the profile menu) */
 /* Widget bar width (392px) + the gap to the page (21px). The bar itself sits 24px from the edge, like the page. */
 body.widget-on {
@@ -13112,7 +13161,89 @@ body.widget-on .hn-test {
   border-radius: 50%;
 }
 
-.hw-side-head span,
+.hw-side {
+  position: relative;
+  overflow: visible;
+}
+
+button.hw-side-head {
+  width: 100%;
+  min-height: 72px;
+  padding: 14px 16px;
+  gap: 12px;
+  border: 0;
+  border-radius: 16px 16px 0 0;
+  text-align: left;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+/* One line each: the name is cut with "…" instead of wrapping. */
+.hw-side-head > span strong,
+.hw-side-head > span small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hw-side-head > span strong {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.hw-side-head > span small {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.hw-side-head > .icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+/* Hover: the header lightens and the chevron gets a round backdrop. */
+button.hw-side-head:hover {
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-lighter) 100%);
+}
+
+button.hw-side-head:hover > .icon {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* Open: the header sinks into the dropdown below it. */
+button.hw-side-head.open {
+  background: linear-gradient(180deg, var(--wino-bg-lighter) 0%, var(--wino-bg-darker) 100%);
+  box-shadow: inset 0 -1px 0 rgba(49, 53, 55, 0.08);
+}
+
+button.hw-side-head.open > .icon {
+  transform: rotate(180deg);
+  background: var(--wino-white);
+}
+
+button.hw-side-head:focus-visible {
+  outline: 2px solid var(--wino-black-light);
+  outline-offset: -2px;
+}
+
+.hw-drop-initials {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wino-black-dark);
+}
+
+.hw-side-head > .hw-drop-avatar {
+  box-shadow: 0 0 0 2px var(--wino-white), 0 0 0 3px var(--wino-bg-darker);
+}
+
+.hw-side-head > span:not(.hw-drop-avatar):not(.icon),
 .hw-head > div:first-child {
   display: flex;
   flex-direction: column;
@@ -13120,14 +13251,13 @@ body.widget-on .hn-test {
   min-width: 0;
 }
 
-.hw-side-head strong,
 .hw-head strong {
   font-size: 15px;
   font-weight: 500;
 }
 
-.hw-side-head small,
-.hw-head small {
+.hw-head small,
+.hw-side-head span small {
   font-size: 13px;
   color: var(--wino-black-light);
 }
@@ -13136,7 +13266,7 @@ body.widget-on .hn-test {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px;
+  padding: 16px 12px 20px;
 }
 
 .hw-side-item {
@@ -13992,21 +14122,1075 @@ body.widget-on .hn-test {
   cursor: default;
 }
 
-/* Inkasso Forderung: the invoice status from the Honorarverrechnung, above its rows. */
-.ik-status {
-  margin: 4px 0 10px;
-  font-size: 13px;
-}
-
-/* Where the Rechnungskorrektur / Einzelfaktura stands, under the status. */
-.ik-step {
-  margin: 0 0 10px;
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--wino-black-light);
-}
-
 /* The whole parked tab is clickable, not only its name. */
 .main-nav .person-tab.inactive .person-tab-body {
   cursor: pointer;
+}
+
+/* Side card dropdown (Figma E-Mail / Workflows "Meine"): search, Ich, Firmenkanäle, Mitarbeitende. */
+.hw-drop {
+  position: absolute;
+  top: 72px;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 560px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 0 0 16px 16px;
+  background: linear-gradient(180deg, var(--wino-bg-lighter) 0%, var(--wino-bg-darker) 100%);
+  box-shadow: 0 12px 24px rgba(49, 53, 55, 0.18);
+}
+
+.hw-drop-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  background: var(--wino-white);
+}
+
+.hw-drop-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+
+.hw-drop-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hw-drop-section > small {
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--wino-black-light);
+}
+
+.hw-drop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-lighter) 100%);
+  text-align: left;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.hw-drop-item:hover {
+  border-color: var(--wino-bg-darker);
+}
+
+.hw-drop-item.selected {
+  border-color: var(--wino-green-homeoffice);
+}
+
+.hw-drop-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--wino-white);
+  box-shadow: 0 0 0 1px var(--wino-bg-darker);
+  overflow: hidden;
+}
+
+.hw-drop-avatar img {
+  display: block;
+  object-fit: cover;
+}
+
+.hw-drop-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.hw-drop-copy strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hw-drop-copy small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.hw-drop-check {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--wino-green-homeoffice);
+  box-shadow: inset 0 0 0 3px var(--wino-signal-greenlight);
+}
+
+/* Offene Posten + Einzelfaktura form one group; the rule splits them from Sammelfaktura. */
+.hn-side-rule.hn-group-rule {
+  width: 239px;
+  margin: 6px auto 12px;
+}
+
+button.hn-st-open {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* Forderungen kicker: shelve toggle in front; with the side nav shelved it opens the nav as a dropdown. */
+.hn-kicker-wrap {
+  position: relative;
+}
+
+.freigaben-title.hn-kicker {
+  gap: 8px;
+}
+
+.hn-shelve,
+.hn-kicker-drop {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.hn-shelve {
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin: -4px 0 -4px -4px;
+  border-radius: 8px;
+}
+
+.hn-shelve:hover {
+  background: var(--wino-bg-darker);
+}
+
+.hn-kicker-drop {
+  gap: 6px;
+}
+
+.hn-kicker-drop .icon {
+  transition: transform 0.15s ease;
+}
+
+.hn-kicker-drop.open .icon {
+  transform: rotate(180deg);
+}
+
+.hn-kicker-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  display: flex;
+  max-height: min(70vh, 720px);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(49, 53, 55, 0.18);
+}
+
+.hn-kicker-panel .hn-side {
+  height: auto;
+}
+
+/* Compact Forderungen tables: same structure, tighter padding, rows and columns. */
+.hn-st-band {
+  min-height: 30px;
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.hn-st-th {
+  min-height: 0;
+  padding: 12px 12px 10px;
+  gap: 8px;
+}
+
+.hn-st-th.has-tab {
+  padding-right: 26px;
+}
+
+.hn-st-th .col-input {
+  height: 28px;
+}
+
+.hn-st-label {
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.hn-st-sum > div {
+  min-height: 38px;
+}
+
+.hn-st-sum-label,
+.hn-st-total {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.hn-st-total small {
+  font-size: 10px;
+  line-height: 13px;
+}
+
+.hn-st-row > div {
+  min-height: 54px;
+  padding: 6px 12px;
+  font-size: 12px;
+  letter-spacing: 0.12px;
+}
+
+.hn-st-row .partner-copy small {
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.hn-st-stack,
+.hn-st-note {
+  line-height: 15px;
+}
+
+.hn-st-partner {
+  gap: 8px;
+}
+
+.hn-st-row .partner-avatar {
+  zoom: 0.8;
+}
+
+.hn-status-table {
+  --st-cols: minmax(200px, 1.4fr) minmax(170px, 1.1fr) minmax(125px, 0.75fr) minmax(115px, 0.75fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(130px, 0.85fr) minmax(170px, 0.9fr) minmax(115px, 0.7fr) minmax(170px, 1.1fr) minmax(40px, 0.3fr);
+  min-width: 1645px;
+}
+
+/* Compact: the filter stays beside the title instead of dropping below; long German words hyphenate. */
+.hn-st-label {
+  flex-wrap: nowrap;
+  overflow-wrap: normal;
+  hyphens: auto;
+}
+
+/* Stat cards on the left, dashboard totals of the shown rows on the far right (replaces the "Alle Honorare" sum row). */
+.hn-stats-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.hn-stats-row .hn-stats {
+  margin-top: 0;
+}
+
+.hn-kpis {
+  display: flex;
+  gap: 4px;
+}
+
+.hn-kpi {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 150px;
+  height: 85px;
+  padding: 7px 14px 0;
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-bg-darker) 100%);
+  text-align: right;
+}
+
+.hn-kpi:first-child {
+  border-radius: 16px 0 0 16px;
+}
+
+.hn-kpi:last-child {
+  border-radius: 0 16px 16px 0;
+}
+
+.hn-kpi small {
+  font-size: 11px;
+  line-height: 12px;
+  color: var(--wino-black-medium);
+  white-space: nowrap;
+}
+
+.hn-kpi strong {
+  font-family: var(--font-display);
+  font-size: 27px;
+  line-height: 34px;
+  font-weight: 400;
+  letter-spacing: 0.27px;
+  white-space: nowrap;
+  background: linear-gradient(180deg, var(--wino-black-dark) 0%, var(--wino-black-medium) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hn-kpi span {
+  font-size: 9px;
+  line-height: 15px;
+  color: var(--wino-black-medium);
+}
+
+/* Something is still outstanding: the Offen yellow marks the tile. */
+.hn-kpi.due {
+  background: linear-gradient(180deg, #ffffff 0%, #fcf5e3 100%);
+  box-shadow: inset 0 -3px 0 #ffbc39;
+}
+
+/* Partner ">" tab folds out Versandart, Kundenberater, Honorarmodell, Bankverbindung and a placeholder right after Partner. */
+.hn-status-table.rechnungen.partner-open {
+  --st-cols: minmax(200px, 1.4fr) minmax(190px, 1fr) minmax(190px, 1fr) minmax(170px, 0.9fr) minmax(190px, 1fr) minmax(140px, 0.8fr) minmax(170px, 1.1fr) minmax(125px, 0.75fr) minmax(115px, 0.75fr) minmax(120px, 0.8fr) minmax(120px, 0.8fr) minmax(130px, 0.85fr) minmax(170px, 0.9fr) minmax(115px, 0.7fr) minmax(170px, 1.1fr) minmax(40px, 0.3fr);
+  min-width: 2525px;
+}
+
+button.hn-st-tab {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button.hn-st-tab:hover {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.6), #ffffff);
+}
+
+button.hn-st-tab.open .caret-side {
+  transform: rotate(90deg);
+}
+
+/* Dividers move with the folded-out columns: the Partner group now ends after column 6. */
+.hn-status-table.rechnungen.partner-open .hn-st-head > :is(:nth-child(2), :nth-child(3), :nth-child(4), :nth-child(5), :nth-child(6)),
+.hn-status-table.rechnungen.partner-open .hn-st-row > :is(:nth-child(2), :nth-child(3), :nth-child(4), :nth-child(5), :nth-child(6)) {
+  box-shadow: none;
+}
+
+.hn-status-table.rechnungen.partner-open .hn-st-head > :is(:nth-child(7), :nth-child(8), :nth-child(12), :nth-child(13), :nth-child(14), :nth-child(15), :nth-child(16)),
+.hn-status-table.rechnungen.partner-open .hn-st-row > :is(:nth-child(7), :nth-child(8), :nth-child(12), :nth-child(13), :nth-child(14), :nth-child(15), :nth-child(16)) {
+  box-shadow: inset 2px 0 0 var(--wino-black-light);
+}
+
+.hn-status-table.rechnungen.partner-open .hn-st-row > :is(:nth-child(2), :nth-child(3), :nth-child(4), :nth-child(5), :nth-child(6)) {
+  background: #f7f9fb;
+}
+
+.hn-st-strong {
+  font-weight: 500;
+}
+
+.hn-st-sub {
+  color: var(--wino-black-medium);
+}
+
+.hn-st-delivery strong,
+.hn-st-advisor strong {
+  font-weight: 500;
+}
+
+.hn-st-delivery span {
+  color: var(--wino-black-medium);
+  overflow-wrap: anywhere;
+}
+
+.hn-st-advisor {
+  gap: 8px;
+}
+
+.hn-st-advisor small {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--wino-black-medium);
+}
+
+.hn-st-advisor-photo {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.hn-st-advisor-photo.initials {
+  display: grid;
+  place-items: center;
+  background: var(--wino-bg-darker);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.hn-st-muted {
+  color: var(--wino-black-light);
+}
+
+.hn-st-advisor > .hn-st-stack {
+  display: flex;
+  min-width: 0;
+}
+
+/* Daten erfassen has 7 columns: it only needs to scroll (inside its panel) on narrow screens. */
+.hn-status-table.data {
+  min-width: 1240px;
+}
+
+/* Sticky horizontal scrollbar: the table's own bar is hidden, a synced one stays at the bottom of the view. */
+.hn-st-scroll.sticky-bar {
+  scrollbar-width: none;
+}
+
+.hn-st-scroll.sticky-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.hn-st-hbar {
+  position: relative;
+  z-index: 5;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 14px;
+  margin-top: 4px;
+  background: var(--wino-white);
+}
+
+.hn-st-hbar > div {
+  height: 1px;
+}
+
+.hn-st-hbar.pinned {
+  position: fixed;
+  bottom: 0;
+  height: 16px;
+  margin: 0;
+  padding-bottom: 2px;
+  box-shadow: 0 -4px 12px rgba(49, 53, 55, 0.08);
+}
+
+button.hn-kpi {
+  border: 0;
+  font: inherit;
+  color: inherit;
+  align-items: stretch;
+  cursor: pointer;
+}
+
+button.hn-kpi:hover:not(.active) {
+  background: linear-gradient(180deg, #ffffff 0%, var(--wino-blue-light) 100%);
+}
+
+button.hn-kpi.due:hover:not(.active) {
+  background: linear-gradient(180deg, #ffffff 0%, #f8e6b8 100%);
+}
+
+/* Active filter: dark like a selected stat card. */
+button.hn-kpi.active {
+  background: linear-gradient(to top, var(--wino-black-light), var(--wino-black-medium));
+  box-shadow: inset 0 -3px 0 #ffbc39;
+}
+
+button.hn-kpi.active small,
+button.hn-kpi.active span {
+  color: var(--wino-white);
+}
+
+button.hn-kpi.active strong {
+  background: linear-gradient(180deg, var(--wino-white) 38%, var(--wino-blue-light) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Status cells wrap onto a second line instead of widening the column. */
+.hn-status-table.rechnungen .hn-st-row > div {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Sammelfaktura dashboard (year / all years). Chart colors: Zahlungseingang #1679a1, Ausstehend #e0a030 (validated: CVD ΔE 25, normal ΔE 32). */
+.hn-dash {
+  --chart-paid: #1679a1;
+  --chart-open: #e0a030;
+}
+
+.hn-dash-kpis {
+  margin-top: 20px;
+}
+
+.hn-dash-kpis .hn-kpi {
+  flex: 1;
+  text-align: left;
+}
+
+.hn-dash-kpis .hn-kpi span {
+  font-size: 10px;
+}
+
+.hn-dash-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 16px;
+  background: var(--wino-white);
+}
+
+.hn-dash-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hn-dash-card-head > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hn-dash-card-head strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.hn-dash-card-head small,
+.hn-split small,
+.hn-top-name small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.hn-chart-card {
+  margin-top: 16px;
+}
+
+.hn-chart-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--wino-black-medium);
+}
+
+.hn-chart-legend > span,
+.hn-chart-tip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hn-dash i.paid,
+.hn-dash i.open {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--chart-paid);
+}
+
+.hn-dash i.open {
+  background: var(--chart-open);
+}
+
+.hn-chart {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 8px;
+  height: 240px;
+  padding-bottom: 22px;
+}
+
+.hn-chart-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: -7px 0;
+  font-size: 10px;
+  color: var(--wino-black-light);
+}
+
+.hn-chart-plot {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  align-items: end;
+  border-bottom: 1px solid var(--wino-bg-darker);
+}
+
+.hn-chart-grid {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--wino-bg-light);
+  pointer-events: none;
+}
+
+.hn-chart-col {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  cursor: default;
+}
+
+.hn-chart-col.hover {
+  background: rgba(186, 204, 213, 0.22);
+}
+
+.hn-chart-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: min(36px, 70%);
+}
+
+.hn-chart-bar > span {
+  min-height: 2px;
+}
+
+.hn-chart-bar > span:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.hn-chart-bar .paid {
+  background: var(--chart-paid);
+}
+
+.hn-chart-bar .open {
+  background: var(--chart-open);
+}
+
+.hn-chart-label {
+  position: absolute;
+  bottom: -20px;
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+
+.hn-chart-tip {
+  position: absolute;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--wino-white);
+  box-shadow: 0 8px 24px rgba(49, 53, 55, 0.16);
+  font-size: 12px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.hn-chart-tip b {
+  margin-left: auto;
+  padding-left: 12px;
+  font-weight: 500;
+}
+
+.hn-chart-tip .sum {
+  padding-top: 4px;
+  border-top: 1px solid var(--wino-bg-light);
+}
+
+.hn-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.hn-close-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.hn-close {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--wino-bg-lighter);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.hn-close.done {
+  background: var(--wino-signal-greenlight);
+}
+
+.hn-close.open {
+  background: var(--wino-signal-yellowlight);
+}
+
+.hn-close:hover:not(:disabled) {
+  border-color: var(--wino-black-light);
+}
+
+.hn-close.muted {
+  color: var(--wino-black-light);
+  cursor: default;
+}
+
+.hn-close.muted .icon {
+  opacity: 0.4;
+}
+
+.hn-split {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hn-split-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hn-split-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.hn-split-top strong {
+  font-weight: 500;
+}
+
+.hn-split-track {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--wino-bg-lighter);
+  overflow: hidden;
+}
+
+.hn-split-track .paid {
+  background: var(--chart-paid);
+}
+
+.hn-split-track .open {
+  background: var(--chart-open);
+}
+
+.hn-top-open {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hn-top-open li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--wino-bg-lighter);
+  font-size: 12px;
+}
+
+.hn-top-open li:first-child {
+  border-top: 0;
+}
+
+.hn-top-open .partner-avatar {
+  zoom: 0.8;
+}
+
+.hn-top-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.hn-top-name strong {
+  font-weight: 500;
+}
+
+.hn-top-open b {
+  font-weight: 500;
+}
+
+.hn-top-open .hn-st-open {
+  margin-left: 0;
+}
+
+.hn-dash-none {
+  margin: 0;
+  font-size: 12px;
+  color: var(--wino-black-light);
+}
+
+.hn-dash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 48px;
+  padding: 48px 16px;
+  border-radius: 16px;
+  background: var(--wino-bg-lighter);
+  text-align: center;
+  font-size: 13px;
+}
+
+.hn-dash-empty span {
+  color: var(--wino-black-light);
+}
+
+/* Rechnungskorrektur cell: workflow icon + type, the open step, and who is on it. */
+.hn-st-row .hn-st-wf-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hn-st-wf-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.hn-st-wf-link:hover .hn-st-wf-title {
+  text-decoration-thickness: 2px;
+}
+
+.hn-st-wf-step {
+  color: var(--wino-black-medium);
+}
+
+.hn-person-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.hn-person-chip .hn-st-advisor-photo {
+  width: 20px;
+  height: 20px;
+}
+
+.hn-person-chip .hn-st-advisor-photo.initials {
+  font-size: 9px;
+}
+
+.hn-st-dates.hn-st-tone-ok {
+  background: var(--wino-signal-greenlight);
+}
+
+/* Inkasso in the partner file: the client's own Status zu Rechnungen table. */
+.ik-table {
+  min-width: 0;
+  margin-top: 8px;
+}
+
+.ik-table .hn-stats-row {
+  margin-top: 0;
+}
+
+/* Dark dividers run through without breaks: drawn as a 2px strip that also covers the light line above each row. */
+.hn-status-table.rechnungen .hn-st-row > div {
+  position: relative;
+}
+
+.hn-status-table.rechnungen:not(.partner-open) :is(.hn-st-head, .hn-st-row) > :is(:nth-child(2), :nth-child(3), :nth-child(7), :nth-child(8), :nth-child(9), :nth-child(10), :nth-child(11)),
+.hn-status-table.rechnungen.partner-open :is(.hn-st-head, .hn-st-row) > :is(:nth-child(7), :nth-child(8), :nth-child(12), :nth-child(13), :nth-child(14), :nth-child(15), :nth-child(16)) {
+  box-shadow: none;
+}
+
+.hn-status-table.rechnungen:not(.partner-open) :is(.hn-st-head, .hn-st-row) > :is(:nth-child(2), :nth-child(3), :nth-child(7), :nth-child(8), :nth-child(9), :nth-child(10), :nth-child(11))::before,
+.hn-status-table.rechnungen.partner-open :is(.hn-st-head, .hn-st-row) > :is(:nth-child(7), :nth-child(8), :nth-child(12), :nth-child(13), :nth-child(14), :nth-child(15), :nth-child(16))::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--wino-black-light);
+  pointer-events: none;
+}
+
+/* The header has nothing above it. */
+.hn-status-table.rechnungen .hn-st-head > *::before {
+  top: 0;
+}
+
+/* The chevron flips, not the title's own icon. */
+.hn-kicker-drop.open .icon {
+  transform: none;
+}
+
+.hn-kicker-drop.open > .icon:last-child {
+  transform: rotate(180deg);
+}
+
+/* Profile side nav shelved: hidden, or shown as a dropdown under the page title while open. */
+.pp-body {
+  position: relative;
+}
+
+.pp-body.shelved > .pp-side {
+  display: none;
+}
+
+.pp-body.shelved.drop-open > .pp-side {
+  display: block;
+  position: absolute;
+  top: var(--shelf-top, 80px);
+  left: var(--shelf-left, 40px);
+  z-index: 40;
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(49, 53, 55, 0.18);
+}
+
+.pp-main-title .hn-kicker-drop {
+  gap: 8px;
+  font-size: inherit;
+}
+
+/* Rechnungsversand (step 3): Plausibilitätscheck / Mail-Versand / Post-Versand tabs, each with its own Fertig toggle. */
+.hn-dispatch-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0 20px;
+}
+
+.hn-dispatch-tabs .freigaben-tabs {
+  margin-top: 0;
+}
+
+/* The tab icon filters turn every icon dark (or white when active); the status badge keeps its own colours. */
+.fg-tab .badge .icon img,
+.fg-tab.active .badge .icon img {
+  filter: none;
+}
+
+.hn-dispatch-tabs .fg-tab .badge {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.hn-done-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Plausibilitätscheck: Wino value above, BMD value below; a deviating cell turns red. */
+.hn-status-table.plausi {
+  --st-cols: minmax(200px, 1.4fr) minmax(120px, 0.8fr) minmax(130px, 0.8fr) minmax(200px, 1.3fr) minmax(170px, 1fr) minmax(190px, 1.1fr);
+  min-width: 0;
+  width: 100%;
+}
+
+.hn-status-table.plausi .hn-st-row > .hn-plausi-off {
+  background: #fdecec;
+}
+
+.hn-status-table.plausi .hn-plausi-off span + span {
+  color: #c0392b;
+  font-weight: 500;
+}
+
+.hn-status-table.plausi .hn-st-stack span + span {
+  color: var(--wino-black-medium);
+}
+
+.hn-plausi-checking {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--wino-black-medium);
+  animation: hn-plausi-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes hn-plausi-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+
+/* Mein Bereich Honorare/Forderungen: which partners the table is limited to. */
+.hn-my-scope {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--wino-black-medium);
+}
+
+/* Red bubble after a nav label: how many own invoices are open and need action. */
+.mb-action-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #d92d20;
+  color: var(--wino-white);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 20px;
+  text-align: center;
+}
+
+/* Icons drawn in white (e.g. the request icon of the dark nav) turn dark on light backgrounds. */
+.icon.icon-dark img {
+  filter: brightness(0) saturate(100%) invert(17%) sepia(9%) saturate(524%) hue-rotate(147deg) brightness(96%) contrast(89%);
 }

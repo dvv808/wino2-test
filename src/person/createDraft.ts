@@ -788,3 +788,30 @@ export function buildCreatedPartner(draft: PartnerDraft, seq: number, asDraft = 
   const versions: PersonVersion[] = blankFileVersions(vorname, nachname, cardId, `${id}-v1`);
   return { file, sections, versions, viewingVersionId: `${id}-v1` };
 }
+
+/** A Wino file for a Honorar partner (Forderungen tables), so its open-tab icon opens a real partner tab. */
+export function buildHonorarPartner(partner: { id: string; name: string; type: "person" | "company"; address: string; email: string; birthDate?: string }, seq: number) {
+  const company = partner.type === "company";
+  const [street = "", place = ""] = partner.address.split(", ");
+  const streetMatch = street.match(/^(.*?)\s+(\d+\w*)$/);
+  const [plz = "", ...ort] = place.split(" ");
+  const [vorname, nachname] = splitName(partner.name);
+  const [tag = "", monat = "", jahr = ""] = (partner.birthDate ?? "").split(".");
+  const draft: PartnerDraft = {
+    ...EMPTY_DRAFT,
+    partnerTyp: "Kunde",
+    personTyp: company ? "Unternehmen" : "Privatperson",
+    vorname: company ? "" : vorname,
+    nachname: company ? "" : nachname,
+    firmenwortlaut: company ? partner.name : "",
+    geburtTag: tag,
+    geburtMonat: monat,
+    geburtJahr: jahr,
+    strasse: streetMatch ? streetMatch[1] : street,
+    nummer: streetMatch ? streetMatch[2] : "",
+    plz,
+    ort: ort.join(" "),
+    mails: [{ value: partner.email, note: "" }],
+  };
+  return buildCreatedPartner(draft, seq);
+}

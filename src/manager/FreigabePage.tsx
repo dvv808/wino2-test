@@ -13,12 +13,13 @@ import {
   type ApprovalTab,
 } from "../approvalTabs";
 import * as a from "../assets/index";
-import { AppsNav, ContentNav, type ContentPane } from "../chrome";
+import { APPS, WorkflowDockTab } from "../chrome";
 import { CommentPrompt } from "../CommentPrompt";
 import { DocumentRail, PdfViewer } from "../documents";
 import { DateField, Icon, InfoBox, PersonSelect } from "../ui";
-import { useWorkflow, type PostedComment } from "../workflow";
-import { BestandAreaNav, BestandMainNav } from "./BestandChrome";
+import { useWorkflow, type PostedComment, type WorkflowPane } from "../workflow";
+import { BestandMainNav } from "./BestandChrome";
+import { WorkflowSteps } from "../honorar/RechnungWorkflow";
 import { Requester, StatusPill } from "./FreigabenPanel";
 import { StammdatenChangeCard } from "./StammdatenChangeCard";
 import { formatDay } from "../lib/honorar/format";
@@ -285,13 +286,28 @@ function SignatureReviewFields() {
   );
 }
 
+type FreigabePane = WorkflowPane | "freigabe";
+
+/** The partner's workflow nav, as in the standard workflow, with the Freigabe the Bestandsmanager opened right after Workflow. */
+const FREIGABE_PANES: { id: FreigabePane; label: string; icon: string }[] = [
+  { id: "workflow", label: "Workflow", icon: a.moduleWorkflow },
+  { id: "freigabe", label: "Freigabe", icon: a.request },
+  { id: "notizen", label: "Notizen", icon: a.navNotes },
+  { id: "email", label: "E-Mail", icon: a.navMail },
+  { id: "dateien", label: "Dateien", icon: a.navFolder },
+  { id: "verlauf", label: "Verlauf", icon: a.navHistory },
+];
+
 export function FreigabePage({
   row,
   onClose,
+  onPark,
   onDecide,
 }: {
   row: RequestRow;
   onClose: () => void;
+  /** Leaves the Freigabe open as a parked tab (Management or another tab comes to the front). */
+  onPark: () => void;
   onDecide: (decision: "granted" | "rejected", note: string) => void;
 }) {
   const {
@@ -305,11 +321,13 @@ export function FreigabePage({
     openStammdaten,
     openRechnungWorkflow,
   } = useWorkflow();
-  const [pane, setPane] = useState<ContentPane>("freigabe");
+  const [pane, setPane] = useState<FreigabePane>("freigabe");
+  const { state: honorar } = useHonorar();
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
   const [stammdatenPosted, setStammdatenPosted] = useState<PostedComment[]>([]);
   const rechnung = isRechnungRequest(row);
+  const rechnungFee = rechnung && row.feeId ? honorar.fees.find((fee) => fee.id === row.feeId) : undefined;
   const stammdaten = isStammdatenRequest(row) || rechnung;
   const signed = row.schritt === SCHRITT.sign;
   const decided = row.status !== "offen";
@@ -335,27 +353,64 @@ export function FreigabePage({
   return (
     <div className="app">
       <div className="shell">
-        <BestandMainNav partner={row.partner.name} onClosePartner={onClose} />
-        <BestandAreaNav />
-        <AppsNav />
-        <ContentNav
-          active={pane}
-          pending={row.status === "offen" ? 1 : undefined}
-          onSelect={setPane}
-        />
+        {/* The partner's file is the open tab; Management stays parked beside it as the way back to the list. */}
+        <BestandMainNav partner={row.partner.name} onClosePartner={onClose} onOpenManagement={onPark} />
+
+        <nav className="apps-nav">
+          <div className="app-pills">
+            {APPS.map((label) => (
+              <button type="button" className="app-pill" key={label}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="workflow-dock">
+            <WorkflowDockTab
+              kicker={(rechnung && rechnungFee?.correction?.workflow) || row.art}
+              name={row.partner.name}
+              active
+              onClose={onClose}
+            />
+          </div>
+        </nav>
+
+        <div className="content-nav">
+          <div className="content-nav-items">
+            {FREIGABE_PANES.map((entry) => (
+              <button
+                type="button"
+                key={entry.id}
+                className={`content-nav-item${pane === entry.id ? " active" : ""}`}
+                onClick={() => setPane(entry.id)}
+              >
+                <Icon src={entry.icon} size={24} className={entry.id === "freigabe" ? "icon-dark" : undefined} />
+                {entry.label}
+                {entry.id === "freigabe" && row.status === "offen" ? <span className="content-nav-badge">1</span> : null}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {pane === "workflow" ? (
-          <div className="fg-page">
-            <p className="atab-empty center">
-              Der Workflow dieses Partners wird hier angezeigt.
-            </p>
+          rechnungFee?.correction ? (
+            <div className="content-shell">
+              <WorkflowSteps fee={rechnungFee} partner={partnerOf(honorar, rechnungFee.partnerId)} correction={rechnungFee.correction} />
+            </div>
+          ) : (
+            <div className="fg-page">
+              <p className="atab-empty center">Der Workflow dieses Partners wird hier angezeigt.</p>
+            </div>
+          )
+        ) : pane !== "freigabe" ? (
+          <div className="content-shell">
+            <main className="page single wf-blank" />
           </div>
         ) : (
           <div className="fg-page">
             <header className="fg-head">
               <div className="fg-head-title">
                 <span className="fg-head-badge">
-                  <Icon src={a.request} size={24} />
+                  <Icon src={a.request} size={24} className="icon-dark" />
                 </span>
                 <p>
                   <strong>Freigabe prüfen:</strong>
@@ -394,7 +449,7 @@ export function FreigabePage({
                     <div className="doc-heading">
                       <strong>{row.partner.name}</strong>
                       <span>
-                        <Icon src={rechnung ? a.request : a.stammdaten} size={18} />
+                        <Icon src={rechnung ? a.request : a.stammdaten} size={18} className={rechnung ? "icon-dark" : undefined} />
                         {rechnung ? "Rechnungs-Freigabe" : "Stammdaten-Freigabe"}
                       </span>
                     </div>

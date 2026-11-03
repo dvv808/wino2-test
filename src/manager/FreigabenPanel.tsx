@@ -380,13 +380,13 @@ export function FreigabenPanel({
 
       {showTable ? (
         <>
-      <div className="freigaben-stats">
-        <StatCard label="Offen" value={count("offen")} icon={a.onhold} />
-        <StatCard label="Zurückgesetzt" value={count("abgelehnt")} icon={a.revertDark} />
-        <StatCard label="Abgeschl." value={count("abgeschlossen")} icon={a.confirm} />
-      </div>
-
-      <div className="freigaben-toolbar">
+      {/* Stat cards and Export share one row as wide as the table, so Export sits at the table's right edge. */}
+      <div className="freigaben-statbar">
+        <div className="freigaben-stats">
+          <StatCard label="Offen" value={count("offen")} icon={a.onhold} />
+          <StatCard label="Zurückgesetzt" value={count("abgelehnt")} icon={a.revertDark} />
+          <StatCard label="Abgeschl." value={count("abgeschlossen")} icon={a.confirm} />
+        </div>
         <button type="button" className="export-btn">
           <Icon src={a.download} size={18} />
           Export

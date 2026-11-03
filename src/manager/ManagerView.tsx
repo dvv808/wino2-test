@@ -34,7 +34,9 @@ export function ManagerView() {
     decideRequest,
     freigabeId,
     openFreigabe,
+    parkFreigabe,
     closeFreigabe,
+    view,
   } = useWorkflow();
   /** Decisions on the demo rows stay local to this screen. */
   const [demoDecisions, setDemoDecisions] = useState<
@@ -90,8 +92,8 @@ export function ManagerView() {
     closeFreigabe();
   }
 
-  if (reviewing) {
-    return <FreigabePage row={reviewing} onClose={closeFreigabe} onDecide={decide} />;
+  if (reviewing && view === "freigabe") {
+    return <FreigabePage row={reviewing} onClose={closeFreigabe} onPark={parkFreigabe} onDecide={decide} />;
   }
 
   return (
@@ -107,8 +109,8 @@ export function ManagerView() {
             rows={rows}
             tab={listenTab}
             onTab={setListenTab}
-            onStart={(row) => openFreigabe(row.id)}
-            onView={(row) => openFreigabe(row.id)}
+            onStart={(row) => openFreigabe(row.id, row.partner.name)}
+            onView={(row) => openFreigabe(row.id, row.partner.name)}
             onDelete={setDeleting}
           />
         </div>

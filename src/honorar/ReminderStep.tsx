@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { formatDate, monthLabel } from "../lib/honorar/format";
-import { feesOfMonth, partnerOf, reminderCandidates } from "../lib/honorar/queries";
-import type { Fee, Partner } from "../types/honorar";
+import { feesOfMonth, monthOf, partnerOf, reminderCandidates } from "../lib/honorar/queries";
+import type { Fee, Partner, ReminderTab } from "../types/honorar";
 import { Icon, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
 import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
@@ -10,7 +10,7 @@ import { useHonorar } from "./store";
 import { MailAddressModal } from "./MailAddressModal";
 import { clearFocusFee, peekFocusFee } from "./focusFee";
 import { invoiceLine, paymentInfo, paymentLine, PaymentCell } from "./StatusStep";
-import { PartnerAvatar, StatCards, StepEmpty, type StatFilter } from "./ui";
+import { PartnerAvatar, PartnerOpenButton, StatCards, StepEmpty, type StatFilter, HnKicker, StatsRow } from "./ui";
 
 const COLUMNS = [
   { key: "partner", label: "Partner", filter: false },
@@ -49,9 +49,18 @@ function mailAddress(fee: Fee, partner: Partner | undefined) {
 
 type Row = { fee: Fee; partner: Partner | undefined; text: Record<ColumnKey, string> };
 
+const TABS: { id: ReminderTab; label: string; icon: string }[] = [
+  { id: "mail", label: "Mail-Versand", icon: a.navMail },
+  { id: "post", label: "Post-Versand", icon: a.house },
+];
+
 export function ReminderStep() {
   const { finanzenMonth, openPartnerInkasso } = useWorkflow();
-  const { state, sendPaymentReminders, clearPaymentReminder, expireDueDates, printPostReminders, notifyAdvisor } = useHonorar();
+  const { state, sendPaymentReminders, clearPaymentReminder, simulateMonthEnd, printPostReminders, notifyAdvisor, setReminderTabDone } = useHonorar();
+  const month = monthOf(state, finanzenMonth);
+  const isTabDone = (id: ReminderTab) => Boolean(month?.closed || month?.remindersDone?.[id]);
+  const [tab, setTab] = useState<ReminderTab>(() => (isTabDone("mail") && !isTabDone("post") ? "post" : "mail"));
+  const remindersDone = isTabDone(tab);
   const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   const [askSend, setAskSend] = useState(false);
   const [askPostPrint, setAskPostPrint] = useState(false);
@@ -96,20 +105,26 @@ export function ReminderStep() {
     };
   }, [menu]);
 
-  const candidates = reminderCandidates(state, finanzenMonth);
+  const isPost = (partner: Partner | undefined) => !partner || partner.deliveryMethod === "print";
+  const inTab = (fee: Fee) => isPost(partnerOf(state, fee.partnerId)) === (tab === "post");
+  const allCandidates = reminderCandidates(state, finanzenMonth);
+  const candidates = allCandidates.filter(inTab);
   // Invoices that were reminded and then paid stay in the list as "Bezahlt".
   const paidFees = feesOfMonth(state, finanzenMonth).filter(
     (fee) => fee.paymentMethod === "Rechnung" && fee.paymentStatus === "paid" && Boolean(fee.reminderSentAt),
-  );
+  ).filter(inTab);
   const fees = [...candidates, ...paidFees];
-  const isPost = (partner: Partner | undefined) => !partner || partner.deliveryMethod === "print";
   const pendingMail = candidates.filter((fee) => !fee.reminderSentAt && !isPost(partnerOf(state, fee.partnerId)));
   const pendingPost = candidates.filter((fee) => !fee.reminderSentAt && isPost(partnerOf(state, fee.partnerId)));
   // Reminders are only allowed once the due date has passed for every open invoice.
   // A month shares one Zahlungsziel: one overdue Rechnung fee means the whole month is "nach Zahlungsziel".
-  const expired = candidates.some((fee) => fee.paymentStatus !== "open_before_due");
+  const expired = allCandidates.some((fee) => fee.paymentStatus !== "open_before_due");
+  const pendingAll = allCandidates.filter((fee) => !fee.reminderSentAt);
   const pending = candidates.filter((fee) => !fee.reminderSentAt);
   const reminded = candidates.length - pending.length;
+  // Green confirmation once reminders of this tab went out: when, and how many of them.
+  const remindedFees = fees.filter((fee) => fee.reminderSentAt);
+  const lastReminder = remindedFees.map((fee) => fee.reminderSentAt ?? "").sort().pop();
 
   const baseRows: Row[] = useMemo(() => {
     return fees
@@ -133,7 +148,7 @@ export function ReminderStep() {
         return { fee, partner, text };
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, finanzenMonth, stat]);
+  }, [state, finanzenMonth, stat, tab]);
   const rows = useMemo(
     () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
@@ -144,6 +159,25 @@ export function ReminderStep() {
   const menuFee = menu ? fees.find((entry) => entry.id === menu.feeId) : undefined;
   const menuPartner = menuFee ? partnerOf(state, menuFee.partnerId) : undefined;
   const menuIsMail = menuPartner ? !isPost(menuPartner) && menuFee?.paymentStatus !== "paid" : false;
+
+  const doneToggle = (
+    <button
+      type="button"
+      className="hn-done-toggle"
+      role="switch"
+      aria-checked={remindersDone}
+      disabled={!remindersDone && pending.length > 0}
+      title={
+        !remindersDone && pending.length > 0
+          ? `Erst möglich, wenn alle ${tab === "post" ? "Post" : "Mail"}-Erinnerungen versendet sind.`
+          : undefined
+      }
+      onClick={() => setReminderTabDone(finanzenMonth, tab, !remindersDone)}
+    >
+      Als Fertig markieren
+      <span className={remindersDone ? "switch on" : "switch"} />
+    </button>
+  );
 
   function sendAll() {
     sendPaymentReminders(
@@ -205,7 +239,7 @@ export function ReminderStep() {
                       <strong>{partner?.name}</strong>
                       {partner ? <small>{partnerMeta(partner)}</small> : null}
                     </span>
-                    <img className="hn-st-open" src={a.openTab} alt="" width={16} height={16} />
+                    <PartnerOpenButton partner={partner} />
                   </div>
                   <PaymentCell fee={fee} credit={undefined} compact={expired} />
                   {byPost ? (
@@ -309,19 +343,19 @@ export function ReminderStep() {
 
   return (
     <section className="freigaben hn-panel hn-status">
-      {pending.length > 0 ? (
+      {pendingAll.length > 0 ? (
         <div className="hn-step-warn">
           <div className={expired ? "info-box success" : "info-box"}>
             <Icon src={a.infoFull} size={24} />
             <p>
               {expired
-                ? "Zahlungserinnerungen können jetzt ausgesendet werden, da die Frist überschritten ist (Offen nach Zahlungsziel)."
-                : "Zahlungserinnerungen sind nach Ablauf der Frist möglich auszusenden (Offen vor Zahlungsziel)."}
+                ? "Monatsende: Diese Rechnungen sind nach Zahlungsziel noch offen. Schicke jetzt die Zahlungserinnerungen."
+                : "Zahlungserinnerungen gehen zum Monatsende (24.) an alle Rechnungen, die bis dahin nicht bezahlt sind (Offen vor Zahlungsziel)."}
               {expired ? null : (
                 <>
                   {" "}
-                  <button type="button" className="hn-link" onClick={() => expireDueDates(finanzenMonth)}>
-                    Simuliere Zahlungsfrist abgelaufen
+                  <button type="button" className="hn-link" onClick={() => simulateMonthEnd(finanzenMonth)}>
+                    Simuliere Monatsende (24.{finanzenMonth.slice(5, 7)}.)
                   </button>
                 </>
               )}
@@ -332,7 +366,7 @@ export function ReminderStep() {
 
       <div className="hn-dispatch-bar">
         <div>
-          <h1 className="freigaben-title hn-kicker">Rechnungsversand</h1>
+          <HnKicker>Rechnungsversand</HnKicker>
           <p className="hn-month">
             <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
           </p>
@@ -340,38 +374,107 @@ export function ReminderStep() {
         </div>
         {fees.length > 0 ? (
           <div className="hn-send-actions">
-            <button type="button" className="hn-send" disabled={!expired && pendingMail.length > 0} onClick={() => setAskSend(true)}>
-              Alle Zahlungserinnerungen per Mail schicken
-            </button>
-            <button
-              type="button"
-              className="hn-send"
-              disabled={(!expired && pendingPost.length > 0) || pendingPost.length === 0}
-              onClick={() => setAskPostPrint(true)}
-            >
-              Post-Erinnerungen drucken
-            </button>
+            {tab === "mail" ? (
+              <button type="button" className="hn-send" disabled={!expired || pendingMail.length === 0} onClick={() => setAskSend(true)}>
+                Alle Zahlungserinnerungen per Mail schicken
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="hn-send"
+                disabled={!expired || pendingPost.length === 0}
+                onClick={() => setAskPostPrint(true)}
+              >
+                Post-Erinnerungen drucken
+              </button>
+            )}
           </div>
         ) : null}
       </div>
 
+      {/* Mail and Post, like the tabs of Rechnungsversand; each tab is marked Fertig on its own. */}
+      <div className="hn-dispatch-tabs">
+        <div className="freigaben-tabs" role="tablist" aria-label="Zahlungserinnerungen">
+          {TABS.map((entry) => (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === entry.id}
+              className={tab === entry.id ? "fg-tab active" : "fg-tab"}
+              key={entry.id}
+              onClick={() => {
+                setTab(entry.id);
+                setStat(null);
+                setFilters({});
+              }}
+            >
+              <Icon src={entry.icon} size={20} />
+              {entry.label}
+              {isTabDone(entry.id) ? (
+                <span className="badge done">
+                  <Icon src={a.confirm} size={14} />
+                  Fertig
+                </span>
+              ) : (
+                <span className="badge">
+                  <Icon src={a.onhold} size={14} />
+                  Offen
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {fees.length === 0 ? (
+        <>
+        <div className="hn-status-tools">
+          <span />
+          <div className="hn-status-tools-end">{doneToggle}</div>
+        </div>
         <StepEmpty
           icon={a.navMail}
-          title="Keine überfälligen Rechnungen"
+          title={tab === "post" ? "Keine überfälligen Post-Rechnungen" : "Keine überfälligen Mail-Rechnungen"}
           lead="Hier erscheinen alle Rechnungen, die nicht rechtzeitig bezahlt wurden"
         />
+        </>
       ) : (
         <>
-          <StatCards
-            open={pending.length}
-            done={reminded}
-            unit="Erinnerungen"
-            doneLabel="Versendet"
-            trailing={[{ kind: "paid", label: "Bezahlt", count: paidFees.length, icon: a.confirm }]}
-            value={stat}
-            onChange={setStat}
+          {lastReminder ? (
+            <div className="hn-carrier-done-group">
+              <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
+                <p className="hn-carrier-done-title">
+                  <img src={a.confirm} alt="" width={24} height={24} />
+                  {tab === "post" ? "Post-Erinnerungen versendet." : "Zahlungserinnerungen per Mail versendet."}
+                </p>
+                <p className="hn-carrier-done-meta">Versendet am {formatDate(lastReminder)}</p>
+                <p className="hn-carrier-done-meta">
+                  {remindedFees.length} von {fees.length} erinnert
+                  {pending.length ? ` · ${pending.length} noch offen` : ""}
+                </p>
+              </article>
+            </div>
+          ) : null}
+          <StatsRow
+            fees={rows.map((row) => row.fee)}
+            stats={
+              <StatCards
+                open={pending.length}
+                done={reminded}
+                unit="Erinnerungen"
+                doneLabel="Versendet"
+                trailing={[{ kind: "paid", label: "Bezahlt", count: paidFees.length, icon: a.confirm }]}
+                value={stat}
+                onChange={setStat}
+              />
+            }
           />
+
+          {/* Same place as in Daten erfassen: top right, above the table. */}
+          <div className="hn-status-tools">
+            <span />
+            <div className="hn-status-tools-end">{doneToggle}</div>
+          </div>
 
           <div className="hn-status-table dispatch reminders" role="table" aria-label="Zahlungserinnerungen">
             <div className="hn-st-head" role="row">
@@ -393,16 +496,6 @@ export function ReminderStep() {
                   />
                 </div>
               ))}
-            </div>
-
-            <div className="hn-st-sum" role="row">
-              <div className="hn-st-sum-label">Alle Honorare</div>
-              <div />
-              <div />
-              <div />
-              <div />
-              <div />
-              <div />
             </div>
 
             {renderGroup("post", "Postversand", post)}

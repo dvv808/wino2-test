@@ -1,9 +1,10 @@
 import * as a from "../assets/index";
 import { LogoButton, ProfileMenu } from "../chrome";
-import { OpenItemsPage } from "../honorar/OpenItemsPage";
 import { ManagementAreaIcon } from "../manager/BestandChrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { useHonorar } from "../honorar/store";
+import { MyForderungen, ownActionCount } from "./MyForderungen";
 
 type Area = "Mein Bereich" | "Bestand";
 const AREAS: Area[] = ["Mein Bereich", "Bestand"];
@@ -16,7 +17,7 @@ const PAGES: Record<Area, { label: string; icon: string }[]> = {
   ],
   Bestand: [
     { label: "Dashboard", icon: a.dashboard },
-    { label: "Forderungen", icon: a.navRequest },
+    { label: "Honorare/Forderungen", icon: a.navRequest },
   ],
 };
 
@@ -84,13 +85,16 @@ function PreviousTab() {
   );
 }
 
-/** Personal area behind the profile menu. "Mein Bereich" is not designed yet; "Bestand" shows the Forderungen. */
+/** Personal area behind the profile menu. "Mein Bereich" is not designed yet; "Bestand" shows the own Honorare/Forderungen. */
 export function MeinBereichView() {
   const { closeMeinBereich, meinBereichNav, setMeinBereichNav } = useWorkflow();
   const area = meinBereichNav.area as Area;
   const page = meinBereichNav.page;
   const setPage = (next: string) => setMeinBereichNav({ area, page: next });
-  const forderungen = area === "Bestand" && page === "Forderungen";
+  const forderungen = area === "Bestand" && page === "Honorare/Forderungen";
+  const { state } = useHonorar();
+  // Red bubble on Honorare/Forderungen: own invoices that are open and need action.
+  const actionCount = ownActionCount(state);
 
   function openArea(next: Area) {
     setMeinBereichNav({ area: next, page: "Dashboard" });
@@ -148,16 +152,17 @@ export function MeinBereichView() {
             >
               <Icon src={item.icon} size={24} />
               {item.label}
+              {item.label === "Honorare/Forderungen" && actionCount > 0 ? (
+                <span className="mb-action-count" aria-label={`${actionCount} offen, Handlung nötig`}>
+                  {actionCount}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
 
         {forderungen ? (
-          <div className="content-shell bestand-body">
-            <div className="hn-main">
-              <OpenItemsPage followToSingleInvoice />
-            </div>
-          </div>
+          <MyForderungen />
         ) : (
           <div className="content-shell mb-body">
             <section className="mb-empty">

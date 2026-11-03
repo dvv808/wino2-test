@@ -1,3 +1,4 @@
+import { ProfileShelfProvider, ShelfBody, ShelfTitle } from "./ProfileShelf";
 import { useState } from "react";
 import * as a from "../assets/index";
 import { ContextMenu, Icon } from "../ui";
@@ -393,6 +394,7 @@ export function PersonPage() {
     .join(" ");
 
   return (
+    <ProfileShelfProvider>
     <div className={appClass}>
       <div className="shell">
         <header className="main-nav">
@@ -439,22 +441,19 @@ export function PersonPage() {
         ) : personModule === "workflows" ? (
           <WorkflowsPage />
         ) : personArea === "inkasso" ? (
-          <div className="pp-body">
+          <ShelfBody>
             <Sidebar />
             <InkassoMain />
-          </div>
+          </ShelfBody>
         ) : personArea === "maklermandat" ? (
           <MaklermandatPage />
         ) : (
-        <div className="pp-body">
+        <ShelfBody>
           <Sidebar />
 
           <main className="pp-main">
             <header className="fg-head pp-main-head">
-              <span className="pp-main-title">
-                <Icon src={a.stammdaten} size={24} />
-                Stammdaten
-              </span>
+              <ShelfTitle icon={a.stammdaten}>Stammdaten</ShelfTitle>
               <span className="fg-head-actions">
                 <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openVersionHistory}>
                   <Icon src={a.history} size={18} />
@@ -540,7 +539,7 @@ export function PersonPage() {
               );
             })}
           </main>
-        </div>
+        </ShelfBody>
         )}
       </div>
 
@@ -578,5 +577,6 @@ export function PersonPage() {
         />
       ) : null}
     </div>
+    </ProfileShelfProvider>
   );
 }

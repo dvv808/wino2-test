@@ -5,7 +5,7 @@ import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "./store";
 import { StatusTable } from "./StatusStep";
-import { ConfirmModal, StatCards, type StatFilter } from "./ui";
+import { ConfirmModal, StatCards, type StatFilter, HnKicker } from "./ui";
 
 /**
  * Offene Posten: the same table as Sammelfaktura (Status zu Rechnungen), filtered to the invoices that are or were
@@ -28,14 +28,13 @@ export function OpenItemsPage(_props: { followToSingleInvoice?: boolean } = {}) 
 
   return (
     <section className="freigaben hn-panel hn-status">
-      <h1 className="freigaben-title hn-kicker">Honorarverrechnung</h1>
+      <HnKicker>Honorarverrechnung</HnKicker>
       <p className="hn-month">{finanzenMonth.slice(0, 4)}</p>
       <h2 className="hn-h2 hn-status-title">Offene Posten</h2>
 
-      <StatCards open={openFees.length} done={doneFees.length} unit="Zahlungen" value={stat} onChange={setStat} />
-
       <StatusTable
         fees={fees}
+        stats={<StatCards open={openFees.length} done={doneFees.length} unit="Zahlungen" value={stat} onChange={setStat} />}
         label="Offene Posten"
         tools={() => (
           <div className="hn-status-tools">

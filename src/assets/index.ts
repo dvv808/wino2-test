@@ -236,3 +236,5 @@ export { default as widgetTabCurve } from "./icons/widget-tab-curve.svg";
 export { default as widgetSearch } from "./icons/widget-search.svg";
 export { default as widgetCardCalendar } from "./icons/widget-card-calendar.svg";
 export { default as widgetCardMail } from "./icons/widget-card-mail.svg";
+export { default as channelGeschaeftsfuehrung } from "./icons/channel-geschaeftsfuehrung.svg";
+export { default as channelInnendienst } from "./icons/channel-innendienst.svg";

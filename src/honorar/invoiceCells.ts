@@ -11,7 +11,7 @@ export function money(value: number) {
 
 /** Zahlart as shown to the user: a direct debit is a SEPA-Lastschrift, everything else is a Rechnung. */
 export function zahlartLabel(method: PaymentMethod) {
-  return method === "Abbucher" ? "SEPA-Lastschrift" : "Rechnung";
+  return method === "Abbucher" ? "SEPA-Lastschrift" : "Überweisung";
 }
 
 /** Vereinbarung, derived from the tariff (there is no separate field yet): a Maklervereinbarung runs over a Laufzeit. */
@@ -90,8 +90,11 @@ export function rechnungenCells(state: HonorarState, fee: Fee): RechnungenCells 
           `RE Datum: ${invoiceDate(fee)}`,
           `ZZ Datum: ${formatDay(fee.dueDate)}`,
           `ZE Datum: ${fee.paidAt ? formatDay(fee.paidAt) : "-"}`,
+          // BZ: the day the invoice counts as fully paid; a part payment only has a ZE date.
+          `BZ Datum: ${done && fee.paidAt ? formatDay(fee.paidAt) : "-"}`,
         ],
-        tone: fee.invoiceStatus === "send_failed" ? "fail" : sepa && fee.paymentStatus === "open_before_due" ? "warn" : "muted",
+        // Green once paid, red when the payment failed or is overdue, grey while it is still running.
+        tone: done ? "ok" : failed || fee.invoiceStatus === "send_failed" ? "fail" : "muted",
       }
     : { lines: ["-"], tone: "plain" };
 

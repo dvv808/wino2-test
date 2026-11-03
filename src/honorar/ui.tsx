@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
-import type { OpenItemStatus, PaymentStatus } from "../types/honorar";
+import type { Fee, OpenItemStatus, Partner, PaymentStatus } from "../types/honorar";
+import { money } from "./invoiceCells";
+import { totals } from "../lib/honorar/queries";
 
 export function ConfirmModal({
   title,
@@ -41,11 +43,14 @@ export function ConfirmModal({
 
 export function RequiredCommentModal({
   title,
+  text,
   confirmLabel,
   onCancel,
   onConfirm,
 }: {
   title: string;
+  /** Short line above the comment field. */
+  text?: string;
   confirmLabel: string;
   onCancel: () => void;
   onConfirm: (comment: string) => void;
@@ -62,6 +67,7 @@ export function RequiredCommentModal({
           </button>
         </header>
         <div className="prompt-main">
+          {text ? <p className="prompt-text">{text}</p> : null}
           <label className="field-label" htmlFor="honorar-comment">
             Kommentar
           </label>
@@ -260,6 +266,7 @@ export function StatCards({
   const card = (kind: "open" | "done" | "credit" | "due" | "paid", label: string, count: number, icon: string) => (
     <button
       type="button"
+      key={kind}
       className={value === kind ? "stat-card dark" : "stat-card"}
       aria-pressed={value === kind}
       onClick={() => onChange(value === kind ? null : kind)}
@@ -334,6 +341,208 @@ export function ProfileDueMenu() {
             </span>
             Zahlungsziel im Profil anpassen
           </button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** Open-tab icon beside a partner in the Forderungen tables: the partner's file as a tab, on its Dashboard. */
+export function PartnerOpenButton({ partner }: { partner: Partner | undefined }) {
+  const { openHonorarPartner } = useWorkflow();
+  if (!partner) return null;
+  return (
+    <button
+      type="button"
+      className="hn-st-open"
+      aria-label={`${partner.name} als Tab öffnen`}
+      title="Als Tab öffnen"
+      onClick={() => openHonorarPartner(partner)}
+    >
+      <Icon src={a.openTab} size={16} />
+    </button>
+  );
+}
+
+/** Forderungen side nav: collapsed (shelved) or shown beside the page. */
+export const HonorarSideContext = createContext<{
+  collapsed: boolean;
+  toggle: () => void;
+  sidebar: ReactNode;
+}>({ collapsed: false, toggle: () => {}, sidebar: null });
+
+/**
+ * Page kicker with the shelve toggle in front. With the side nav shelved, the kicker
+ * itself opens the side nav as a dropdown (chevron at the end).
+ */
+export function HnKicker({ children }: { children: ReactNode }) {
+  const { collapsed, toggle, sidebar } = useContext(HonorarSideContext);
+  const { finanzenPage, finanzenMonth, finanzenStep, finanzenYear } = useWorkflow();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setOpen(false), [collapsed, finanzenPage, finanzenMonth, finanzenStep, finanzenYear]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(event: PointerEvent) {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="hn-kicker-wrap" ref={ref}>
+      <h1 className="freigaben-title hn-kicker">
+        <button
+          type="button"
+          className="hn-shelve"
+          aria-label={collapsed ? "Navigation einblenden" : "Navigation ausblenden"}
+          title={collapsed ? "Navigation einblenden" : "Navigation ausblenden"}
+          onClick={toggle}
+        >
+          <Icon src={a.shelveToggle} size={18} />
+        </button>
+        {collapsed ? (
+          <button
+            type="button"
+            className={open ? "hn-kicker-drop open" : "hn-kicker-drop"}
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+          >
+            {children}
+            <Icon src={a.chevronDown} size={16} />
+          </button>
+        ) : (
+          children
+        )}
+      </h1>
+      {collapsed && open ? <div className="hn-kicker-panel">{sidebar}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Stat cards on the left, dashboard totals of the shown rows on the far right.
+ * Replaces the "Alle Honorare" sum row in the Forderungen tables; the totals follow the filters.
+ */
+export function StatsRow({
+  stats,
+  fees,
+  onlyDue,
+  onToggleDue,
+}: {
+  stats?: ReactNode;
+  fees: Fee[];
+  /** With a toggle, the Ausstehend tile filters the table to the rows still open. */
+  onlyDue?: boolean;
+  onToggleDue?: () => void;
+}) {
+  const sum = totals(fees);
+  const paidShare = sum.due ? Math.round((sum.paid / sum.due) * 100) : 0;
+  return (
+    <div className="hn-stats-row">
+      {stats ?? <span />}
+      <div className="hn-kpis" aria-label="Summen">
+        <div className="hn-kpi">
+          <small>Rechnungsbetrag</small>
+          <strong>€ {money(sum.due)}</strong>
+          <span>
+            {fees.length} {fees.length === 1 ? "Rechnung" : "Rechnungen"}
+          </span>
+        </div>
+        <div className="hn-kpi">
+          <small>Zahlungseingang</small>
+          <strong>€ {money(sum.paid)}</strong>
+          <span>{paidShare} % bezahlt</span>
+        </div>
+        {onToggleDue ? (
+          <button
+            type="button"
+            className={`hn-kpi${sum.open > 0 ? " due" : ""}${onlyDue ? " active" : ""}`}
+            aria-pressed={onlyDue}
+            title={onlyDue ? "Alle Rechnungen zeigen" : "Nur ausstehende Rechnungen zeigen"}
+            onClick={onToggleDue}
+          >
+            <small>Ausstehend</small>
+            <strong>€ {money(sum.open)}</strong>
+            <span>{onlyDue ? "Filter aktiv" : "noch offen"}</span>
+          </button>
+        ) : (
+          <div className={sum.open > 0 ? "hn-kpi due" : "hn-kpi"}>
+            <small>Ausstehend</small>
+            <strong>€ {money(sum.open)}</strong>
+            <span>noch offen</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Wide tables scroll sideways inside their panel. The table's own scrollbar is hidden; a synced copy
+ * pins to the bottom of the window while the table runs past it, so it never needs scrolling down to.
+ */
+export function StickyScroll({ children }: { children: ReactNode }) {
+  const body = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ inner: 0, outer: 0 });
+  const [pin, setPin] = useState<{ left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const measure = () => {
+      setSize({ inner: el.scrollWidth, outer: el.clientWidth });
+      const rect = el.getBoundingClientRect();
+      // Pinned while the table's top is on screen and its end is below the window.
+      setPin(rect.top < window.innerHeight - 40 && rect.bottom > window.innerHeight ? { left: rect.left, width: rect.width } : null);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (bar.current && body.current) bar.current.scrollLeft = body.current.scrollLeft;
+  }, [pin]);
+
+  function sync(from: HTMLDivElement | null, to: HTMLDivElement | null) {
+    if (from && to && to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft;
+  }
+
+  const scrolls = size.inner > size.outer + 1;
+  return (
+    <>
+      <div className="hn-st-scroll sticky-bar" ref={body} onScroll={() => sync(body.current, bar.current)}>
+        {children}
+      </div>
+      {scrolls ? (
+        <div
+          className={pin ? "hn-st-hbar pinned" : "hn-st-hbar"}
+          ref={bar}
+          style={pin ? { left: pin.left, width: pin.width } : undefined}
+          onScroll={() => sync(bar.current, body.current)}
+          aria-hidden
+        >
+          <div style={{ width: size.inner }} />
         </div>
       ) : null}
     </>

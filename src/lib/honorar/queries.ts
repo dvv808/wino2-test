@@ -65,14 +65,14 @@ export type RechnungsversandStep = (typeof RECHNUNGSVERSAND_STEPS)[number];
 export function rechnungsversandDone(state: HonorarState, monthId: string): Record<RechnungsversandStep, boolean> {
   const month = monthOf(state, monthId);
   if (!month) return { data: false, carrier: false, dispatch: false, reminders: false };
-  // A SEPA-Lastschrift never goes through the invoice dispatch (mail/post).
-  const dispatchFees = feesOfMonth(state, monthId).filter((fee) => fee.paymentMethod !== "Abbucher");
-  const overdue = reminderCandidates(state, monthId);
+  const tabs = month.dispatchDone ?? {};
   return {
     data: month.steps.data,
     carrier: month.steps.dataCarrier,
-    dispatch: month.steps.dispatch || (dispatchFees.length > 0 && dispatchFees.every((fee) => fee.invoiceStatus === "sent")),
-    reminders: month.closed || (overdue.length > 0 && overdue.every((fee) => fee.reminderSentAt)),
+    // Rechnungsversand is Fertig once Plausibilitätscheck, Mail-Versand and Post-Versand are each marked Fertig.
+    dispatch: month.steps.dispatch || Boolean(tabs.check && tabs.mail && tabs.post),
+    // Zahlungserinnerungen is Fertig once Mail and Post are each marked Fertig.
+    reminders: month.closed || Boolean(month.remindersDone?.mail && month.remindersDone?.post),
   };
 }
 

@@ -6,7 +6,6 @@ import {
   isOpenItemFee,
   monthFinished,
   monthOf,
-  monthStatusDone,
   rechnungsversandDone,
 } from "../lib/honorar/queries";
 import { Icon } from "../ui";
@@ -148,6 +147,8 @@ export function HonorarSidebar() {
           </button>
         ) : null}
 
+        <hr className="hn-side-rule hn-group-rule" />
+
         <details className="hn-folder" open={sammelOpen}>
           <summary
             className={`pp-area${finanzenPage === "sammelfaktura" && !finanzenYear ? " current" : ""}`}
@@ -222,7 +223,8 @@ export function HonorarSidebar() {
                         <Fragment key={id}>
                         <button
                           type="button"
-                          className={`hn-tree-item${current ? " active" : ""}${exists ? "" : " muted"}`}
+                          className={`hn-tree-item${current && !inVersand ? " active" : ""}${exists ? "" : " muted"}`}
+                          aria-current={current && !inVersand ? "page" : undefined}
                           disabled={!exists}
                           title={
                             exists
@@ -246,28 +248,12 @@ export function HonorarSidebar() {
                           <div className="pp-tree hn-tree hn-month-pages">
                             <button
                               type="button"
-                              className={`hn-tree-item hn-month-page${inVersand ? "" : " active"}`}
-                              aria-current={inVersand ? undefined : "page"}
-                              onClick={() => openFinanzen("month", id, "status")}
-                            >
-                              <span className="hn-tree-name">
-                                <Icon src={a.tickList} size={18} />
-                                Status
-                              </span>
-                              {monthStatusDone(state, id) ? (
-                                <Icon src={a.confirm} size={16} alt="Fertig" />
-                              ) : (
-                                <Icon src={a.onhold} size={16} alt="Offen" />
-                              )}
-                            </button>
-                            <button
-                              type="button"
                               className={`hn-tree-item hn-month-page${inVersand ? " active" : ""}`}
                               aria-current={inVersand ? "page" : undefined}
                               onClick={() => openFinanzen("month", id, inVersand ? finanzenStep : nextStep)}
                             >
                               <span className="hn-tree-name">
-                                <Icon src={a.mail} size={18} />
+                                <Icon src={a.moduleWorkflow} size={18} />
                                 Rechnungsversand
                               </span>
                               {RECHNUNGSVERSAND_STEPS.every((step) => done[step]) ? (

@@ -197,7 +197,7 @@ function generatedPartner(month: number, slot: number): Partner {
     email: company ? `office@${slug(name)}.at` : `${slug(name)}@mail.at`,
     deliveryMethod: slot === 3 || slot === 7 || slot === 8 ? "print" : "digital",
     bankAccount: `AT${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)} ${digits.slice(10, 14)}`,
-    advisor: k % 2 === 0 ? PEOPLE.mike : PEOPLE.sandra,
+    advisor: k % 2 === 0 ? PEOPLE.mike : k % 4 === 1 ? PEOPLE.sandra : PEOPLE.lucy,
     department: "Beratung & Service",
     photo: company ? (k % 2 === 0 ? a.companyBlank : a.clientBlank) : PERSON_PHOTOS[k % PERSON_PHOTOS.length],
   };
@@ -311,7 +311,7 @@ function scenarioPartner(scenario: Scenario, index: number): Partner {
     email: company ? `office@${slug(name)}.at` : `${slug(name)}@mail.at`,
     deliveryMethod: "digital",
     bankAccount: `AT${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)} ${digits.slice(10, 14)}`,
-    advisor: k % 2 === 0 ? PEOPLE.mike : PEOPLE.sandra,
+    advisor: k % 2 === 0 ? PEOPLE.mike : k % 4 === 1 ? PEOPLE.sandra : PEOPLE.lucy,
     department: "Beratung & Service",
     photo: company ? a.companyBlank : PERSON_PHOTOS[k % PERSON_PHOTOS.length],
   };

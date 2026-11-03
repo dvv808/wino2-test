@@ -3,7 +3,9 @@ import * as a from "../assets/index";
 import { monthLabel } from "../lib/honorar/format";
 import { feesOfMonth, monthOf, totals } from "../lib/honorar/queries";
 import { useWorkflow } from "../workflow";
+import { ROLE_USER } from "../mocks/honorar/seed";
 import { useHonorar } from "./store";
+import { HnKicker } from "./ui";
 
 function money(value: number) {
   const [whole, frac] = value.toFixed(2).split(".");
@@ -11,10 +13,9 @@ function money(value: number) {
 }
 
 const NEXT_STEPS = [
-  "Datenträger herunterladen und",
-  "in BMD importieren.",
-  "Rechnungen in BMD erfassen.",
-  "An Wino senden und mit Schritt 3. Rechnungsversand (Rechnungen) weitermachen.",
+  "Kundendaten in BMD importiert.",
+  "Rechnungsdaten in BMD importiert.",
+  "An Wino senden und mit Schritt 3. Rechnungsversand weitermachen.",
 ];
 
 function createdLine(iso: string, user: string) {
@@ -26,20 +27,26 @@ function createdLine(iso: string, user: string) {
 
 export function CarrierStep() {
   const { finanzenMonth, openFinanzenStep } = useWorkflow();
-  const { state, createCarrier, handToBmd, setStepDone, setCarrierTick } = useHonorar();
+  const { state, createCarrier, handToBmd, loadBmd, setStepDone, setCarrierTick } = useHonorar();
   const [ask, setAsk] = useState(false);
-  const ticks = NEXT_STEPS.map((_, i) => state.carrierTicks[finanzenMonth]?.[i] ?? false);
+  const month = monthOf(state, finanzenMonth);
+  // A finished step 2 (e.g. seeded months) counts as created and fully ticked off, even without a history entry.
+  const carrierDone = Boolean(month?.steps.dataCarrier);
+  const ticks = NEXT_STEPS.map((_, i) => carrierDone || (state.carrierTicks[finanzenMonth]?.[i] ?? false));
 
   function toggleStep(index: number) {
+    if (carrierDone) return;
     setCarrierTick(finanzenMonth, index, !ticks[index], NEXT_STEPS.length);
   }
 
   const fees = feesOfMonth(state, finanzenMonth);
   const sum = totals(fees);
-  const month = monthOf(state, finanzenMonth);
-  const created = [...state.history]
+  const createdEntry = [...state.history]
     .reverse()
     .find((entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action === "Datenträger erstellt");
+  const created =
+    createdEntry ??
+    (carrierDone ? { timestamp: fees[0]?.createdAt ?? `${finanzenMonth}-05T09:00:00`, user: ROLE_USER.backoffice } : undefined);
   const handed = state.history.some(
     (entry) => entry.refType === "month" && entry.refId === finanzenMonth && entry.action === "Datenträger übermittelt",
   );
@@ -54,6 +61,8 @@ export function CarrierStep() {
   function submitCarrier() {
     if (!handed && !month?.closed) {
       handToBmd(finanzenMonth);
+      // BMD sends its data back to Wino; step 3 compares it with what went out (Plausibilitätscheck).
+      if (!month?.bmdDataLoaded) loadBmd(finanzenMonth, true);
       // Handing over does not tick off the checklist: step 2 stays open until every box is ticked.
       if (!ticks.every(Boolean)) setStepDone(finanzenMonth, "dataCarrier", false);
     }
@@ -61,8 +70,8 @@ export function CarrierStep() {
   }
 
   function downloadCarrier(kind: "kunde" | "buchung") {
-    const name = kind === "kunde" ? `Kundendatentraeger_${finanzenMonth}.xml` : `Buchungsdatentraeger_${finanzenMonth}.xml`;
-    const tag = kind === "kunde" ? "Kundendatentraeger" : "Buchungsdatentraeger";
+    const name = kind === "kunde" ? `Kundendatentraeger_${finanzenMonth}.xml` : `Rechnungsdatentraeger_${finanzenMonth}.xml`;
+    const tag = kind === "kunde" ? "Kundendatentraeger" : "Rechnungsdatentraeger";
     const rows = fees
       .map((fee) => {
         const partner = state.partners.find((entry) => entry.id === fee.partnerId);
@@ -82,7 +91,7 @@ export function CarrierStep() {
 
   return (
     <section className="freigaben hn-panel">
-      <h1 className="freigaben-title hn-kicker">Rechnungsversand</h1>
+      <HnKicker>Rechnungsversand</HnKicker>
       <p className="hn-month">
         <strong>{monthLabel(finanzenMonth)}</strong> {finanzenMonth.slice(0, 4)}
       </p>
@@ -93,7 +102,7 @@ export function CarrierStep() {
         <article className="hn-carrier-done" style={{ backgroundImage: `url(${a.hnCarrierDone})` }}>
           <p className="hn-carrier-done-title">
             <img src={a.confirm} alt="" width={24} height={24} />
-            Datenträger erstellt. Jetzt in BMD weiter verarbeiten.
+            {carrierDone ? "Datenträger erstellt und in BMD verarbeitet." : "Datenträger erstellt. Jetzt in BMD weiter verarbeiten."}
           </p>
           <p className="hn-carrier-done-meta">{createdLine(created.timestamp, created.user)}</p>
           <p className="hn-carrier-done-link">
@@ -108,7 +117,7 @@ export function CarrierStep() {
             </button>
             <button type="button" className="btn-secondary hn-carrier-download-btn" onClick={() => downloadCarrier("buchung")}>
               <img src={a.download} alt="" width={14.5} height={13.6583} />
-              Buchungsdatenträger herunterladen
+              Rechnungsdatenträger herunterladen
             </button>
           </div>
         </article>

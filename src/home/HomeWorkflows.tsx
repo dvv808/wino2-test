@@ -48,6 +48,9 @@ type Flow = {
   partner: { name: string; company: boolean };
   tag: string;
   owner: Person;
+  ownerRole: string;
+  /** Firmenkanal the workflow runs in (Maklervereinbarung / Stammdaten requests). */
+  channel?: string;
   status: RequestStatus;
   mine: boolean;
   withMe: boolean;
@@ -56,6 +59,14 @@ type Flow = {
 };
 
 type SideFilter = "Alle" | "Workflows" | "To-Dos" | "Projekte";
+type Scope = { kind: "me" } | { kind: "channel"; name: string } | { kind: "person"; name: string };
+
+const CHANNELS = [
+  // Figma icons: Icon_Damage, Icon_Expand, Icon_Cyber.
+  { name: "Schadenabteilung", icon: a.iconDamage },
+  { name: "Geschäftsführung", icon: a.channelGeschaeftsfuehrung },
+  { name: "Innendienst", icon: a.channelInnendienst },
+];
 type Chip = "Meine Workflows" | "Mit mir" | "In Beobachtung";
 type StatusFilter = "Alle" | RequestStatus;
 
@@ -92,6 +103,27 @@ function PersonBadge({ person }: { person: Person }) {
   );
 }
 
+/** Photo, channel icon, or initials in the round avatar of the dropdown and its header. */
+function ScopeAvatar({ name, photo, icon, size = 38 }: { name: string; photo?: string; icon?: string; size?: number }) {
+  return (
+    <span className="hw-drop-avatar" style={{ width: size, height: size }}>
+      {photo ? (
+        <img src={photo} alt="" width={size} height={size} />
+      ) : icon ? (
+        <Icon src={icon} size={Math.round(size * 0.55)} />
+      ) : (
+        <span className="hw-drop-initials">
+          {name
+            .split(" ")
+            .map((part) => part[0])
+            .slice(0, 2)
+            .join("")}
+        </span>
+      )}
+    </span>
+  );
+}
+
 function StatePill({ state, overdue = false }: { state: StepState; overdue?: boolean }) {
   if (state === "wartet") return <span className="status-pill hw-waiting">wartet</span>;
   if (state === "offen" && overdue) {
@@ -105,7 +137,8 @@ function StatePill({ state, overdue = false }: { state: StepState; overdue?: boo
   return <StatusPill status={state} short />;
 }
 
-const PHOTOS: Record<string, string> = { [ROLE_USER.advisor]: a.reqMike };
+/** Real photos only; people without one show their initials (Sandra's seed photo belongs to Adams Anna). */
+const PHOTOS: Record<string, string> = { [ME]: a.empLucy, [ROLE_USER.advisor]: a.reqMike };
 
 /**
  * Planner › Workflows & To-Dos (Figma "Workflows"): every workflow as a row; To-Dos and linked workflows fold out under it.
@@ -124,6 +157,10 @@ export function HomeWorkflows() {
     comments,
   } = useWorkflow();
   const [side, setSide] = useState<SideFilter>("Workflows");
+  // Whose workflows the page shows: mine (default), a Firmenkanal's, or a colleague's (dropdown on the side card).
+  const [scope, setScope] = useState<Scope>({ kind: "me" });
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [scopeQuery, setScopeQuery] = useState("");
   const [chip, setChip] = useState<Chip | null>("Meine Workflows");
   const [status, setStatus] = useState<StatusFilter>("Alle");
   const [filters, setFilters] = useState<Partial<Record<Column, string>>>({});
@@ -155,6 +192,7 @@ export function HomeWorkflows() {
         partner: { name: partner?.name ?? "Partner", company: partner?.type === "company" },
         tag: `WF: ${correction.workflow} · ${number}`,
         owner,
+        ownerRole: booked ? "Honorarverwalter" : WORKFLOW_STEPS[current].role,
         status: booked ? "abgeschlossen" : rejected ? "abgelehnt" : "offen",
         mine: correction.startedBy === ME,
         withMe: !booked && !rejected && holders[current] === ME,
@@ -175,7 +213,7 @@ export function HomeWorkflows() {
       if (group.every((row) => row.pending)) continue;
       const stammdaten = lead.kind === "stammdaten";
       const waiting = group.find((row) => !row.pending && row.status === "offen") ?? group.find((row) => !row.pending) ?? lead;
-      const reviewer = lead.reviewer ?? { name: "Bestandsmanager", photo: undefined };
+      const reviewer = lead.reviewer ?? { name: ROLE_USER.head, role: "Bestandsmanager", photo: undefined };
       list.push({
         id: `request-${lead.group}`,
         title: lead.art,
@@ -187,6 +225,8 @@ export function HomeWorkflows() {
         partner: { name: lead.partner.name, company: lead.partner.kind === "company" },
         tag: `WF: ${lead.art}`,
         owner: { name: reviewer.name, photo: reviewer.photo },
+        ownerRole: reviewer.role ?? "Bestandsmanager",
+        channel: lead.requester.role === "Geschäftsleitung" ? "Geschäftsführung" : "Innendienst",
         status: statusOfGroup(group),
         mine: lead.requester.name === ME,
         withMe: false,
@@ -207,10 +247,14 @@ export function HomeWorkflows() {
     Status: flow.status,
   });
 
+  const inScope = (flow: Flow) =>
+    scope.kind === "me" ? true : scope.kind === "channel" ? flow.channel === scope.name : flow.owner.name === scope.name;
+  // The chips are relative to me; looking at a channel or a colleague shows all of theirs.
   const visible = flows.filter((flow) => {
-    if (chip === "Meine Workflows" && !flow.mine) return false;
-    if (chip === "Mit mir" && !flow.withMe) return false;
-    if (chip === "In Beobachtung" && (flow.mine || flow.withMe)) return false;
+    if (!inScope(flow)) return false;
+    if (scope.kind === "me" && chip === "Meine Workflows" && !flow.mine) return false;
+    if (scope.kind === "me" && chip === "Mit mir" && !flow.withMe) return false;
+    if (scope.kind === "me" && chip === "In Beobachtung" && (flow.mine || flow.withMe)) return false;
     if (status !== "Alle" && flow.status !== status) return false;
     const text = textOf(flow);
     return COLUMNS.every((column) => !filters[column] || text[column].toLowerCase().includes(filters[column]!.toLowerCase()));
@@ -230,6 +274,47 @@ export function HomeWorkflows() {
     "To-Dos": a.tickList,
     Projekte: a.folder,
   };
+
+  // Dropdown: me, the Firmenkanäle and the colleagues who hold a workflow, each with how many they have.
+  const colleagues = new Map<string, { photo?: string; role: string; count: number }>();
+  for (const flow of flows) {
+    if (flow.owner.name === ME) continue;
+    const entry = colleagues.get(flow.owner.name) ?? { photo: flow.owner.photo, role: flow.ownerRole, count: 0 };
+    entry.count += 1;
+    colleagues.set(flow.owner.name, entry);
+  }
+  const scopeSections: {
+    title: string;
+    items: { name: string; role?: string; photo?: string; icon?: string; count: number; scope: Scope }[];
+  }[] = [
+    {
+      title: `Ich (${ME})`,
+      items: [{ name: ME, photo: a.empLucy, count: flows.filter((flow) => flow.mine || flow.withMe).length, scope: { kind: "me" } }],
+    },
+    {
+      title: `Firmenkanäle (${CHANNELS.length})`,
+      items: CHANNELS.map((channel) => ({
+        name: channel.name,
+        icon: channel.icon,
+        count: flows.filter((flow) => flow.channel === channel.name).length,
+        scope: { kind: "channel" as const, name: channel.name },
+      })),
+    },
+    {
+      title: `Mitarbeitende (${colleagues.size})`,
+      items: [...colleagues.entries()].map(([name, entry]) => ({
+        name,
+        role: entry.role,
+        photo: entry.photo,
+        count: entry.count,
+        scope: { kind: "person" as const, name },
+      })),
+    },
+  ];
+
+  const selectedItem = scopeSections
+    .flatMap((section) => section.items)
+    .find((item) => (scope.kind === "me" ? item.scope.kind === "me" : item.scope.kind === scope.kind && item.name === scope.name));
 
   function toggle(id: string) {
     setExpanded((current) => (current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]));
@@ -386,14 +471,72 @@ export function HomeWorkflows() {
   return (
     <div className="hw-layout">
       <aside className="hw-side">
-        <div className="hw-side-head">
-          <img src={a.avatar} alt="" width={36} height={36} />
+        <button
+          type="button"
+          className={scopeOpen ? "hw-side-head open" : "hw-side-head"}
+          aria-expanded={scopeOpen}
+          onClick={() => setScopeOpen((current) => !current)}
+        >
+          <ScopeAvatar
+            name={selectedItem?.name ?? ME}
+            photo={selectedItem?.photo}
+            icon={selectedItem?.icon}
+            size={40}
+          />
           <span>
             <strong>Workflows & To-Dos</strong>
-            <small>Meine ({ME})</small>
+            <small>{scope.kind === "me" ? `Meine (${ME})` : scope.name}</small>
           </span>
           <Icon src={a.chevronDark} size={16} />
-        </div>
+        </button>
+        {scopeOpen ? (
+          <div className="hw-drop">
+            <label className="hw-drop-search">
+              <Icon src={a.searchDark} size={18} />
+              <input
+                placeholder="Suchen..."
+                value={scopeQuery}
+                onChange={(event) => setScopeQuery(event.target.value)}
+                aria-label="Kanal oder Person suchen"
+              />
+            </label>
+            {scopeSections
+              .map((section) => ({ ...section, items: section.items.filter((item) => item.name.toLowerCase().includes(scopeQuery.toLowerCase())) }))
+              .filter((section) => section.items.length > 0)
+              .map((section) => (
+                <div className="hw-drop-section" key={section.title}>
+                  <small>{section.title}</small>
+                  {section.items.map((item) => {
+                    const selected =
+                      (item.scope.kind === "me" && scope.kind === "me") ||
+                      (item.scope.kind !== "me" && scope.kind === item.scope.kind && scope.name === item.name);
+                    return (
+                      <button
+                        type="button"
+                        key={item.name}
+                        className={selected ? "hw-drop-item selected" : "hw-drop-item"}
+                        onClick={() => {
+                          setScope(item.scope);
+                          setScopeOpen(false);
+                          setScopeQuery("");
+                        }}
+                      >
+                        <ScopeAvatar name={item.name} photo={item.photo} icon={item.icon} />
+                        <span className="hw-drop-copy">
+                          <strong>
+                            {selected ? <span className="hw-drop-check" aria-hidden /> : null}
+                            {item.name}
+                          </strong>
+                          {item.role ? <small>{item.role}</small> : null}
+                        </span>
+                        <span className="hw-count">{item.count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+          </div>
+        ) : null}
         <div className="hw-side-list">
           {(Object.keys(counts) as SideFilter[]).map((item) => (
             <button

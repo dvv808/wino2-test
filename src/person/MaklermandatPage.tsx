@@ -1,3 +1,4 @@
+import { ShelfBody, ShelfTitle } from "./ProfileShelf";
 import { useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { Icon } from "../ui";
@@ -6,6 +7,9 @@ import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { getPartner, type FileContact, type FilePartner, type PartnerKind } from "./partners";
 import { liveFileIdentity, type Card, type Section } from "./stammdaten";
+import { useHonorar } from "../honorar/store";
+import { agreementLines } from "../honorar/invoiceCells";
+import type { Fee, Partner } from "../types/honorar";
 
 const MANDATE_SECTIONS = [
   {
@@ -173,6 +177,42 @@ function maklerAgreementCard(
     title: `Maklervereinbarung: ${agreementKindLabel(file.kind)}`,
     clampTo: 551,
     blocks,
+  };
+}
+
+/**
+ * A partner in the Honorar Forderungen always has a valid agreement: Business is billed under a Maklervereinbarung
+ * (with Laufzeit), Single under a Kurzfristige Vereinbarung - the same split as "Vereinbarung" in the Forderungen table.
+ */
+function honorarAgreementCard(partner: Partner, fee: Fee): Card {
+  const [kind, since] = agreementLines(fee);
+  const makler = kind === "Maklervereinbarung";
+  return {
+    id: "honorar-vereinbarung",
+    icon: makler ? a.iconBrokerContract : a.iconLimitKm,
+    title: makler ? "Maklervereinbarung: Kunde" : "Kurzfristige Vereinbarung",
+    clampTo: 551,
+    blocks: [
+      {
+        kind: "rows",
+        caption: "Adressdaten",
+        rows: [{ label: "Postadresse", value: { kind: "link", text: partner.address.split(", ").join("\n") } }],
+      },
+      {
+        kind: "person",
+        caption: "Abo Modell",
+        name: fee.tariff,
+        sub: `€ ${fee.amount.toLocaleString("de-AT", { minimumFractionDigits: 2 })} /Jahr`,
+      },
+      {
+        kind: "rows",
+        caption: "Vereinbarung",
+        rows: [
+          { label: makler ? "Laufzeit" : "Gültig seit", value: makler ? since.replace(/^LZ /, "") : since },
+          { label: "Kundenberater", value: partner.advisor },
+        ],
+      },
+    ],
   };
 }
 
@@ -452,20 +492,25 @@ export function MaklermandatPage() {
   const ready = filePartnerId !== "ashley" || ashleyConverted;
   const file = getPartner(filePartnerId);
   const info = file.info;
+  const { personName } = useWorkflow();
+  const { state } = useHonorar();
+  const honorarPartner = state.partners.find((partner) => partner.name === personName);
+  const honorarFee = honorarPartner
+    ? state.fees.filter((fee) => fee.partnerId === honorarPartner.id).sort((x, y) => y.month.localeCompare(x.month))[0]
+    : undefined;
   const agreement = maklerCreated
     ? maklerAgreementCard(file, displaySections, model, amount)
-    : null;
+    : honorarPartner && honorarFee
+      ? honorarAgreementCard(honorarPartner, honorarFee)
+      : null;
 
   return (
     <>
-      <div className="pp-body">
+      <ShelfBody>
         <Sidebar converted={ready} gueltigCount={agreement ? 1 : 0} />
         <main className="pp-main">
           <header className="fg-head pp-main-head">
-            <span className="pp-main-title">
-              <Icon src={a.iconBrokerContract} size={24} />
-              Maklermandat
-            </span>
+            <ShelfTitle icon={a.iconBrokerContract}>Maklermandat</ShelfTitle>
             <span className="fg-head-actions">
               <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openVersionHistory}>
                 <Icon src={a.history} size={18} />
@@ -541,7 +586,7 @@ export function MaklermandatPage() {
             </section>
           )}
         </main>
-      </div>
+      </ShelfBody>
 
       {overlay ? (
         <Overlay

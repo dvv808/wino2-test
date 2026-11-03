@@ -237,7 +237,7 @@ export function HonorarStep() {
                   setOpenMenu(null);
                 }}
               >
-                Abbuchung
+                SEPA-Lastschrift
               </RadioRow>
               <RadioRow
                 selected={payment === "invoice"}
@@ -246,7 +246,7 @@ export function HonorarStep() {
                   setOpenMenu(null);
                 }}
               >
-                Rechnung
+                Überweisung
               </RadioRow>
             </div>
           </div>

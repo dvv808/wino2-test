@@ -1,36 +1,29 @@
+import { useState } from "react";
 import * as a from "../assets/index";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { useHonorar } from "../honorar/store";
 import { VerlaufCaption } from "../chrome";
-import { DataCard } from "./cards";
-import { InkassoForderungenCard } from "./InkassoForderungen";
-import type { Card, Row } from "./stammdaten";
+import { ShelfTitle } from "./ProfileShelf";
+import { useInkassoPartnerId } from "./InkassoForderungen";
+import { StatusTable } from "../honorar/StatusStep";
+import { StatCards, StepEmpty, type StatFilter } from "../honorar/ui";
 
 /**
- * Inkasso in the profile. The card carries the same data as the Honorar card in the
- * Zusammenfassung of the Maklervereinbarung, shown like every other Profil card.
+ * Inkasso in the profile: the client's own invoices in the same table as Status zu Rechnungen.
  */
 export function InkassoMain() {
-  const {
-    model,
-    modelLabel,
-    selectedPartner,
-    customNote,
-    billing,
-    day,
-    month,
-    year,
-    dueDay,
-    dueMonth,
-    payment,
-    selectedBank,
-    paymentTerm,
-    invoiceNote,
-    delivery,
-    goTo,
-    openMakler,
-    openVersionHistory,
-  } = useWorkflow();
+  const { goTo, openMakler, openVersionHistory } = useWorkflow();
+  const { state } = useHonorar();
+  const inkassoPartner = useInkassoPartnerId();
+  // The client's own invoices, newest first: the same table as Status zu Rechnungen.
+  const clientFees = state.fees
+    .filter((fee) => fee.partnerId === inkassoPartner && !fee.hiddenOpen)
+    .sort((x, y) => y.month.localeCompare(x.month));
+  // Offen / Abgeschlossen, the same filter cards as in Status zu Rechnungen.
+  const [stat, setStat] = useState<StatFilter>(null);
+  const clientDone = clientFees.filter((fee) => fee.paymentStatus === "paid").length;
+  const shownClientFees = clientFees.filter((fee) => stat === null || (stat === "done") === (fee.paymentStatus === "paid"));
 
   /** Edits happen in the Maklervereinbarung, on the Honorar step. */
   function editHonorar() {
@@ -38,55 +31,10 @@ export function InkassoMain() {
     openMakler();
   }
 
-  const rows: Row[] = [];
-  if (model === "partner") {
-    rows.push({ label: "Verknüpfte Partner", value: selectedPartner ? selectedPartner.name : "Auswählen" });
-  }
-  if (model === "custom" && customNote) rows.push({ label: "Notiz", value: customNote });
-  rows.push({
-    label: "Erstmalige Verrechnung des Honorars",
-    value: billing === "custom" ? "Individuelles Datum" : "Nächste Monatserste",
-  });
-  if (billing === "custom") rows.push({ label: "Individuelles Datum", value: `${day}.${month}.${year}` });
-  rows.push({ label: "Hauptfälligkeit", value: `${dueDay}.${dueMonth}.` });
-  rows.push({ label: "Zahlart", value: payment === "debit" ? "Abbuchung" : "Rechnung" });
-  if (payment === "debit") {
-    rows.push({
-      label: "Bankverbindung für Abbuchung",
-      value: `${selectedBank.name}\n${selectedBank.bank}\n${selectedBank.iban}`,
-    });
-  } else {
-    rows.push({ label: "Zahlungsziel (Tage nach Rechnungserhalt)", value: String(paymentTerm) });
-    if (invoiceNote) rows.push({ label: "Notiz", value: invoiceNote });
-  }
-  rows.push({ label: "Rechnungsversand", value: delivery === "email" ? "E-Mail" : "Post" });
-  rows.push(
-    delivery === "email"
-      ? { label: "E-Mail für Rechnungsversand", value: "julia.atkinson@gmail.at" }
-      : { label: "Postadresse für Rechnungsversand", value: "Mondseestrasse 32\nA-5310 Mondsee" },
-  );
-
-  const card: Card = {
-    id: "inkasso-honorar",
-    icon: a.privat,
-    title: "Honorar Modell",
-    blocks: [
-      {
-        kind: "badge",
-        icon: a.privat,
-        text: model === "privat" ? `${modelLabel} · € 120 /Jahr` : modelLabel,
-      },
-      { kind: "rows", rows },
-    ],
-  };
-
   return (
     <main className="pp-main">
       <header className="fg-head pp-main-head">
-        <span className="pp-main-title">
-          <Icon src={a.tickList} size={24} />
-          Inkasso
-        </span>
+        <ShelfTitle icon={a.tickList}>Inkasso</ShelfTitle>
         <span className="fg-head-actions">
           <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openVersionHistory}>
             <Icon src={a.history} size={18} />
@@ -105,9 +53,28 @@ export function InkassoMain() {
             Editieren
           </button>
         </header>
-        <div className="pp-cards">
-          <DataCard card={card} onEdit={editHonorar} />
-          <InkassoForderungenCard />
+        <div className="ik-table">
+          <StatusTable
+            fees={shownClientFees}
+            label="Rechnungen des Partners"
+            defaultPartnerOpen
+            stats={
+              <StatCards
+                open={clientFees.length - clientDone}
+                done={clientDone}
+                unit="Zahlungen"
+                value={stat}
+                onChange={setStat}
+              />
+            }
+            empty={
+              <StepEmpty
+                icon={a.docList}
+                title="Keine Rechnungen vorhanden"
+                lead="Sobald das Honorar zum ersten Mal verrechnet wird, erscheint die Rechnung hier."
+              />
+            }
+          />
         </div>
       </section>
     </main>

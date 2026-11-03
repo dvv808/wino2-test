@@ -77,6 +77,8 @@ export interface Fee {
   settledVia?: "credit" | "due_date";
   /** Rechnungskorrektur of this invoice (Info zur Rechnung). */
   correction?: InvoiceCorrection;
+  /** Zahlart switched in Daten erfassen (SEPA-Lastschrift ↔ Überweisung), with the required comment. */
+  paymentMethodChange?: { from: PaymentMethod; comment: string };
 }
 
 export type InvoiceCorrectionKind = "Zahlungsziel ändern" | "Teilgutschrift" | "Vollgutschrift" | "Doch bezahlt";
@@ -109,9 +111,19 @@ export interface InvoiceCorrection {
   bookedAt?: string;
 }
 
+/** The tabs of Rechnungsversand: BMD comparison, mail dispatch, post dispatch. */
+export type DispatchTab = "check" | "mail" | "post";
+
+/** The tabs of Zahlungserinnerungen: reminders by mail and by post. */
+export type ReminderTab = "mail" | "post";
+
 export interface Month {
   id: string;
   steps: { status: boolean; data: boolean; dataCarrier: boolean; dispatch: boolean };
+  /** Rechnungsversand (step 3) is split into three tabs, each marked Fertig by hand. */
+  dispatchDone?: Partial<Record<DispatchTab, boolean>>;
+  /** Zahlungserinnerungen (step 4) is split into Mail and Post, each marked Fertig by hand. */
+  remindersDone?: Partial<Record<ReminderTab, boolean>>;
   closed: boolean;
   bmdDataLoaded: boolean;
 }
