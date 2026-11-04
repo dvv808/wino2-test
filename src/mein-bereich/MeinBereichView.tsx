@@ -1,6 +1,5 @@
 import * as a from "../assets/index";
-import { LogoButton, ProfileMenu } from "../chrome";
-import { ManagementAreaIcon } from "../manager/BestandChrome";
+import { FileTabs, LogoButton, ProfileMenu } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "../honorar/store";
@@ -58,33 +57,6 @@ export function ConstructionArt() {
   );
 }
 
-/** The tab that was open before "Mein Bereich" stays in the header; clicking it goes back. */
-function PreviousTab() {
-  const { meinBereichFrom, personName, leaveMeinBereich } = useWorkflow();
-  const person = meinBereichFrom === "person" || meinBereichFrom === "workflow" || meinBereichFrom === "stammdaten";
-
-  return (
-    <div className="person-tab inactive">
-      <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
-      <span className={person ? "person-tab-body" : "person-tab-body mgmt-tab"}>
-        {person ? <Icon src={a.person} size={24} /> : <ManagementAreaIcon />}
-        <button type="button" className="person-tab-open" onClick={leaveMeinBereich}>
-          {person ? (
-            personName
-          ) : (
-            <span className="mgmt-tab-copy">
-              Management
-              <br />
-              Winter Vers.
-            </span>
-          )}
-        </button>
-      </span>
-      <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={10} />
-    </div>
-  );
-}
-
 /** Personal area behind the profile menu. "Mein Bereich" is not designed yet; "Bestand" shows the own Honorare/Forderungen. */
 export function MeinBereichView() {
   const { closeMeinBereich, meinBereichNav, setMeinBereichNav } = useWorkflow();
@@ -106,7 +78,7 @@ export function MeinBereichView() {
         <header className="main-nav">
           <div className="main-nav-left">
             <LogoButton />
-            <PreviousTab />
+            <FileTabs />
             <div className="person-tab">
               <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
               <span className="person-tab-body">
