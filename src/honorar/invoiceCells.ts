@@ -103,7 +103,7 @@ export function rechnungenCells(state: HonorarState, fee: Fee): RechnungenCells 
   if (request && request.status !== "verbucht") {
     const step = WORKFLOW_STEPS[Math.min(workflowStepIndex(request), 2) as 0 | 1 | 2];
     correctionCell = {
-      lines: [`Workflow ${request.workflow}`, request.status === "abgelehnt" ? "Antrag abgelehnt" : `${step.label} offen (${step.role})`],
+      lines: [`Workflow ${request.workflow}`, `${workflowStepText(request)} (${request.status === "abgelehnt" ? WORKFLOW_STEPS[0].role : step.role})`],
       tone: request.status === "abgelehnt" ? "fail" : "warn",
     };
   } else if (singleInvoice) {
@@ -158,6 +158,15 @@ export const WORKFLOW_STEPS = [
   { label: "Freigabe", role: "Bestandsmanager" },
   { label: "Verbuchung", role: "Honorarverwalter" },
 ] as const;
+
+/** Where the workflow stands, its step out of three first: "1/3 · Antrag offen", "3/3 · Verbucht". */
+export function workflowStepText(correction: InvoiceCorrection) {
+  const total = WORKFLOW_STEPS.length;
+  if (correction.status === "verbucht") return `${total}/${total} · Verbucht`;
+  if (correction.status === "abgelehnt") return `1/${total} · Antrag abgelehnt`;
+  const index = Math.min(workflowStepIndex(correction), 2);
+  return `${index + 1}/${total} · ${WORKFLOW_STEPS[index].label} offen`;
+}
 
 /** 0 Antrag, 1 Freigabe, 2 Verbuchung, 3 done. A rejected Antrag goes back to step 0. */
 export function workflowStepIndex(correction: InvoiceCorrection): 0 | 1 | 2 | 3 {

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import * as a from "../assets/index";
 import { addDays, formatDate } from "../lib/honorar/format";
 import { useHonorar } from "../honorar/store";
-import { isOpenItemFee } from "../lib/honorar/queries";
+import { setFocusFees } from "../honorar/focusFee";
+import { noticeForMe } from "../honorar/ownership";
 import type { HonorarNotice } from "../types/honorar";
 import { useWorkflow } from "../workflow";
 
@@ -52,7 +53,7 @@ function NoticeCard({ notice, onOpen }: { notice: HonorarNotice; onOpen: () => v
 
 /** Right-hand widget bar, shown while "Widget einschalten" is on in the profile menu. */
 export function WidgetBar() {
-  const { widgetOn, openFinanzen } = useWorkflow();
+  const { widgetOn, openMeinBereich, setMeinBereichNav } = useWorkflow();
   const { state, markNoticeRead, markNoticesRead } = useHonorar();
   const [filter, setFilter] = useState<FilterId>("all");
   const [newestFirst, setNewestFirst] = useState(true);
@@ -64,11 +65,16 @@ export function WidgetBar() {
     return () => document.body.classList.remove("widget-on");
   }, [widgetOn]);
 
-  const unread = state.notices.filter((notice) => !notice.read).length;
+  // Only the logged-in person's notices, told for their own invoices (the rows of their Honorare/Forderungen).
+  const mine = useMemo(
+    () => state.notices.map((notice) => noticeForMe(state, notice)).filter((notice): notice is NonNullable<typeof notice> => Boolean(notice)),
+    [state],
+  );
+  const unread = mine.filter((notice) => !notice.read).length;
 
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const shown = state.notices
+    const shown = mine
       .filter((notice) => filter === "all" || !notice.read)
       .filter(
         (notice) =>
@@ -82,18 +88,16 @@ export function WidgetBar() {
       byDay.set(day, [...(byDay.get(day) ?? []), notice]);
     }
     return [...byDay.entries()];
-  }, [state.notices, filter, newestFirst, query]);
+  }, [mine, filter, newestFirst, query]);
 
   if (!widgetOn) return null;
 
+  /** "Ansehen": Mein Bereich → Bestand → Honorare/Forderungen, on the invoice's month, with its rows marked. */
   function open(notice: HonorarNotice) {
     markNoticeRead(notice.id);
-    const fee = notice.feeId ? state.fees.find((entry) => entry.id === notice.feeId) : undefined;
-    if (fee && !isOpenItemFee(state, fee)) {
-      openFinanzen("month", fee.month, "status");
-      return;
-    }
-    openFinanzen("openItems");
+    setMeinBereichNav({ area: "Bestand", page: "Honorare/Forderungen" });
+    openMeinBereich();
+    setFocusFees(notice.feeIds ?? (notice.feeId ? [notice.feeId] : []));
   }
 
   return (

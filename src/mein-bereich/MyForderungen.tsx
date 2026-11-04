@@ -1,23 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import * as a from "../assets/index";
 import { monthLabel } from "../lib/honorar/format";
-import { feeSettled, isOpenItemFee, partnerOf } from "../lib/honorar/queries";
-import { ROLE_USER } from "../mocks/honorar/seed";
+import { feeSettled, isOpenItemFee } from "../lib/honorar/queries";
+import { clearFocusFee, peekFocusFees } from "../honorar/focusFee";
+import { isOwnFee } from "../honorar/ownership";
 import type { Fee, HonorarState } from "../types/honorar";
 import { StatusTable } from "../honorar/StatusStep";
 import { useHonorar } from "../honorar/store";
 import { HnKicker, StatCards, StatusBadge, StepEmpty, type StatFilter } from "../honorar/ui";
 import { Icon } from "../ui";
 
-/** The logged-in person's own invoices: partners they are Kundenberater for (a Bereichsleiter sees the department). */
+/** The logged-in person's invoices: own partners, and workflows whose current step is theirs (see `isOwnFee`). */
 export function ownFees(state: HonorarState): Fee[] {
-  const me = ROLE_USER[state.role];
-  return state.fees.filter((fee) => {
-    if (fee.hiddenOpen) return false;
-    const partner = partnerOf(state, fee.partnerId);
-    if (!partner) return false;
-    return state.role === "head" ? partner.department === "Beratung & Service" : partner.advisor === me;
-  });
+  return state.fees.filter((fee) => isOwnFee(state, fee));
 }
 
 /** Own invoices that are open and need action: past their Zahlungsziel or waiting in Offene Posten. */
@@ -39,6 +34,37 @@ export function MyForderungen() {
   const [monthId, setMonthId] = useState(() => months.find((id) => id <= today) ?? months[0] ?? today);
   const [openYears, setOpenYears] = useState<Set<string>>(() => new Set([monthId.slice(0, 4)]));
   const [stat, setStat] = useState<StatFilter>(null);
+  // Rows handed over by a widget notice ("Ansehen"): their month opens and they stay marked for a few seconds.
+  const [highlight, setHighlight] = useState<string[]>([]);
+
+  useEffect(() => {
+    function take() {
+      const ids = peekFocusFees().filter((id) => fees.some((fee) => fee.id === id));
+      if (!ids.length) return;
+      clearFocusFee();
+      const first = fees.find((fee) => fee.id === ids[0])!;
+      setMonthId(first.month);
+      setOpenYears((prev) => new Set(prev).add(first.month.slice(0, 4)));
+      setStat(null);
+      setHighlight(ids);
+    }
+    take();
+    window.addEventListener("honorar-focus", take);
+    return () => window.removeEventListener("honorar-focus", take);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.fees]);
+
+  useEffect(() => {
+    if (!highlight.length) return;
+    const frame = window.requestAnimationFrame(() =>
+      document.querySelector(".hn-st-row.focus")?.scrollIntoView({ block: "center", behavior: "smooth" }),
+    );
+    const timer = window.setTimeout(() => setHighlight([]), 6000);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [highlight]);
 
   const monthFees = fees.filter((fee) => fee.month === monthId);
   const done = monthFees.filter((fee) => fee.paymentStatus === "paid").length;
@@ -59,7 +85,7 @@ export function MyForderungen() {
         <header className="pp-side-head">
           <span className="hn-side-avatar">
             <img src={a.avatarBg} alt="" />
-            <Icon src={a.requestSmall} size={22} />
+            <Icon src={a.honorar} size={22} />
           </span>
           <span className="pp-side-title">
             <strong>Honorare</strong>
@@ -130,7 +156,7 @@ export function MyForderungen() {
               <p className="hn-month">
                 <strong>{monthLabel(monthId)}</strong> {monthId.slice(0, 4)}
               </p>
-              <p className="hn-my-scope">Nur Partner, für die du als Kundenberater:in zuständig bist.</p>
+              <p className="hn-my-scope">Nur deine Partner als Kundenberater:in und Workflows, bei denen du gerade dran bist.</p>
             </div>
           </div>
           {fees.length === 0 ? (
@@ -143,6 +169,7 @@ export function MyForderungen() {
             <StatusTable
               fees={shown}
               label="Meine Rechnungen"
+              highlight={highlight}
               stats={<StatCards open={monthFees.length - done} done={done} unit="Zahlungen" value={stat} onChange={setStat} />}
               empty={
                 <StepEmpty

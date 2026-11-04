@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { formatDate, monthLabel } from "../lib/honorar/format";
-import { dispatchMismatches, feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
+import { dispatchMismatches, feesOfMonth, mailFailed, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
 import type { DispatchTab, Fee, Partner } from "../types/honorar";
 import { Icon, Snackbar, WarnBox } from "../ui";
 import { useWorkflow } from "../workflow";
-import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
+import { ColumnFilter, FilterSummary, filterInputProps, matchesFilter, type FilterGroup } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { INVOICE_FILE, InvoiceModal } from "./InvoiceModal";
 import { MailAddressModal } from "./MailAddressModal";
@@ -130,9 +130,10 @@ export function DispatchStep() {
   // The invoice exists in BMD once step 2 is finished (all next steps ticked) or the invoice was already sent.
   const bmdCreated = Boolean(month?.closed) || Boolean(month?.steps.dataCarrier);
   const isBmdCreated = (fee: Fee) => bmdCreated || fee.invoiceStatus === "sent" || fee.invoiceStatus === "send_failed";
-  const isPostFee = (fee: Fee) => partnerOf(state, fee.partnerId)?.deliveryMethod === "print";
-  const mailFees = fees.filter((fee) => !isPostFee(fee));
-  const postFees = fees.filter(isPostFee);
+  const byPostPartner = (fee: Fee) => partnerOf(state, fee.partnerId)?.deliveryMethod === "print";
+  // A mail that did not arrive stays in Mail-Versand as "Mail nicht empfangen" and is sent from Post-Versand instead.
+  const mailFees = fees.filter((fee) => !byPostPartner(fee));
+  const postFees = fees.filter((fee) => byPostPartner(fee) || mailFailed(fee));
   const tabFees = tab === "post" ? postFees : mailFees;
   const statDone = tabFees.filter((fee) => fee.invoiceStatus === "sent").length;
   const statOpen = tabFees.length - statDone;
@@ -141,20 +142,29 @@ export function DispatchStep() {
       .filter((fee) => stat === null || (stat === "done") === (fee.invoiceStatus === "sent"))
       .map((fee) => {
         const partner = partnerOf(state, fee.partnerId);
-        return { fee, partner, text: rowText(fee, partner, isBmdCreated(fee)) };
+        const text = rowText(fee, partner, isBmdCreated(fee));
+        // In Post-Versand a failed mail is a letter: its Versandart reads Post, with the failed mail noted.
+        if (tab === "post" && mailFailed(fee)) text.channel = "Post Mail nicht empfangen";
+        return { fee, partner, text };
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabFees, state, stat]);
+  // Versandart: Mail or Post, not one entry per address; a mail that went to post can be picked on its own.
+  const groups: Partial<Record<ColumnKey, FilterGroup[]>> = {
+    // Mail-Versand keeps the searchable list of addresses.
+    ...(tab === "post" ? { channel: [{ label: "Versandart", options: ["Post", "Mail nicht empfangen"] }] } : {}),
+  };
   const rows = useMemo(
     () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
   );
 
-  const failed = rows.filter((row) => row.fee.invoiceStatus === "send_failed");
-  const mail = rows.filter((row) => row.fee.invoiceStatus !== "send_failed");
-  const mailSent = mailFees.length > 0 && mailFees.every((fee) => fee.invoiceStatus === "sent");
-  const mailFailed = mailFees.filter((fee) => fee.invoiceStatus === "send_failed").length;
-  const mailOk = mailFees.filter((fee) => fee.invoiceStatus === "sent").length;
+  const failed = rows.filter((row) => mailFailed(row.fee));
+  const mail = rows.filter((row) => !mailFailed(row.fee));
+  // Mail-Versand is through once every mail arrived or went over to Post-Versand.
+  const mailSent = mailFees.length > 0 && mailFees.every((fee) => fee.invoiceStatus === "sent" || mailFailed(fee));
+  const mailFailedCount = mailFees.filter(mailFailed).length;
+  const mailOk = mailFees.filter((fee) => fee.invoiceStatus === "sent" && !mailFailed(fee)).length;
   const postAllSent = postFees.length > 0 && postFees.every((fee) => fee.invoiceStatus === "sent");
   const checkClean =
     Boolean(month?.bmdDataLoaded) && monthFees.every((fee) => dispatchMismatches(fee, partnerOf(state, fee.partnerId)).length === 0);
@@ -247,6 +257,7 @@ export function DispatchStep() {
     onResend: (feeId) => sendFeeMail(feeId),
     onPostSent: setPostSent,
     menuFeeId: menu?.feeId,
+    tab: tab === "post" ? "post" : "mail",
   };
 
   const doneToggle = (
@@ -255,8 +266,8 @@ export function DispatchStep() {
       className="hn-done-toggle"
       role="switch"
       aria-checked={isTabDone(tab)}
-      disabled={!isTabDone(tab) && !canFinish[tab]}
-      title={!isTabDone(tab) && !canFinish[tab] ? finishHint[tab] : undefined}
+      // Stays clickable for testing; the hint says what is still open.
+      title={!isTabDone(tab) && !canFinish[tab] ? `${finishHint[tab]} (Zum Testen trotzdem möglich.)` : undefined}
       onClick={() => setDispatchTabDone(finanzenMonth, tab, !isTabDone(tab))}
     >
       Als Fertig markieren
@@ -357,7 +368,7 @@ export function DispatchStep() {
                 <p className="hn-carrier-done-meta">{mailSentMeta}</p>
                 <p className="hn-carrier-done-meta">
                   {mailOk} von {mailFees.length} angekommen
-                  {mailFailed ? ` · ${mailFailed} nicht empfangen, bitte Adresse ändern oder erneut senden` : ""}
+                  {mailFailedCount ? ` · ${mailFailedCount} nicht empfangen, per Post weitergeleitet` : ""}
                 </p>
               </article>
             </div>
@@ -389,6 +400,7 @@ export function DispatchStep() {
             </div>
           </div>
 
+          <FilterSummary filters={filters} shown={rows.length} total={baseRows.length} onReset={() => setFilters({})} />
           <div className="hn-status-table dispatch" role="table" aria-label={tab === "post" ? "Post-Versand" : "Mail-Versand"}>
             <div className="hn-st-head" role="row">
               {COLUMNS.map((column) => (
@@ -399,6 +411,7 @@ export function DispatchStep() {
                     label={column.label}
                     value={filters[column.key] ?? ""}
                     samples={baseRows.map((row) => row.text[column.key])}
+                    groups={groups[column.key]}
                     onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
                   /> : null}
                   </span>
@@ -614,6 +627,8 @@ type RowHandlers = {
   onResend: (feeId: string) => void;
   onPostSent: (feeId: string, sent: boolean) => void;
   menuFeeId?: string;
+  /** Which table the rows sit in: a failed mail shows its hand-over in Mail, its letter in Post. */
+  tab: "mail" | "post";
 };
 
 function Group({
@@ -653,10 +668,14 @@ function Group({
         ? rows.map(({ fee, partner, text }) => {
             const locked = missingFields(fee, partner).length > 0;
             const address = addressLines(partner?.address ?? "");
-            const byPost = partner?.deliveryMethod === "print";
-            const failed = fee.invoiceStatus === "send_failed";
+            const failedMail = mailFailed(fee);
+            const inPost = handlers.tab === "post";
+            // In Post-Versand a failed mail is an ordinary letter; in Mail-Versand it shows where it went.
+            const byPost = partner?.deliveryMethod === "print" || (inPost && failedMail);
+            const failed = failedMail && !inPost;
             const created = handlers.isBmdCreated(fee);
-            const waiting = !created || fee.invoiceStatus === "created" || fee.invoiceStatus === "not_created";
+            const waiting = !created || fee.invoiceStatus !== "sent";
+            const statusText = inPost && failedMail ? (fee.invoiceStatus === "sent" ? "Versendet" : "Rechnung erstellt, wartet auf Versand") : text.status;
             return (
               <div className="hn-st-row" role="row" key={fee.id}>
                 <div className="hn-st-partner">
@@ -677,22 +696,19 @@ function Group({
                   <div className="hn-st-note fail">
                     <img src={a.hnAttention} alt="" width={16.5} height={15.4688} />
                     <span className="hn-st-fail-copy">
-                      <strong>{text.status}</strong>
+                      <strong>Mail nicht empfangen</strong>
                       <small>
-                        <button type="button" onClick={() => handlers.onChangeAddress(fee.id)}>
-                          Adresse ändern
-                        </button>{" "}
-                        oder{" "}
-                        <button type="button" onClick={() => handlers.onResend(fee.id)}>
-                          erneut senden
-                        </button>
+                        {fee.invoiceStatus === "sent"
+                          ? `Auf Post-Rechnung umgestellt und per Post versendet${fee.sentAt ? ` am ${capturedWhen(fee.sentAt)}` : ""}.`
+                          : "Auf Post-Rechnung umgestellt, liegt in der Post-Versand Tabelle."}
                       </small>
+                      <small>Bestandsmanager ist informiert und prüft die E-Mail-Adresse.</small>
                     </span>
                   </div>
                 ) : (
                   <div className="hn-st-note">
                     <Icon src={waiting ? a.onhold : a.confirm} size={16} />
-                    <span>{text.status}</span>
+                    <span>{statusText}</span>
                   </div>
                 )}
                 <div className="hn-st-stack">
@@ -702,6 +718,7 @@ function Group({
                 <div className="hn-st-stack">
                   <span>{byPost ? "Post" : "Mail"}</span>
                   {partner && !byPost ? <span>{mailAddress(fee, partner)}</span> : null}
+                  {inPost && failedMail ? <small className="hn-st-edited">Mail nicht empfangen</small> : null}
                   {partner && !byPost && fee.mailTo && fee.mailTo !== partner.email ? (
                     <small className="hn-st-edited">
                       Geänderte Adresse

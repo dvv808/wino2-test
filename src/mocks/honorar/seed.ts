@@ -259,7 +259,7 @@ const SCENARIOS: Scenario[] = [
   { id: "s03", label: "01.-05.: Datenträger in BMD geladen", method: "Rechnung", company: true, status: "open_before_due", beforeDue: true, extras: { invoiceStatus: "not_created", sentAt: undefined, sentTo: undefined } },
   { id: "s04", label: "01.-05.: Datenträger in BMD geladen, Daten im wino vorhanden", method: "Rechnung", status: "open_before_due", beforeDue: true, extras: { invoiceStatus: "created", sentAt: undefined, sentTo: undefined } },
   { id: "s05", label: "Rechnung per Mail verschickt, erfolgreich", method: "Rechnung", status: "open_before_due", beforeDue: true },
-  { id: "s06", label: "Rechnung per Mail verschickt, nicht erfolgreich (Post)", method: "Rechnung", status: "open_before_due", beforeDue: true, extras: { invoiceStatus: "send_failed" } },
+  { id: "s06", label: "Rechnung per Mail verschickt, nicht erfolgreich (Post)", method: "Rechnung", status: "open_before_due", beforeDue: true, extras: { invoiceStatus: "send_failed", mailFailed: true } },
   { id: "s07", label: "SEPA: Abbucher noch nicht durchgeführt", method: "Abbucher", status: "open_before_due", beforeDue: true, extras: { invoiceStatus: "created", sentAt: undefined } },
   { id: "s10", label: "SEPA: Abbucher nicht erfolgreich, Info an Kundenberater ergangen", method: "Abbucher", status: "unpaid", advisorNotice: true, extras: { correction: workflowOf("Gutschrift", "Vollgutschrift", "entwurf"), paymentReason: "direct_debit_failed" } },
   { id: "s12", label: "Überweisung: keine Überweisung, Zahlungsziel noch nicht überschritten", method: "Rechnung", company: true, status: "open_before_due", beforeDue: true },

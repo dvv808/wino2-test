@@ -28,6 +28,11 @@ export function abbucherSynced(state: HonorarState, monthId: string) {
 }
 
 /** Invoices (Zahlart Rechnung) of a month that were not paid in time. A failed direct debit is never a reminder case. */
+/** The mail of this invoice did not arrive; it is sent by post instead. */
+export function mailFailed(fee: Fee) {
+  return Boolean(fee.mailFailed) || fee.invoiceStatus === "send_failed";
+}
+
 export function reminderCandidates(state: HonorarState, monthId: string) {
   return feesOfMonth(state, monthId).filter(
     (fee) => fee.paymentMethod === "Rechnung" && fee.invoiceStatus === "sent" && fee.paymentStatus !== "paid",

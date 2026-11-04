@@ -3,13 +3,14 @@ import * as a from "../assets/index";
 import { formatDay, monthLabel } from "../lib/honorar/format";
 import { feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/queries";
 import type { Fee, HonorarState, Partner } from "../types/honorar";
-import { WORKFLOW_STEPS, money, rechnungenCells, workflowStepIndex, zahlartLabel, type Cell } from "./invoiceCells";
+import { money, rechnungenCells, workflowStepText, zahlartLabel, type Cell } from "./invoiceCells";
 import { InvoiceInfoModal } from "./InvoiceInfoModal";
 import { Icon, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
-import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
+import { ColumnFilter, FilterSummary, filterInputProps, matchesFilter, type FilterGroup } from "./ColumnFilter";
 import { useHonorar } from "./store";
-import { ADVISORS, PEOPLE, ROLE_USER } from "../mocks/honorar/seed";
+import { workflowOwner } from "./ownership";
+import { ADVISORS, PEOPLE } from "../mocks/honorar/seed";
 import { PartnerAvatar, PartnerOpenButton, StatCards, StepEmpty, type StatFilter, HnKicker, StatsRow, StickyScroll } from "./ui";
 
 /** Status zu Rechnungen columns. `groupEnd` columns are collapsible: they carry the ">" tab and a dark divider follows them (Figma). */
@@ -57,15 +58,6 @@ function PersonChip({ name }: { name: string }) {
       {name}
     </span>
   );
-}
-
-/** Who works on the workflow's current step: Kundenberater (Antrag), Bestandsmanager (Freigabe), Honorarverwalter (Verbuchung). */
-function workflowOwner(correction: NonNullable<Fee["correction"]>, partner: Partner | undefined) {
-  const step = workflowStepIndex(correction);
-  if (step === 3) return correction.bookedBy ?? ROLE_USER.backoffice;
-  if (step === 2) return ROLE_USER.backoffice;
-  if (step === 1) return ROLE_USER.head;
-  return correction.requestedBy ?? partner?.advisor ?? ROLE_USER.advisor;
 }
 
 /** Kundenberater photo by name; colleagues without one show initials. */
@@ -296,7 +288,11 @@ function rechnungenRowText(state: HonorarState, fee: Fee, partner: Partner | und
     status: cells.status.lines.join(" "),
     dueDate: cells.dates.lines.join(" "),
     openItem: cells.openItem.lines.join(" "),
-    correction: cells.correction.lines.join(" "),
+    // The person working on the workflow is searchable too.
+    correction: [
+      ...cells.correction.lines,
+      ...(fee.correction ? [fee.correction.workflow, workflowStepText(fee.correction), workflowOwner(fee.correction, partner)] : []),
+    ].join(" "),
   };
 }
 
@@ -427,7 +423,10 @@ export function StatusTable({
   empty,
   stats,
   defaultPartnerOpen = false,
+  highlight,
 }: {
+  /** Rows to mark (yellow), e.g. the invoices of a widget notice. */
+  highlight?: string[];
   fees: Fee[];
   label: string;
   /** Opens the Partner fold-out (Versandart, Kundenberater, Honorarmodell, Bankverbindung) from the start. */
@@ -450,6 +449,22 @@ export function StatusTable({
       }),
     [fees, state],
   );
+  // Columns whose cells mix several things get sorted pick lists instead of every distinct cell text.
+  const columnGroups = useMemo((): Partial<Record<ColumnKey, FilterGroup[]>> => {
+    const sorted = (values: string[]) => [...new Set(values.filter(Boolean))].sort((x, y) => x.localeCompare(y, "de"));
+    const chip = (name: string) => <PersonChip name={name} />;
+    const running = baseRows.flatMap((row) => (row.fee.correction ? [row] : []));
+    const steps = ["Antrag offen", "Freigabe offen", "Verbuchung offen", "Verbucht", "Antrag abgelehnt"];
+    return {
+      correction: [
+        { label: "Workflow", options: sorted(running.map((row) => row.fee.correction!.workflow)) },
+        { label: "Schritt", options: steps.filter((step) => running.some((row) => workflowStepText(row.fee.correction!).endsWith(step))) },
+        { label: "Personen", options: sorted(running.map((row) => workflowOwner(row.fee.correction!, row.partner))), render: chip },
+      ],
+      advisor: [{ label: "Kundenberater", options: sorted(baseRows.map((row) => row.partner?.advisor ?? "")), render: chip }],
+      delivery: [{ label: "Versandart", options: sorted(baseRows.map((row) => deliveryOf(row.partner).label)) }],
+    };
+  }, [baseRows]);
   const filteredRows = useMemo(
     () => baseRows.filter((row) => [...COLUMNS, ...PARTNER_COLUMNS].every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
@@ -466,6 +481,7 @@ export function StatusTable({
         onToggleDue={() => setOnlyDue((value) => !value)}
       />
       {tools?.(rows)}
+      <FilterSummary filters={filters} shown={rows.length} total={baseRows.length} onReset={() => setFilters({})} />
       <StickyScroll>
       <div className={partnerOpen ? "hn-status-table rechnungen partner-open" : "hn-status-table rechnungen"} role="table" aria-label={label}>
         <div className="hn-st-head" role="row">
@@ -495,6 +511,7 @@ export function StatusTable({
                       value={filters[column.key] ?? ""}
                       samples={baseRows.map((row) => row.text[column.key] ?? "")}
                       onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
+                      groups={columnGroups[column.key]}
                     />
                   </span>
                 ) : null}
@@ -509,7 +526,7 @@ export function StatusTable({
           <div className="hn-st-th hn-st-more-head" role="columnheader" aria-label="Aktionen" />
         </div>
 
-        {rows.length === 0 && empty ? null : <RechnungenRows rows={rows} partnerOpen={partnerOpen} />}
+        {rows.length === 0 && empty ? null : <RechnungenRows rows={rows} partnerOpen={partnerOpen} highlight={highlight} />}
       </div>
       </StickyScroll>
       {/* Outside the sideways scroll, so it centres in the panel and not in the wide grid. */}
@@ -537,7 +554,7 @@ function ToneCell({ cell }: { cell: Cell }) {
 }
 
 /** Status zu Rechnungen rows: one flat list - the Zahlart is a column, no longer a group. */
-function RechnungenRows({ rows, partnerOpen }: { rows: StatusRow[]; partnerOpen: boolean }) {
+function RechnungenRows({ rows, partnerOpen, highlight }: { rows: StatusRow[]; partnerOpen: boolean; highlight?: string[] }) {
   const { state } = useHonorar();
   const { openFinanzen, openRechnungWorkflow } = useWorkflow();
   const [menu, setMenu] = useState<{ feeId: string; top: number; left: number; anchor: HTMLElement } | null>(null);
@@ -576,7 +593,7 @@ function RechnungenRows({ rows, partnerOpen }: { rows: StatusRow[]; partnerOpen:
         const locked = missingFields(fee, partner).length > 0;
         const cells = rechnungenCells(state, fee);
         return (
-          <div className="hn-st-row" role="row" key={fee.id}>
+          <div className={highlight?.includes(fee.id) ? "hn-st-row focus" : "hn-st-row"} role="row" key={fee.id}>
             <div className="hn-st-partner">
               <span className="partner-avatar">
                 <PartnerAvatar company={partner?.type === "company"} />
@@ -627,13 +644,7 @@ function RechnungenRows({ rows, partnerOpen }: { rows: StatusRow[]; partnerOpen:
                     <Icon src={a.moduleWorkflow} size={16} />
                     {fee.correction.workflow}
                   </span>
-                  <span className="hn-st-wf-step">
-                    {fee.correction.status === "verbucht"
-                      ? "Verbucht"
-                      : fee.correction.status === "abgelehnt"
-                        ? "Antrag abgelehnt"
-                        : `${WORKFLOW_STEPS[Math.min(workflowStepIndex(fee.correction), 2)].label} offen`}
-                  </span>
+                  <span className="hn-st-wf-step">{workflowStepText(fee.correction)}</span>
                   <PersonChip name={workflowOwner(fee.correction, partner)} />
                 </button>
               </div>

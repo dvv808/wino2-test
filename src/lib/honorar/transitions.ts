@@ -277,6 +277,7 @@ export function resetOpenCarrier(state: HonorarState, monthId: string): HonorarS
       sentAt: undefined,
       sentTo: undefined,
       mailTo: undefined,
+      mailFailed: undefined,
       paymentStatus: "open_before_due" as const,
       paymentReason: undefined,
     };
@@ -402,7 +403,8 @@ export function sendInvoices(state: HonorarState, monthId: string, user: string,
     if (fee.invoiceStatus === "sent" && !again) return fee;
     const to = fee.mailTo ?? partner?.email;
     if (failing.has(fee.id)) {
-      return { ...fee, invoiceStatus: "send_failed" as const, sentAt: undefined, sentTo: to };
+      // The invoice goes to Post-Versand instead; the failed mail stays on record.
+      return { ...fee, invoiceStatus: "send_failed" as const, mailFailed: true, sentAt: undefined, sentTo: to };
     }
     const settled = fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op";
     return {
@@ -414,7 +416,12 @@ export function sendInvoices(state: HonorarState, monthId: string, user: string,
       paymentReason: settled ? fee.paymentReason : undefined,
     };
   });
-  return withHistory({ ...state, fees }, [history(state, user, "month", monthId, again ? "Rechnungen erneut versendet" : "Rechnungen versendet")]);
+  return withHistory({ ...state, fees }, [
+    history(state, user, "month", monthId, again ? "Rechnungen erneut versendet" : "Rechnungen versendet"),
+    ...[...failing].map((id) =>
+      history(state, user, "fee", id, "Mail nicht empfangen", "Auf Post-Rechnung umgestellt, Bestandsmanager informiert (E-Mail-Adresse prüfen)"),
+    ),
+  ]);
 }
 
 /** Sends one invoice by mail. A new address is used for this invoice only. */
@@ -522,7 +529,8 @@ export function setPostSent(state: HonorarState, feeId: string, sent: boolean, u
   const settled = fee.paymentStatus === "paid" || fee.paymentStatus === "handed_to_op";
   const fees = state.fees.map((entry) => {
     if (entry.id !== feeId) return entry;
-    if (!sent) return { ...entry, invoiceStatus: "created" as const, sentAt: undefined, sentTo: undefined };
+    // A letter for a failed mail goes back to "Mail nicht empfangen" when unticked.
+    if (!sent) return { ...entry, invoiceStatus: entry.mailFailed ? ("send_failed" as const) : ("created" as const), sentAt: undefined, sentTo: undefined };
     return {
       ...entry,
       invoiceStatus: "sent" as const,
@@ -538,7 +546,7 @@ export function setPostSent(state: HonorarState, feeId: string, sent: boolean, u
 }
 
 export function bounceMail(state: HonorarState, feeId: string, user: string): HonorarState {
-  const fees = state.fees.map((fee) => (fee.id === feeId ? { ...fee, invoiceStatus: "send_failed" as const } : fee));
+  const fees = state.fees.map((fee) => (fee.id === feeId ? { ...fee, invoiceStatus: "send_failed" as const, mailFailed: true } : fee));
   return withHistory({ ...state, fees }, [history(state, user, "fee", feeId, "Versand fehlgeschlagen")]);
 }
 
@@ -976,15 +984,16 @@ export function sendSingleInvoice(state: HonorarState, invoiceId: string, user: 
 }
 
 export function simulateLastWorkingDay(state: HonorarState): HonorarState {
-  const count = state.openItems.filter((item) => {
-    const partner = partnerOf(state, item.partnerId);
-    return item.status !== "done" && partner?.advisor === "Mike Bennett";
-  }).length;
+  // The Offene Posten of the logged-in person's own partners: the same rows as in Mein Bereich.
+  const me = ROLE_USER[state.role];
+  const own = state.fees.filter((fee) => isOpenItemFee(state, fee) && partnerOf(state, fee.partnerId)?.advisor === me);
   return addNotice(state, {
     kind: "openItems",
     title: "Offene Posten prüfen",
-    subject: `${count} offen in deinem Bereich`,
+    subject: `${own.length} offen in deinem Bereich`,
     text: "Bitte prüfe deine Offenen Posten vor dem Monatsende.",
+    feeIds: own.map((fee) => fee.id),
+    to: me,
   });
 }
 
@@ -1016,6 +1025,7 @@ export function notifyAdvisor(state: HonorarState, feeId: string, reason: string
     subject: partner.name,
     text: `${reason}. Bitte kontaktiere den Kunden.`,
     feeId,
+    to: partner.advisor,
   });
   return withHistory(notified, [history(state, user, "fee", feeId, `Nachricht an ${partner.advisor} geschickt`)]);
 }
@@ -1034,6 +1044,7 @@ export function announceNewOpenItems(prev: HonorarState, next: HonorarState): Ho
     subject: added.length === 1 ? names[0] : `${names[0]} +${added.length - 1} weitere`,
     text: `${added.length === 1 ? "Ein Posten ist" : `${added.length} Posten sind`} neu in Offene Posten, offen: ${money(total)} €.`,
     feeId: added.length === 1 ? added[0].id : undefined,
+    feeIds: added.map((fee) => fee.id),
   });
 }
 
@@ -1071,7 +1082,7 @@ const WORKFLOW_KIND: Record<InvoiceWorkflowType, InvoiceCorrectionKind> = {
 function workflowNotice(state: HonorarState, feeId: string, to: string, title: string, text: string): HonorarState {
   const fee = state.fees.find((entry) => entry.id === feeId);
   const partner = fee ? partnerOf(state, fee.partnerId) : undefined;
-  return addNotice(state, { kind: "workflow", title: `${title} · an ${to}`, subject: partner?.name ?? "", text, feeId });
+  return addNotice(state, { kind: "workflow", title: `${title} · an ${to}`, subject: partner?.name ?? "", text, feeId, to });
 }
 
 function advisorOfFee(state: HonorarState, feeId: string) {

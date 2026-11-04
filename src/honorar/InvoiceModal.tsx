@@ -1,5 +1,5 @@
 import { zahlartLabel } from "./invoiceCells";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import * as a from "../assets/index";
 import { formatDay, monthLabel, servicePeriod } from "../lib/honorar/format";
 import type { Fee, Partner } from "../types/honorar";
@@ -101,6 +101,27 @@ function downloadInvoice(fee: Fee, partner: Partner | undefined, today: string) 
   URL.revokeObjectURL(url);
 }
 
+/** Prints only the invoice sheet: it goes into a hidden frame with the page's own styles. */
+function printSheet(sheet: HTMLElement | null) {
+  if (!sheet) return;
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  const win = frame.contentWindow;
+  if (!doc || !win) return frame.remove();
+  const styles = [...document.querySelectorAll('style, link[rel="stylesheet"]')].map((node) => node.outerHTML).join("");
+  doc.open();
+  doc.write(`<!doctype html><html><head><title>${INVOICE_FILE}</title>${styles}</head><body style="background:#fff">${sheet.outerHTML}</body></html>`);
+  doc.close();
+  win.addEventListener("afterprint", () => frame.remove());
+  window.setTimeout(() => {
+    win.focus();
+    win.print();
+  }, 150);
+}
+
 export function InvoiceModal({
   fee,
   partner,
@@ -113,6 +134,7 @@ export function InvoiceModal({
   onClose: () => void;
 }) {
   const d = invoiceData(fee, partner, today);
+  const sheetRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -136,7 +158,7 @@ export function InvoiceModal({
           </button>
         </header>
         <div className="hn-invoice-scroll">
-          <article className="hn-invoice-sheet">
+          <article className="hn-invoice-sheet" ref={sheetRef}>
             <h2>Honorarrechnung</h2>
             <p className="hn-invoice-meta">
               Rechnungsnummer {INVOICE_NUMBER}
@@ -176,6 +198,9 @@ export function InvoiceModal({
           </article>
         </div>
         <footer className="hn-invoice-foot">
+          <button type="button" className="btn-secondary" onClick={() => printSheet(sheetRef.current)}>
+            Drucken
+          </button>
           <button type="button" className="btn-primary" onClick={() => downloadInvoice(fee, partner, today)}>
             <Icon src={a.download} size={16} />
             Herunterladen

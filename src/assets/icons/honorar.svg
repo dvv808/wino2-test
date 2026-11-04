@@ -1,0 +1,13 @@
+<svg width="24" height="24" viewBox="4 5 39 39" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Icon_SubscriptionAbo" stroke="#313537" stroke-width="1.5">
+<rect x="16" y="12" width="16" height="25" rx="0.5"/>
+<path d="M21 18H24H27" stroke-linecap="round"/>
+<path d="M21 24H24H27" stroke-linecap="round"/>
+<path d="M32 15H40.5C40.7761 15 41 15.2239 41 15.5V33.5C41 33.7761 40.7761 34 40.5 34H32"/>
+<path d="M32 20H34.5H37" stroke-linecap="round"/>
+<path d="M32 26H34.5H37" stroke-linecap="round"/>
+<path d="M16 15H6.5C6.22386 15 6 15.2239 6 15.5V33.5C6 33.7761 6.22386 34 6.5 34H16"/>
+<path d="M16 20H13H10" stroke-linecap="round"/>
+<path d="M16 26H13H10" stroke-linecap="round"/>
+</g>
+</svg>

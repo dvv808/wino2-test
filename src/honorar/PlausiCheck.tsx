@@ -5,9 +5,20 @@ import type { Fee } from "../types/honorar";
 import { Icon, WarnBox } from "../ui";
 import { zahlartLabel } from "./invoiceCells";
 import { useHonorar } from "./store";
-import { PartnerAvatar, PartnerOpenButton, StepEmpty } from "./ui";
+import { ColumnFilter, FilterSummary, filterInputProps, matchesFilter, type FilterGroup } from "./ColumnFilter";
+import { PartnerAvatar, PartnerOpenButton, StepEmpty, StickyScroll } from "./ui";
 
-const COLUMNS = ["Partner", "Zahlart", "Betrag Wino / BMD", "Anschrift Wino / BMD", "Leistungszeitraum", "Ergebnis"];
+// Same table as Status zu Rechnungen: every column has its filter (icon + field) under the label.
+const COLUMNS = [
+  { key: "partner", label: "Partner" },
+  { key: "method", label: "Zahlart" },
+  { key: "amount", label: "Betrag Wino / BMD" },
+  { key: "address", label: "Anschrift Wino / BMD" },
+  { key: "period", label: "Leistungszeitraum" },
+  { key: "result", label: "Ergebnis" },
+] as const;
+
+type ColumnKey = (typeof COLUMNS)[number]["key"];
 
 const GAP_LABEL = { amount: "Betrag", address: "Anschrift", email: "E-Mail", servicePeriod: "Leistungszeitraum" } as const;
 
@@ -22,6 +33,7 @@ function money(value: number) {
  */
 export function PlausiCheck({ monthId, fees, loaded }: { monthId: string; fees: Fee[]; loaded: boolean }) {
   const { state, loadBmd, importBmdCorrection, realignFee } = useHonorar();
+  const [filters, setFilters] = useState<Partial<Record<ColumnKey, string>>>({});
   // The comparison takes a moment, like a real lookup: no instant flash of results.
   const [checking, setChecking] = useState(loaded);
   useEffect(() => {
@@ -45,11 +57,29 @@ export function PlausiCheck({ monthId, fees, loaded }: { monthId: string; fees: 
     );
   }
 
-  const rows = fees.map((fee) => {
+  const allRows = fees.map((fee) => {
     const partner = partnerOf(state, fee.partnerId);
-    return { fee, partner, gaps: dispatchMismatches(fee, partner) };
+    const gaps = dispatchMismatches(fee, partner);
+    const text: Record<ColumnKey, string> = {
+      partner: partner?.name ?? "",
+      method: zahlartLabel(fee.paymentMethod),
+      amount: `${money(fee.amount)} ${fee.bmd ? money(fee.bmd.amount) : ""}`,
+      address: `${partner?.address ?? ""} ${fee.bmd?.address ?? ""}`,
+      period: fee.servicePeriod,
+      result: gaps.length ? `Abweichung ${gaps.map((gap) => GAP_LABEL[gap]).join(" ")}` : "Stimmt überein",
+    };
+    return { fee, partner, gaps, text };
   });
-  const off = rows.filter((row) => row.gaps.length > 0);
+  const off = allRows.filter((row) => row.gaps.length > 0);
+  // Ergebnis: matches or not, and which field deviates.
+  const groups: Partial<Record<ColumnKey, FilterGroup[]>> = {
+    result: [
+      { label: "Ergebnis", options: ["Stimmt überein", "Abweichung"] },
+      { label: "Abweichung bei", options: Object.values(GAP_LABEL).filter((gap) => off.some((row) => row.text.result.includes(gap))) },
+    ],
+    method: [{ label: "Zahlart", options: ["SEPA-Lastschrift", "Überweisung"] }],
+  };
+  const rows = allRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key])));
 
   function importCorrection() {
     importBmdCorrection(monthId);
@@ -86,11 +116,27 @@ export function PlausiCheck({ monthId, fees, loaded }: { monthId: string; fees: 
         </div>
       )}
 
+      <FilterSummary filters={filters} shown={rows.length} total={allRows.length} onReset={() => setFilters({})} />
+      <StickyScroll>
       <div className="hn-status-table plausi" role="table" aria-label="Plausibilitätscheck">
         <div className="hn-st-head" role="row">
-          {COLUMNS.map((label) => (
-            <div className="hn-st-th" role="columnheader" key={label}>
-              <span className="hn-st-label">{label}</span>
+          {COLUMNS.map((column) => (
+            <div className="hn-st-th" role="columnheader" key={column.key}>
+              <span className="hn-st-label">
+                {column.label}
+                <ColumnFilter
+                  label={column.label}
+                  value={filters[column.key] ?? ""}
+                  samples={allRows.map((row) => row.text[column.key])}
+                  groups={groups[column.key]}
+                  onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
+                />
+              </span>
+              <input
+                className="col-input"
+                aria-label={`${column.label} filtern`}
+                {...filterInputProps(filters[column.key], (next) => setFilters((current) => ({ ...current, [column.key]: next })))}
+              />
             </div>
           ))}
         </div>
@@ -142,6 +188,7 @@ export function PlausiCheck({ monthId, fees, loaded }: { monthId: string; fees: 
           );
         })}
       </div>
+      </StickyScroll>
     </>
   );
 }

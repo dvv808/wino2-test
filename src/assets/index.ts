@@ -162,6 +162,8 @@ export { default as navMail } from "./icons/nav-mail.svg";
 export { default as navNotes } from "./icons/nav-notes.svg";
 export { default as navFolder } from "./icons/nav-folder.svg";
 export { default as navRequest } from "./icons/nav-request.svg";
+/** Honorar / Forderungen (Figma Wino – Icons: Icon_SubscriptionAbo). */
+export { default as honorar } from "./icons/honorar.svg";
 export { default as navBank } from "./icons/nav-bank.svg";
 export { default as navTodo } from "./icons/nav-todo.svg";
 export { default as navHistory } from "./icons/nav-history.svg";

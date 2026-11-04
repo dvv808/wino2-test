@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as a from "../assets/index";
-import { Icon } from "../ui";
+import { Icon, ShelveToggleIcon } from "../ui";
 import { useWorkflow } from "../workflow";
 import type { Fee, OpenItemStatus, Partner, PaymentStatus } from "../types/honorar";
 import { money } from "./invoiceCells";
@@ -409,7 +409,7 @@ export function HnKicker({ children }: { children: ReactNode }) {
           title={collapsed ? "Navigation einblenden" : "Navigation ausblenden"}
           onClick={toggle}
         >
-          <Icon src={a.shelveToggle} size={18} />
+          <ShelveToggleIcon collapsed={collapsed} />
         </button>
         {collapsed ? (
           <button

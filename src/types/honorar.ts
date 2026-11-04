@@ -77,6 +77,8 @@ export interface Fee {
   settledVia?: "credit" | "due_date";
   /** Rechnungskorrektur of this invoice (Info zur Rechnung). */
   correction?: InvoiceCorrection;
+  /** The invoice mail did not arrive: it went over to Post-Versand. Stays set once the letter is out. */
+  mailFailed?: boolean;
   /** Zahlart switched in Daten erfassen (SEPA-Lastschrift ↔ Überweisung), with the required comment. */
   paymentMethodChange?: { from: PaymentMethod; comment: string };
 }
@@ -189,6 +191,10 @@ export interface HonorarNotice {
   title?: string;
   subject?: string;
   feeId?: string;
+  /** Every invoice the notice is about (e.g. all new Offene Posten), so "Ansehen" can highlight their rows. */
+  feeIds?: string[];
+  /** The person the notice is for; notices without one go to whoever is responsible for their invoices. */
+  to?: string;
 }
 
 export interface HonorarState {

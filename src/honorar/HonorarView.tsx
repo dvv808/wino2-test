@@ -37,7 +37,7 @@ export function FinanzenModuleNav() {
         Dashboard &amp; Listen
       </button>
       <button type="button" className="module-pill active">
-        <Icon src={a.navRequest} size={24} />
+        <Icon src={a.honorar} size={24} />
         Forderungen
       </button>
       <button type="button" className="module-pill">

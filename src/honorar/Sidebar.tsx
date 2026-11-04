@@ -86,7 +86,7 @@ export function HonorarSidebar() {
       <header className="pp-side-head">
         <span className="hn-side-avatar">
           <img src={a.avatarBg} alt="" />
-          <Icon src={a.requestSmall} size={22} />
+          <Icon src={a.honorar} size={22} />
         </span>
         <span className="pp-side-title">
           <strong>Honorarverrechnung</strong>

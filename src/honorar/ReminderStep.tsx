@@ -5,7 +5,7 @@ import { feesOfMonth, monthOf, partnerOf, reminderCandidates } from "../lib/hono
 import type { Fee, Partner, ReminderTab } from "../types/honorar";
 import { Icon, Snackbar } from "../ui";
 import { useWorkflow } from "../workflow";
-import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
+import { ColumnFilter, FilterSummary, filterInputProps, matchesFilter, type FilterGroup } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { MailAddressModal } from "./MailAddressModal";
 import { clearFocusFee, peekFocusFee } from "./focusFee";
@@ -149,6 +149,19 @@ export function ReminderStep() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, finanzenMonth, stat, tab]);
+  // Status columns are short lists; Versandart is only Mail or Post, not one entry per address.
+  const groups: Partial<Record<ColumnKey, FilterGroup[]>> = {
+    // Post-Erinnerungen all read "Post"; Mail keeps the searchable list of addresses.
+    // Status zur Zahlung: the main status and its notes (e.g. "Bezahlt nach Zahlungserinnerung") as two lists.
+    payment: (() => {
+      const infos = fees.map((fee) => paymentInfo(fee, undefined, expired));
+      const sorted = (values: string[]) => [...new Set(values.filter(Boolean))].sort((x, y) => x.localeCompare(y, "de"));
+      return [
+        { label: "Status", options: sorted(infos.map((info) => info.main)) },
+        { label: "Hinweis", options: sorted(infos.flatMap((info) => info.notes)) },
+      ];
+    })(),
+  };
   const rows = useMemo(
     () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
@@ -166,10 +179,10 @@ export function ReminderStep() {
       className="hn-done-toggle"
       role="switch"
       aria-checked={remindersDone}
-      disabled={!remindersDone && pending.length > 0}
+      // Stays clickable for testing; the hint says what is still open.
       title={
         !remindersDone && pending.length > 0
-          ? `Erst möglich, wenn alle ${tab === "post" ? "Post" : "Mail"}-Erinnerungen versendet sind.`
+          ? `Noch nicht alle ${tab === "post" ? "Post" : "Mail"}-Erinnerungen versendet. (Zum Testen trotzdem möglich.)`
           : undefined
       }
       onClick={() => setReminderTabDone(finanzenMonth, tab, !remindersDone)}
@@ -476,6 +489,7 @@ export function ReminderStep() {
             <div className="hn-status-tools-end">{doneToggle}</div>
           </div>
 
+          <FilterSummary filters={filters} shown={rows.length} total={baseRows.length} unit="Erinnerungen" onReset={() => setFilters({})} />
           <div className="hn-status-table dispatch reminders" role="table" aria-label="Zahlungserinnerungen">
             <div className="hn-st-head" role="row">
               {COLUMNS.map((column) => (
@@ -486,6 +500,7 @@ export function ReminderStep() {
                     label={column.label}
                     value={filters[column.key] ?? ""}
                     samples={baseRows.map((row) => row.text[column.key])}
+                    groups={groups[column.key]}
                     onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
                   /> : null}
                   </span>

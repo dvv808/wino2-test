@@ -6,7 +6,7 @@ import { feesOfMonth, missingFields, monthOf, partnerOf } from "../lib/honorar/q
 import type { Fee, Partner, PaymentMethod } from "../types/honorar";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { ColumnFilter, filterInputProps, matchesFilter } from "./ColumnFilter";
+import { ColumnFilter, FilterSummary, filterInputProps, matchesFilter, type FilterGroup } from "./ColumnFilter";
 import { useHonorar } from "./store";
 import { ConfirmModal, PartnerAvatar, PartnerOpenButton, ProfileDueMenu, RequiredCommentModal, StepEmpty, HnKicker, StickyScroll } from "./ui";
 
@@ -51,7 +51,7 @@ function rowText(fee: Fee, partner: Partner | undefined): Record<ColumnKey, stri
   return {
     partner: `${partner?.name ?? ""} ${partner ? partnerMeta(partner) : ""}`,
     address: partner?.address ?? "",
-    method: [zahlartLabel(fee.paymentMethod), fee.paymentMethodChange?.comment ?? ""].join(" "),
+    method: [zahlartLabel(fee.paymentMethod), fee.paymentMethodChange ? `Zahlart geändert ${fee.paymentMethodChange.comment}` : ""].join(" "),
     period: servicePeriod(fee.month),
     bank: bankText(partner),
     due: `${money(fee.amount)} ${fee.tariff}`,
@@ -204,6 +204,13 @@ export function DataStep() {
         return { fee, partner, text: rowText(fee, partner) };
       });
   }, [fees, state]);
+  // Zahlart: the two methods, and whether it was switched here (the comment stays searchable in the field).
+  const groups: Partial<Record<ColumnKey, FilterGroup[]>> = {
+    method: [
+      { label: "Zahlart", options: ["SEPA-Lastschrift", "Überweisung"] },
+      { label: "Änderung", options: ["Zahlart geändert"] },
+    ],
+  };
   const rows = useMemo(
     () => baseRows.filter((row) => COLUMNS.every((column) => matchesFilter(filters[column.key], row.text[column.key]))),
     [baseRows, filters],
@@ -266,6 +273,7 @@ export function DataStep() {
         </div>
       </div>
 
+      <FilterSummary filters={filters} shown={rows.length} total={baseRows.length} onReset={() => setFilters({})} />
       <StickyScroll>
       <div className="hn-status-table data" role="table" aria-label="Daten erfassen">
         <div className="hn-st-bands" role="row" aria-hidden>
@@ -285,6 +293,7 @@ export function DataStep() {
                     label={column.label}
                     value={filters[column.key] ?? ""}
                     samples={baseRows.map((row) => row.text[column.key])}
+                    groups={groups[column.key]}
                     onChange={(next) => setFilters((current) => ({ ...current, [column.key]: next }))}
                   /> : null}
               </span>

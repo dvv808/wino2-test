@@ -17,7 +17,7 @@ const PAGES: Record<Area, { label: string; icon: string }[]> = {
   ],
   Bestand: [
     { label: "Dashboard", icon: a.dashboard },
-    { label: "Honorare/Forderungen", icon: a.navRequest },
+    { label: "Honorare/Forderungen", icon: a.honorar },
   ],
 };
 

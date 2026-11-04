@@ -357,3 +357,25 @@ export function PersonSelect({
     </button>
   );
 }
+
+/**
+ * The side-nav toggle (Icon_ShelveToggleSwitchOpen), drawn inline so its arrow can turn:
+ * it points left while the nav is open and flips to point right once the nav is hidden.
+ */
+export function ShelveToggleIcon({ collapsed }: { collapsed: boolean }) {
+  return (
+    <span className="icon shelve-icon" style={{ width: 18, height: 18 }} aria-hidden>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <rect x="2.75" y="3.94727" width="12.485" height="10.1064" rx="1.5" stroke="#313537" />
+        <path d="M5.42969 3.83008C5.42969 7.64691 5.42969 10.3537 5.42969 14.1705" stroke="#313537" />
+        <path
+          className={collapsed ? "shelve-arrow flipped" : "shelve-arrow"}
+          d="M11.2754 6.7793L10.0029 8.07882C9.62229 8.46757 9.62229 9.08932 10.0029 9.47807L11.2754 10.7776"
+          stroke="#313537"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
+}

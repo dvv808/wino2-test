@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import * as a from "../assets/index";
-import { Icon } from "../ui";
+import { Icon, ShelveToggleIcon } from "../ui";
 
 type Shelf = { collapsed: boolean; toggle: () => void; open: boolean; setOpen: (open: boolean) => void };
 
@@ -85,7 +85,7 @@ export function ShelfTitle({ icon, children }: { icon: string; children: ReactNo
         title={collapsed ? "Navigation einblenden" : "Navigation ausblenden"}
         onClick={toggle}
       >
-        <Icon src={a.shelveToggle} size={18} />
+        <ShelveToggleIcon collapsed={collapsed} />
       </button>
       {collapsed ? (
         <button
