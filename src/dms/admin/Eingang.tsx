@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { assignDokument, predictLocation, ruleFromDokument, upsertRegel } from "../../lib/dms/admin";
+import { assignDokument, predictLocation } from "../../lib/dms/admin";
+import { linkSource } from "../../lib/dms/links";
 import { formatPath, linkChain } from "../../lib/dms/placeholders";
-import { eingang } from "../../lib/dms/views";
+import { SOURCE_LABEL } from "../../lib/dms/sources";
+import { buildView, eingang, findFolder } from "../../lib/dms/views";
 import { SPARTEN } from "../../mocks/dms/seed";
 import type { DocMeta, Dokument, EntityType, MetaField } from "../../types/dms";
 import { useDms } from "../store";
 import { DmsModal, DmsTable, formatDate } from "../ui";
-import { SOURCE_LABEL } from "./Ablageregeln";
 
 const ENTITY_TYPES: EntityType[] = ["Partner", "Kunde", "Versicherer", "Schaden"];
 const META_LABEL: Record<MetaField, string> = { sparte: "Sparte", jahr: "Jahr", gueltig_von: "Gültig von", gueltig_bis: "Gültig bis" };
@@ -39,7 +40,13 @@ function AssignModal({ doc, onClose }: { doc: Dokument; onClose: () => void }) {
             onClick={() => {
               apply((s) => {
                 let next = assignDokument(s, doc.id, { dokumenttyp: typId, link, meta });
-                if (asRule) next = upsertRegel(next, ruleFromDokument(next, doc, typId, link ? entityType : null));
+                // "Quelle hier verknüpfen": the upload point gets linked to the folder the file now lies in.
+                const place = asRule ? predictLocation(next, { dokumenttyp: typId, links: linkChain(link, next.entities), meta }).Verwaltung[0] : null;
+                const folder = place ? findFolder(buildView(next, "Verwaltung"), place) : null;
+                if (folder?.nodeId && folder.templateId) {
+                  const ctx = doc.upload_context;
+                  next = linkSource(next, folder.templateId, folder.nodeId, { source: ctx.source, slot: ctx.slot || null, dokumenttyp: typId }).state;
+                }
                 return next;
               });
               onClose();
@@ -121,10 +128,12 @@ function AssignModal({ doc, onClose }: { doc: Dokument; onClose: () => void }) {
             <strong>{where.Verwaltung.map(formatPath).join(" · ") || "keinem Ordner – bleibt unsichtbar"}</strong>
           </p>
         ) : null}
-        <label className="dms-check">
-          <input type="checkbox" checked={asRule} onChange={(e) => setAsRule(e.target.checked)} />
-          Als Regel speichern ({SOURCE_LABEL[doc.upload_context.source]})
-        </label>
+        {doc.upload_context.source !== "dms.dragdrop" ? (
+          <label className="dms-check">
+            <input type="checkbox" checked={asRule} onChange={(e) => setAsRule(e.target.checked)} />
+            Quelle mit diesem Ordner verknüpfen ({SOURCE_LABEL[doc.upload_context.source]})
+          </label>
+        ) : null}
       </div>
     </DmsModal>
   );

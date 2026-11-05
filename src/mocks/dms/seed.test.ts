@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDmsSeed, SPARTEN, VERSICHERER } from "./seed";
 import { DMS_STORAGE_KEY, loadDmsState } from "../../dms/store";
+import { effectiveRules } from "../../lib/dms/links";
 
 const seed = createDmsSeed();
 const byType = (typ: string | null) => seed.documents.filter((doc) => doc.dokumenttyp === typ);
@@ -68,8 +69,8 @@ describe("DMS seed", () => {
     expect(names.some((n) => n.includes("/"))).toBe(true);
   });
 
-  it("seeds every Ablageregel from the spec", () => {
-    expect(seed.regeln.map((r) => r.source)).toEqual(
+  it("links every upload point from the spec to a folder (the links are the Ablageregeln)", () => {
+    expect(effectiveRules(seed).map((r) => r.source)).toEqual(
       expect.arrayContaining([
         "maklervereinbarung.vertrag",
         "partner.aktivitaet.anhang",

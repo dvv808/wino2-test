@@ -16602,3 +16602,193 @@ button.hn-kpi.active strong {
   justify-content: flex-end;
   gap: 6px;
 }
+
+/* ---------------------------------------------------------------- DMS: Ordner Zuordnung */
+
+.dms-zu {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(300px, 0.9fr) minmax(360px, 1fr);
+  gap: 12px;
+  width: 100%;
+  height: calc(100vh - 220px);
+  min-height: 520px;
+}
+
+.dms-zu-tree,
+.dms-zu-sources,
+.dms-zu-details {
+  min-height: 0;
+}
+
+.dms-zu-tree > .dms-upload-note {
+  margin: 8px 16px 0;
+}
+
+.dms-zu-tree .dms-tree-list {
+  padding-top: 8px;
+}
+
+.dms-zu-row.drop-over {
+  border-color: var(--wino-blue-travel);
+  background: var(--wino-blue-light);
+  box-shadow: inset 0 0 0 1px var(--wino-blue-travel);
+}
+
+.dms-zu-row.via-link {
+  background: none;
+}
+
+.dms-zu-row.via-link .dms-tree-name {
+  cursor: default;
+  color: var(--wino-black-light);
+  font-style: italic;
+}
+
+.dms-tag.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--wino-blue-light);
+}
+
+.dms-link-count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--wino-black-dark);
+  color: var(--wino-white);
+  font-size: 11px;
+}
+
+.dms-link-count .icon img {
+  filter: brightness(0) invert(1);
+}
+
+.dms-zu-add {
+  flex: none;
+  padding: 12px 16px 16px;
+}
+
+.dms-zu-hint {
+  margin: 8px 16px 0;
+}
+
+.dms-zu-source-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dms-zu-module h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wino-black-light);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.dms-zu-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 10px;
+  background: var(--wino-white);
+  cursor: grab;
+}
+
+.dms-zu-source:active {
+  cursor: grabbing;
+}
+
+.dms-zu-source.unlinked {
+  border-color: var(--wino-signal-yellow);
+  background: var(--wino-signal-yellowlight);
+}
+
+.dms-zu-grip {
+  flex: none;
+  font-size: 12px;
+  letter-spacing: -2px;
+  color: var(--wino-black-light);
+}
+
+.dms-zu-source-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dms-zu-source-copy strong {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wino-black-dark);
+}
+
+.dms-zu-source-copy small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+  overflow-wrap: anywhere;
+}
+
+.dms-zu-details.empty {
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.dms-zu-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dms-zu-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--wino-bg-lighter);
+}
+
+.dms-zu-link-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.dms-zu-link .dms-input {
+  width: auto;
+  max-width: 170px;
+}
+
+.dms-zu-advanced {
+  align-self: flex-start;
+  margin-top: 8px;
+}
+
+.dms-ansicht {
+  margin: 12px 16px 0;
+  align-self: flex-start;
+}

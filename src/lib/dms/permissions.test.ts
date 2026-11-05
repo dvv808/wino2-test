@@ -36,9 +36,10 @@ describe("permission inheritance", () => {
     expect(level("mike", ["Partner", "Lunixo AG", "Anhänge"])).toBe("Bearbeiten"); // Backoffice rule below does not limit Partnerbetreuung
   });
 
-  it("Alle and mount folders", () => {
+  it("Alle and top folders", () => {
     expect(level("elif", ["Unternehmen", "Versicherer", "Feuerversicherung"], standard)).toBe("Sehen");
-    expect(level("lucy", ["Kunden"])).toBeNull(); // mount folder: no rule of its own
+    expect(level("lucy", ["Kunden"])).toBe("Verwalten"); // the top folder carries the DMS-Admin rule
+    expect(level("anna", ["Kunden"])).toBeNull(); // Backoffice starts one level below
   });
 });
 
@@ -89,7 +90,7 @@ describe("Wer hat Zugriff?", () => {
   it("lists every person with level and source, inheritance resolved", () => {
     const list = whoHasAccess(verwaltung, [...STEINER, "Schäden"], state);
     const row = (id: string) => list.find((e) => e.person.id === id);
-    expect(row("lucy")).toMatchObject({ level: "Verwalten", inherited: true, via: "Rolle DMS-Admin · geerbt von Kunden / Transporte Steiner ∕ Wels GmbH" });
+    expect(row("lucy")).toMatchObject({ level: "Verwalten", inherited: true, via: "Rolle DMS-Admin · geerbt von Kunden" });
     expect(row("markus")).toMatchObject({ level: "Bearbeiten", inherited: false, via: "Schadenabteilung" });
     expect(row("anna")).toMatchObject({ level: "Bearbeiten", inherited: true });
     expect(row("thomas")).toMatchObject({ level: "Sehen", via: "Geschäftsführung · geerbt von Kunden / Transporte Steiner ∕ Wels GmbH" });

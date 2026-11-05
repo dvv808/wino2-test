@@ -43,8 +43,9 @@ export function updateNode(state: DmsState, vorlageId: string, nodeId: string, p
   return editVorlage(state, vorlageId, (v) => ({ ...v, root: mapTree(v.root, (n) => (n.id === nodeId ? { ...n, ...patch } : n)) }));
 }
 
-export function addChildNode(state: DmsState, vorlageId: string, parentId: string, name = "Neuer Ordner") {
-  const node: Knoten = { id: newId("n"), name, filter: [], permissions: [], children: [] };
+/** `id` can be made before the state update, so a StrictMode double call keeps the same id. */
+export function addChildNode(state: DmsState, vorlageId: string, parentId: string, name = "Neuer Ordner", id = newId("n")) {
+  const node: Knoten = { id, name, filter: [], permissions: [], children: [] };
   const next = editVorlage(state, vorlageId, (v) => ({
     ...v,
     root: mapTree(v.root, (n) => (n.id === parentId ? { ...n, children: [...n.children, node] } : n)),
@@ -121,8 +122,8 @@ export function updateTyp(state: DmsState, typId: string, fn: (typ: Dokumenttyp)
   return { ...state, dokumenttypen: state.dokumenttypen.map((t) => (t.id === typId ? fn(t) : t)) };
 }
 
-export function addTyp(state: DmsState, name: string) {
-  const typ: Dokumenttyp = { id: newId("typ"), name, requiredFields: [], workflow: { states: [], transitions: [], auto: [] } };
+export function addTyp(state: DmsState, name: string, id = newId("typ")) {
+  const typ: Dokumenttyp = { id, name, requiredFields: [], workflow: { states: [], transitions: [], auto: [] } };
   return { state: { ...state, dokumenttypen: [...state.dokumenttypen, typ] }, typId: typ.id };
 }
 
@@ -175,8 +176,8 @@ export function setMembers(state: DmsState, groupId: string, members: string[]):
   return { ...state, groups: state.groups.map((g) => (g.id === groupId ? { ...g, members } : g)) };
 }
 
-export function addGroup(state: DmsState, name: string) {
-  const group: Gruppe = { id: newId("g"), name, members: [] };
+export function addGroup(state: DmsState, name: string, id = newId("g")) {
+  const group: Gruppe = { id, name, members: [] };
   return { state: { ...state, groups: [...state.groups, group] }, groupId: group.id };
 }
 

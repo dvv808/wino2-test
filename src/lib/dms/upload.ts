@@ -2,6 +2,7 @@ import type { DmsState, DocMeta, Dokument, PersonId, UploadContext } from "../..
 import { linkChain } from "./placeholders";
 import { isUnmatched, resolveAblage, type AblageEnv, type AblageResult } from "./resolveAblage";
 import { applyAutoTransitions } from "./workflow";
+import { effectiveRules } from "./links";
 
 export type UploadFile = { name: string; size: number; mime: string };
 
@@ -54,7 +55,7 @@ export function uploadToState(
 ) {
   const env: AblageEnv = { entities: state.entities, dokumenttypen: state.dokumenttypen, folder: input.folder };
   const known = { ...input.context, knownMetadata: { ...input.context.knownMetadata, ...(input.filled ?? {}) } };
-  const result = resolveAblage(known, state.regeln, env);
+  const result = resolveAblage(known, effectiveRules(state), env);
   const doc = buildDokument({
     ...input,
     result,

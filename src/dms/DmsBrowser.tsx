@@ -315,7 +315,18 @@ function Preview({ doc, folder, canEdit }: { doc: Dokument | null; folder: Folde
   );
 }
 
-export function DmsBrowser({ ansicht, title, lockConfidential = false }: { ansicht: Ansicht; title: string; lockConfidential?: boolean }) {
+export function DmsBrowser({
+  ansicht,
+  title,
+  lockConfidential = false,
+  onAnsicht,
+}: {
+  ansicht: Ansicht;
+  title: string;
+  lockConfidential?: boolean;
+  /** Spaces: switch between the Verwaltung and the Standard outcome. */
+  onAnsicht?: (next: Ansicht) => void;
+}) {
   const { state } = useDms();
   const person = state.people.find((p) => p.id === state.activePerson) ?? state.people[0];
   const full = useMemo(() => buildView(state, ansicht), [state, ansicht]);
@@ -433,6 +444,15 @@ export function DmsBrowser({ ansicht, title, lockConfidential = false }: { ansic
           <header className="dms-panel-head">
             <PersonSwitch title={title} />
           </header>
+          {onAnsicht ? (
+            <div className="dms-segment dms-ansicht" role="tablist">
+              {(["Verwaltung", "Standard"] as Ansicht[]).map((x) => (
+                <button type="button" key={x} className={ansicht === x ? "active" : ""} onClick={() => onAnsicht(x)}>
+                  {x}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <label className="dms-search">
             <Icon src={a.search} size={20} />
             <input placeholder="Suchen..." value={search} onChange={(event) => setSearch(event.target.value)} />

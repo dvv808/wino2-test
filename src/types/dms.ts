@@ -107,8 +107,14 @@ export type Bedingung =
   /** `to: "$entity"` = the entity the template was instantiated for. */
   | { kind: "link"; entityType: EntityType; to?: "$entity" | string };
 
-/** A level made of one folder per distinct value, e.g. {Sparte} or {Versicherer}. */
-export type GroupBy = { kind: "meta"; field: MetaField } | { kind: "link"; entityType: EntityType };
+/**
+ * A level made of one folder per value, e.g. {Sparte} or {Versicherer}. With `allEntities` an entity level has a
+ * folder for every Partner/Kunde/… in Stammdaten, also without documents (created automatically).
+ */
+export type GroupBy = { kind: "meta"; field: MetaField } | { kind: "link"; entityType: EntityType; allEntities?: boolean };
+
+/** An upload point linked to a folder: its files show up here and get this Dokumenttyp. */
+export type QuellenLink = { source: UploadSource; slot: string | null; dokumenttyp: string };
 
 export type Principal =
   | { kind: "Person"; id: PersonId }
@@ -129,6 +135,12 @@ export type Knoten = {
   groupBy?: GroupBy;
   /** Standard view of Versicherer: per (Sparte, Versicherer, Dokumenttyp) only the highest Jahr. */
   latestOnly?: boolean;
+  /** Upload points linked to this folder (Ordner Zuordnung). */
+  quellen?: QuellenLink[];
+  /** Takes over the sub-folders of another folder (by id), filled with this folder's own documents. */
+  linkTo?: string;
+  /** The folder name is the value, e.g. a folder "Feuerversicherung" holds documents with that Sparte. */
+  nameMatches?: MetaField;
   permissions: Berechtigung[];
   children: Knoten[];
 };
@@ -168,7 +180,7 @@ export type DmsPerson = { id: PersonId; name: string; rollen: Rolle[]; photo?: s
 export type Gruppe = { id: GroupId; name: string; members: PersonId[] };
 
 export type DmsState = {
-  version: 1;
+  version: 2;
   /** "Today" of the prototype, so automatic transitions and "nicht aktuell" are reproducible. */
   today: string;
   activePerson: PersonId;

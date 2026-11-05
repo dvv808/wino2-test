@@ -63,6 +63,27 @@ Stand: 05.11.2026 · Status: **freigegeben**. Phasen a–g erledigt.
   - Die Karte trägt Status-Buttons (gleiches `setStatus`) und „Im DMS“, das Mein Bereich → Dokumente mit dem Dokument geöffnet zeigt (`src/dms/focus.ts`).
   - Ein Wechsel auf der Karte oder im DMS ändert denselben Datensatz; Test ergänzt.
   - Hinweis: Ashley bleibt bis zur Umwandlung gesperrt, die Karten erscheinen dort erst danach. Die bestehende Honorar- bzw. Workflow-Karte bleibt zusätzlich in „Gültig“ (K4 offen).
+- **Umbau 05.11.2026: Ordner Zuordnung und Spaces**
+  - **Navigation:** Die Pills „Ordner Zuordnung | Spaces“ sind gruppiert (`module-group` wie in HRM). „Ordnervorlagen“ und „Ablageregeln“ fallen weg.
+  - **Ordner Zuordnung** (`src/dms/admin/Zuordnung.tsx`) hat drei Panels:
+    - Ordnerstruktur je Ansicht.
+    - Quellen: alle Upload-Punkte; nicht verknüpfte sind amber markiert („landet im Eingang“).
+    - Ordner-Details: Name, Ebene, verknüpfter Ordner, verknüpfte Quellen mit Dokumenttyp, Berechtigungen, Erweitert.
+  - **Quelle verknüpfen:** eine Quelle auf einen Ordner ziehen.
+    - Fehlt die Ebene für ihre Entität, wird „{Partner.Name}“ (bzw. Kunde, …) angelegt (`groupBy … allEntities`, ein Ordner je Entität aus den Stammdaten).
+    - Eine Quelle ist genau einmal verknüpft; ein erneutes Ziehen verschiebt die Verknüpfung.
+  - **Ablageregeln** werden aus den Verknüpfungen abgeleitet (`effectiveRules` in `src/lib/dms/links.ts`); in `regeln` bleibt nur Drag & Drop.
+  - **Ordner verknüpfen** (`linkTo`): z. B. übernimmt Versicherungen / {Versicherer} / Fachbereiche die Unterordner von Global / Fachbereiche.
+    - Die Unterordner tragen „Name = Sparte“ (`nameMatches`) und werden mit den eigenen Dokumenten gefüllt.
+    - Global / Fachbereiche ist die Namensliste und hält selbst keine Dokumente.
+  - **Regeln der Ablage:**
+    - Ein Ordner hält Dokumente über eine verknüpfte Quelle oder einen Dokumenttyp-Filter.
+    - Ist eine Quelle in der Ansicht verknüpft, erscheinen ihre Dateien nur dort.
+    - Gruppier-Ebenen wie {Versicherer} halten keine übrig gebliebenen Dokumente.
+  - **Spaces:** das Ergebnis mit Umschalter Verwaltung / Standard.
+  - **Eingang:** „Quelle mit diesem Ordner verknüpfen“ ersetzt „Als Regel speichern“.
+  - **Gespeicherter Zustand:** Version 2; ein alter Stand startet neu aus dem Seed.
+
 
 ## 1. Was existiert und was wiederverwendet wird
 

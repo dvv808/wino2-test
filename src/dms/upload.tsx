@@ -3,6 +3,7 @@ import * as a from "../assets/index";
 import { formatPath } from "../lib/dms/placeholders";
 import { isUnmatched, resolveAblage, type FolderDefaults } from "../lib/dms/resolveAblage";
 import { syncEntities, uploadToState, type UploadFile } from "../lib/dms/upload";
+import { effectiveRules } from "../lib/dms/links";
 import { SPARTEN } from "../mocks/dms/seed";
 import { listedPartners } from "../person/partners";
 import type { DmsEntity, DmsState, DocMeta, MetaField, UploadContext } from "../types/dms";
@@ -65,7 +66,7 @@ export function useDmsUpload(context: UploadContext, folder?: FolderDefaults) {
     const files = [...(list ?? [])].map(toUploadFile);
     if (!files.length) return;
     const env = { entities: syncEntities(state, appEntities()).entities, dokumenttypen: state.dokumenttypen, folder };
-    const result = resolveAblage(context, state.regeln, env);
+    const result = resolveAblage(context, effectiveRules(state), env);
     if (!isUnmatched(result) && result.missingFields.length) setPending({ files, missing: result.missingFields });
     else commit(files, undefined);
   }

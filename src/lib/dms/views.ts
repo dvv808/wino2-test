@@ -9,6 +9,7 @@ import type {
   Knoten,
   Level,
   Ordnervorlage,
+  QuellenLink,
 } from "../../types/dms";
 import { entityValues, fillSegment, safeSegment, type PlaceholderValues } from "./placeholders";
 import type { FolderDefaults } from "./resolveAblage";
@@ -53,6 +54,10 @@ type Ctx = {
   year: number;
   /** Whether this folder or one above has a filter. Without one a folder only groups its sub-folders. */
   filtered: boolean;
+  /** Every template node by id, for folder links. */
+  nodes: Map<string, Knoten>;
+  /** Upload points linked somewhere in this Ansicht: their files show only where they are linked. */
+  linked: QuellenLink[];
 };
 
 export function matches(doc: Dokument, cond: Bedingung, entity: EntityLink | null): boolean {
@@ -77,7 +82,50 @@ export function matches(doc: Dokument, cond: Bedingung, entity: EntityLink | nul
   }
 }
 
-function narrowDefaults(defaults: FolderDefaults, filter: Bedingung[], entity: EntityLink | null): FolderDefaults {
+export function quelleMatches(doc: Dokument, q: QuellenLink) {
+  return doc.upload_context.source === q.source && (q.slot === null || doc.upload_context.slot === q.slot);
+}
+
+/** The sub-folders a node shows: its own, or those of the folder it links to (followed a few steps, no loops). */
+export function childrenOf(node: Knoten, nodes: Map<string, Knoten>): Knoten[] {
+  let current = node;
+  const seen = new Set([node.id]);
+  while (current.linkTo && nodes.has(current.linkTo) && !seen.has(current.linkTo)) {
+    current = nodes.get(current.linkTo)!;
+    seen.add(current.id);
+  }
+  return current.children;
+}
+
+/** The node's own conditions; "name = value" folders (e.g. "Feuerversicherung") add a metadata condition. */
+function conditionsOf(node: Knoten, name: string): Bedingung[] {
+  if (!node.nameMatches) return node.filter;
+  const value = node.nameMatches === "jahr" ? Number(name) : name;
+  return [...node.filter, { kind: "meta", field: node.nameMatches, op: "eq", value }];
+}
+
+/**
+ * Whether a document belongs to a folder. "What" it holds is a Dokumenttyp filter or a linked upload point
+ * (either is enough); every other condition (links, metadata, status) must hold as well.
+ */
+function nodeMatches(doc: Dokument, node: Knoten, conds: Bedingung[], entity: EntityLink | null, linked: QuellenLink[]) {
+  const typ = conds.filter((c) => c.kind === "typ");
+  if (!conds.filter((c) => c.kind !== "typ").every((c) => matches(doc, c, entity))) return false;
+  const quellen = node.quellen ?? [];
+  if (quellen.some((q) => quelleMatches(doc, q))) return true;
+  if (!typ.length) return !quellen.length;
+  // A file from an upload point linked elsewhere in this Ansicht is not taken by a Dokumenttyp filter.
+  if (linked.some((q) => quelleMatches(doc, q))) return false;
+  return typ.every((c) => matches(doc, c, entity));
+}
+
+/** Every upload point linked in a node or below it. */
+export function subtreeQuellen(node: Knoten, nodes: Map<string, Knoten>, depth = 0): QuellenLink[] {
+  if (depth > 12) return [];
+  return [...(node.quellen ?? []), ...childrenOf(node, nodes).flatMap((c) => subtreeQuellen(c, nodes, depth + 1))];
+}
+
+function narrowDefaults(defaults: FolderDefaults, filter: Bedingung[], entity: EntityLink | null, quellen: QuellenLink[] = []): FolderDefaults {
   let { typen } = defaults;
   const meta = { ...defaults.meta };
   const links = [...defaults.links];
@@ -93,6 +141,8 @@ function narrowDefaults(defaults: FolderDefaults, filter: Bedingung[], entity: E
       }
     }
   }
+  // A folder with only linked upload points: a drop here gets their Dokumenttyp.
+  if (!filter.some((c) => c.kind === "typ") && quellen.length) typen = [...new Set(quellen.map((q) => q.dokumenttyp))];
   return { ...defaults, typen, meta, links };
 }
 
@@ -115,11 +165,20 @@ function folder(node: Knoten, name: string, pool: Dokument[], ctx: Ctx, values: 
   const path = [...ctx.path, name];
   const consumed = new Set<string>();
   const children: FolderNode[] = [];
-  for (const child of node.children) {
-    const result = instantiate(child, { ...ctx, path, pool, values, defaults: { ...defaults, path } });
+  const kids = childrenOf(node, ctx.nodes);
+  // A file from a linked upload point goes only to the sub-folder it is linked to, never also to a sibling
+  // that would take it by its Dokumenttyp.
+  const claims = kids.map((child) => {
+    const quellen = subtreeQuellen(child, ctx.nodes);
+    return new Set(quellen.length ? pool.filter((d) => quellen.some((q) => quelleMatches(d, q))).map((d) => d.id) : []);
+  });
+  kids.forEach((child, index) => {
+    const own = claims[index];
+    const childPool = pool.filter((d) => own.has(d.id) || !claims.some((c, j) => j !== index && c.has(d.id)));
+    const result = instantiate(child, { ...ctx, path, pool: childPool, values, defaults: { ...defaults, path } });
     result.consumed.forEach((id) => consumed.add(id));
     children.push(...result.folders);
-  }
+  });
   const own = ctx.filtered ? pool.filter((doc) => !consumed.has(doc.id)) : [];
   own.forEach((doc) => consumed.add(doc.id));
   const node_: FolderNode = {
@@ -140,7 +199,9 @@ function folder(node: Knoten, name: string, pool: Dokument[], ctx: Ctx, values: 
 }
 
 function instantiate(node: Knoten, ctx: Ctx): { folders: FolderNode[]; consumed: Set<string> } {
-  let pool = ctx.pool.filter((doc) => node.filter.every((cond) => matches(doc, cond, ctx.entity)));
+  const staticName = node.groupBy ? "" : fillSegment(node.name, ctx.values).text;
+  const conds = conditionsOf(node, staticName);
+  let pool = ctx.pool.filter((doc) => nodeMatches(doc, node, conds, ctx.entity, ctx.linked));
   let stale = ctx.stale;
   // Older years left out by "latest only" are taken by this node too, so they never fall back into the parent.
   const hidden: string[] = [];
@@ -151,18 +212,30 @@ function instantiate(node: Knoten, ctx: Ctx): { folders: FolderNode[]; consumed:
     pool = latest.latest;
     stale = new Set([...ctx.stale, ...latest.stale]);
   }
-  const defaults = narrowDefaults(ctx.defaults, node.filter, ctx.entity);
-  const inner = { ...ctx, stale, filtered: ctx.filtered || node.filter.length > 0 || Boolean(node.groupBy) };
+  const defaults = narrowDefaults(ctx.defaults, conds, ctx.entity, node.quellen);
+  const inner = {
+    ...ctx,
+    stale,
+    // A level such as {Versicherer} only sorts; it does not make its folders hold leftover documents.
+    filtered: ctx.filtered || conds.length > 0 || Boolean(node.quellen?.length),
+  };
 
   if (!node.groupBy) {
-    const name = fillSegment(node.name, ctx.values).text;
-    const made = folder(node, name, pool, inner, ctx.values, defaults);
+    const made = folder(node, staticName, pool, inner, ctx.values, defaults);
     hidden.forEach((id) => made.consumed.add(id));
     return { folders: [made.folder], consumed: made.consumed };
   }
 
   const groupBy = node.groupBy;
   const groups = new Map<string, Dokument[]>();
+  if (groupBy.kind === "link" && groupBy.allEntities) {
+    // One folder for every entity in Stammdaten, also without documents. A Schaden only under its own Kunde.
+    for (const e of [...ctx.entities].filter((x) => x.type === groupBy.entityType).sort(byName)) {
+      const parent = e.parent;
+      if (parent && ctx.entity && parent.entityType === ctx.entity.entityType && parent.entityId !== ctx.entity.entityId) continue;
+      groups.set(e.id, []);
+    }
+  }
   for (const doc of pool) {
     const value =
       groupBy.kind === "meta" ? doc.meta[groupBy.field] : doc.links.find((l) => l.entityType === groupBy.entityType)?.entityId;
@@ -175,6 +248,7 @@ function instantiate(node: Knoten, ctx: Ctx): { folders: FolderNode[]; consumed:
   for (const [value, docs] of groups) {
     let values: PlaceholderValues;
     let groupDefaults: FolderDefaults;
+    let groupCtx = inner;
     if (groupBy.kind === "meta") {
       const typed = groupBy.field === "jahr" ? Number(value) : value;
       values = { ...ctx.values, [groupBy.field === "jahr" ? "Jahr" : "Sparte"]: typed };
@@ -183,8 +257,9 @@ function instantiate(node: Knoten, ctx: Ctx): { folders: FolderNode[]; consumed:
       const link = { entityType: groupBy.entityType, entityId: value };
       values = { ...ctx.values, ...entityValues(link, ctx.entities) };
       groupDefaults = { ...defaults, links: [...defaults.links, link] };
+      groupCtx = { ...inner, entity: link };
     }
-    const made = folder(node, fillSegment(node.name, values).text, docs, inner, values, groupDefaults);
+    const made = folder(node, fillSegment(node.name, values).text, docs, groupCtx, values, groupDefaults);
     made.consumed.forEach((id) => consumed.add(id));
     folders.push(made.folder);
   }
@@ -246,6 +321,17 @@ function countAndSort(list: FolderNode[], sortList: boolean) {
   }
 }
 
+/** Every node of every template by id (a folder link may point into another template). */
+export function nodeIndex(vorlagen: Ordnervorlage[]) {
+  const map = new Map<string, Knoten>();
+  const add = (n: Knoten) => {
+    map.set(n.id, n);
+    n.children.forEach(add);
+  };
+  vorlagen.forEach((v) => add(v.root));
+  return map;
+}
+
 function instancesOf(vorlage: Ordnervorlage, entities: DmsEntity[]) {
   if (vorlage.scope === "global") return [null];
   return entities.filter((e) => e.type === vorlage.scope).sort(byName);
@@ -259,6 +345,8 @@ export function buildView(state: Pick<DmsState, "vorlagen" | "entities" | "docum
   const roots: FolderNode[] = [];
   const pool = docs.filter((doc) => doc.dokumenttyp !== null);
   const year = Number(state.today.slice(0, 4));
+  const nodes = nodeIndex(state.vorlagen);
+  const linked = state.vorlagen.filter((v) => v.ansichten.includes(ansicht)).flatMap((v) => subtreeQuellen(v.root, nodes));
   for (const vorlage of state.vorlagen.filter((v) => v.ansichten.includes(ansicht))) {
     const target = mountFolder(roots, vorlage.mount);
     const mountPath = vorlage.mount.map(safeSegment);
@@ -275,6 +363,8 @@ export function buildView(state: Pick<DmsState, "vorlagen" | "entities" | "docum
         entities: state.entities,
         year,
         filtered: false,
+        nodes,
+        linked,
       });
       result.folders.forEach((f) => mergeInto(target, f));
     }

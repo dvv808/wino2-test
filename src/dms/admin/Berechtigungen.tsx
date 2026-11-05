@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import * as a from "../../assets/index";
-import { addGroup, setMembers } from "../../lib/dms/admin";
+import { addGroup, newId, setMembers } from "../../lib/dms/admin";
 import { whoHasAccess } from "../../lib/dms/permissions";
 import { formatPath } from "../../lib/dms/placeholders";
 import { buildView, findFolder, walk, type FolderNode } from "../../lib/dms/views";
@@ -88,13 +88,9 @@ export function Berechtigungen() {
             type="button"
             className="btn-secondary"
             onClick={() => {
-              let id = "";
-              apply((s) => {
-                const made = addGroup(s, "Neue Gruppe");
-                id = made.groupId;
-                return made.state;
-              });
-              window.setTimeout(() => setGroupId(id));
+              const id = newId("g");
+              apply((s) => addGroup(s, "Neue Gruppe", id).state);
+              setGroupId(id);
             }}
           >
             + Gruppe

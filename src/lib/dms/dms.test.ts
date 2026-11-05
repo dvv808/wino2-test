@@ -4,6 +4,7 @@ import type { Ablageregel, DmsState, UploadContext } from "../../types/dms";
 import { fillPath, safeSegment } from "./placeholders";
 import { isUnmatched, resolveAblage, type AblageMatch } from "./resolveAblage";
 import { uploadToState } from "./upload";
+import { effectiveRules } from "./links";
 import { buildView, eingang, findFolder, locateDocument, walk, type FolderNode } from "./views";
 import { applyAllAutoTransitions, applyAutoTransitions, setStatus } from "./workflow";
 
@@ -25,6 +26,7 @@ const NOW = "2026-11-05T10:00:00";
 
 describe("resolveAblage – specificity", () => {
   const base = fresh();
+  // Priority above the folder links (10), so this hand-made rule wins at the same specificity.
   const wirtschaft: Ablageregel = {
     id: "r-wirtschaft",
     name: "Partner → Wirtschaftsdaten → Anhang",
@@ -34,16 +36,16 @@ describe("resolveAblage – specificity", () => {
     requires: [],
     dokumenttyp: "bankdokument",
     targetPath: "Partner/{Partner.Name}/Anhänge",
-    priority: 0,
+    priority: 20,
   };
   const generic: Ablageregel = { ...wirtschaft, id: "r-generic", entityType: null, slot: null, dokumenttyp: "nda", targetPath: "Allgemein" };
 
   it("the most specific rule wins, regardless of list order", () => {
-    const rules = [generic, ...base.regeln, wirtschaft];
+    const rules = [generic, ...effectiveRules(base), wirtschaft];
     const context = ctx({ source: "partner.stammdaten.anhang", entityType: "Partner", entityId: "lunixo", slot: "wirtschaft" });
     expect(matched(resolveAblage(context, rules, env(base))).rule.id).toBe("r-wirtschaft");
     const other = { ...context, slot: "anhang" };
-    expect(matched(resolveAblage(other, rules, env(base))).rule.id).toBe("r-partner-stammdaten");
+    expect(matched(resolveAblage(other, rules, env(base))).rule.id).toBe("link:p-anhaenge:partner.stammdaten.anhang:anhang");
     const noEntity = { ...context, entityType: null, entityId: null, slot: "" };
     expect(matched(resolveAblage(noEntity, rules, env(base))).rule.id).toBe("r-generic");
   });
@@ -58,7 +60,7 @@ describe("resolveAblage – specificity", () => {
 
   it("an entity rule needs the entity id", () => {
     const context = ctx({ source: "kunde.polizze", entityType: "Kunde", entityId: null, knownMetadata: { sparte: "Kfz-Versicherung" } });
-    expect(isUnmatched(resolveAblage(context, base.regeln, env(base)))).toBe(true);
+    expect(isUnmatched(resolveAblage(context, effectiveRules(base), env(base)))).toBe(true);
   });
 });
 
@@ -67,27 +69,27 @@ describe("resolveAblage – missing fields", () => {
 
   it("asks only for what the context does not know", () => {
     const polizze = ctx({ source: "kunde.polizze", entityType: "Kunde", entityId: "k-gruber" });
-    const open = matched(resolveAblage(polizze, base.regeln, env(base)));
+    const open = matched(resolveAblage(polizze, effectiveRules(base), env(base)));
     expect(open.missingFields).toEqual(["sparte"]);
     expect(open.targetPath).toEqual(["Kunden", "Dr. Maria Gruber", "Polizzen", "{Sparte}"]);
 
-    const known = matched(resolveAblage({ ...polizze, knownMetadata: { sparte: "Kfz-Versicherung" } }, base.regeln, env(base)));
+    const known = matched(resolveAblage({ ...polizze, knownMetadata: { sparte: "Kfz-Versicherung" } }, effectiveRules(base), env(base)));
     expect(known.missingFields).toEqual([]);
     expect(known.targetPath).toEqual(["Kunden", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"]);
   });
 
   it("combines rule and Dokumenttyp requirements", () => {
     const mv = ctx({ source: "maklervereinbarung.vertrag", entityType: "Partner", entityId: "julia", slot: "vertrag", knownMetadata: { gueltig_von: "2027-01-01" } });
-    expect(matched(resolveAblage(mv, base.regeln, env(base))).missingFields).toEqual(["gueltig_bis"]);
+    expect(matched(resolveAblage(mv, effectiveRules(base), env(base))).missingFields).toEqual(["gueltig_bis"]);
     const bedingungen = ctx({ source: "versicherer.bedingungen", entityType: "Versicherer", entityId: "v-uniqa", knownMetadata: { jahr: 2026 } });
-    const result = matched(resolveAblage(bedingungen, base.regeln, env(base)));
+    const result = matched(resolveAblage(bedingungen, effectiveRules(base), env(base)));
     expect(result.missingFields).toEqual(["sparte"]);
     expect(result.targetPath).toEqual(["Versicherungen", "UNIQA", "Fachbereiche", "{Sparte}", "2026"]);
   });
 
   it("a Schaden upload resolves its Kunde through the parent", () => {
     const schaden = ctx({ source: "schaden.dokumente", entityType: "Schaden", entityId: "s-0142" });
-    expect(matched(resolveAblage(schaden, base.regeln, env(base))).targetPath).toEqual([
+    expect(matched(resolveAblage(schaden, effectiveRules(base), env(base))).targetPath).toEqual([
       "Kunden",
       "Transporte Steiner ∕ Wels GmbH",
       "Schäden",

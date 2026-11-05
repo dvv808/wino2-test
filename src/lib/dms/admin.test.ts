@@ -10,10 +10,9 @@ import {
   removeNode,
   removeState,
   renameState,
-  ruleFromDokument,
   updateNode,
-  upsertRegel,
 } from "./admin";
+import { addTopFolder, effectiveRules, linkSource, unlinkSource } from "./links";
 import { isUnmatched, resolveAblage, type AblageMatch } from "./resolveAblage";
 import { uploadToState } from "./upload";
 import { buildView, eingang, findFolder, locateDocument } from "./views";
@@ -73,17 +72,55 @@ describe("Dokumenttypen editing", () => {
   });
 });
 
-describe("Ablageregel change → upload lands elsewhere in both views", () => {
-  it("routing an e-mail attachment to Anhänge", () => {
+describe("Ordner Zuordnung: moving a link → upload lands elsewhere in both views", () => {
+  it("linking the e-mail attachments to Anhänge", () => {
     const base = fresh();
-    const rule = base.regeln.find((r) => r.id === "r-email")!;
-    const state = upsertRegel(base, { ...rule, dokumenttyp: "anhang", targetPath: "Kunden/{Kunde.Name}/Anhänge" });
+    const { state } = linkSource(base, "tpl-kunde", "k-anhaenge", { source: "kommunikation.email", slot: null, dokumenttyp: "anhang" });
+    const rule = effectiveRules(state).find((r) => r.source === "kommunikation.email")!;
+    expect(rule.targetPath).toBe("Kunden/{Kunde.Name}/Anhänge");
     const context: UploadContext = { source: "kommunikation.email", entityType: "Kunde", entityId: "k-gruber", slot: "", knownMetadata: {} };
     const { state: after, doc, result } = uploadToState(state, { id: "d-mail", file, context, now: NOW });
     const path = ["Kunden", "Dr. Maria Gruber", "Anhänge"];
     expect((result as AblageMatch).targetPath).toEqual(path);
     expect(locateDocument(buildView(after, "Verwaltung"), doc.id)).toEqual([path]);
     expect(locateDocument(buildView(after, "Standard"), doc.id)).toEqual([path]);
+    // Files from that upload point follow the link (one record, never in two sibling folders).
+    const old = base.documents.find((d) => d.name === "E-Mail Rückfrage Rechtsschutz")!;
+    expect(locateDocument(buildView(after, "Verwaltung"), old.id)).toEqual([path]);
+  });
+
+  it("dropping an upload point on a folder without its entity level creates that level", () => {
+    const { state: withTop, vorlageId, nodeId } = addTopFolder(fresh(), "Verwaltung", "Partnerakten");
+    const { state, nodeId: level } = linkSource(withTop, vorlageId, nodeId, { source: "partner.stammdaten.anhang", slot: "anhang" });
+    const top = state.vorlagen.find((v) => v.id === vorlageId)!.root;
+    expect(top.children.map((c) => c.name)).toEqual(["{Partner.Name}"]);
+    expect(level).toBe(top.children[0].id);
+    // Then a sub-folder "Partnerdaten Anhänge" under it, and the link moves there.
+    const sub = addChildNode(state, vorlageId, level, "Partnerdaten Anhänge");
+    const moved = linkSource(sub.state, vorlageId, sub.nodeId, { source: "partner.stammdaten.anhang", slot: "anhang" });
+    expect(moved.nodeId).toBe(sub.nodeId);
+    const rule = effectiveRules(moved.state).filter((r) => r.source === "partner.stammdaten.anhang" && r.slot === "anhang");
+    expect(rule.map((r) => r.targetPath)).toEqual(["Partnerakten/{Partner.Name}/Partnerdaten Anhänge"]);
+    const lunixo = moved.state.documents.find((d) => d.name === "Firmenbuchauszug Lunixo AG")!;
+    const view = buildView(moved.state, "Verwaltung");
+    expect(locateDocument(view, lunixo.id)).toEqual([["Partnerakten", "Lunixo AG", "Partnerdaten Anhänge"]]);
+    // The old Partner/…/Anhänge no longer has it: the link moved.
+    expect(findFolder(view, ["Partner", "Lunixo AG", "Anhänge"])!.docs.map((d) => d.id)).not.toContain(lunixo.id);
+  });
+
+  it("a folder link takes over the sub-folders of Global / Fachbereiche by name", () => {
+    const view = buildView(fresh(), "Verwaltung");
+    const allianz = findFolder(view, ["Versicherungen", "Allianz", "Fachbereiche"])!;
+    expect(allianz.children.map((c) => c.name)).toEqual(findFolder(view, ["Global", "Fachbereiche"])!.children.map((c) => c.name));
+    expect(findFolder(view, ["Versicherungen", "Allianz", "Fachbereiche", "Feuerversicherung", "2026"])!.docs.map((d) => d.name)).toEqual([
+      "AVB Feuer Allianz 2026",
+    ]);
+    // Global / Fachbereiche is the master list of names; the Bedingungen sit where their upload point is linked.
+    expect(findFolder(view, ["Global", "Fachbereiche"])!.count).toBe(0);
+    // A new Fachbereich in Global appears in every linked folder at once.
+    const added = addChildNode(fresh(), "tpl-global", "gl-fachbereiche", "Cyberversicherung");
+    const next = buildView(added.state, "Verwaltung");
+    expect(findFolder(next, ["Versicherungen", "UNIQA", "Fachbereiche", "Cyberversicherung"])).not.toBeNull();
   });
 
   it("predictLocation tells where a document really shows, so a mismatching target path is visible", () => {
@@ -113,19 +150,15 @@ describe("Eingang", () => {
     expect(locateDocument(buildView(state, "Verwaltung"), item.id)).toEqual([["Kunden", "Transporte Steiner ∕ Wels GmbH", "Schäden", "S-2026-0142"]]);
   });
 
-  it("Als Regel speichern: the next upload like it is placed automatically", () => {
+  it("Quelle verknüpfen: the next upload like it is placed automatically", () => {
     const base = fresh();
-    const item = eingang(base)[1]; // dragged onto the DMS root
-    const rule = ruleFromDokument(base, item, "anhang", null);
-    expect(rule.source).toBe("dms.dragdrop");
-    const email = eingang(base)[0];
-    const emailRule = ruleFromDokument(base, email, "korrespondenz", "Kunde");
-    expect(emailRule.targetPath).toBe("Kunden/{Kunde.Name}/Korrespondenz");
-    const state = upsertRegel(base, emailRule);
+    // The e-mail had no Kunde, so no link could place it. With a Kunde the e-mail link places it.
     const context: UploadContext = { source: "kommunikation.email", entityType: "Kunde", entityId: "k-zentral", slot: "", knownMetadata: {} };
-    const result = resolveAblage(context, state.regeln, env(state));
-    expect(isUnmatched(result)).toBe(false);
+    expect(isUnmatched(resolveAblage(context, effectiveRules(base), env(base)))).toBe(false);
+    const unlinked = unlinkSource(base, { source: "kommunikation.email", slot: null });
+    expect(isUnmatched(resolveAblage(context, effectiveRules(unlinked), env(unlinked)))).toBe(true);
   });
+
 });
 
 describe("Maklervereinbarung cards = DMS records", () => {

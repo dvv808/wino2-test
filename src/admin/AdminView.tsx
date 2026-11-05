@@ -5,24 +5,26 @@ import { useWorkflow } from "../workflow";
 import { useState } from "react";
 import { UploadSources } from "../dms/UploadSources";
 import { DmsBrowser, PersonSwitch } from "../dms/DmsBrowser";
-import { Ablageregeln } from "../dms/admin/Ablageregeln";
 import { Berechtigungen } from "../dms/admin/Berechtigungen";
 import { Dokumenttypen } from "../dms/admin/Dokumenttypen";
 import { Eingang } from "../dms/admin/Eingang";
-import { Ordnervorlagen } from "../dms/admin/Ordnervorlagen";
+import { Zuordnung } from "../dms/admin/Zuordnung";
+import type { Ansicht } from "../types/dms";
 import { useDms } from "../dms/store";
 import { eingang } from "../lib/dms/views";
 
+/** Ordner Zuordnung (build and link) and Spaces (the outcome) belong together, like a pill group in HRM. */
+const PAIR = [
+  { id: "zuordnung", label: "Ordner Zuordnung", icon: a.verknuepfung },
+  { id: "spaces", label: "Spaces", icon: a.folder },
+] as const;
 const PAGES = [
-  { id: "verwaltung", label: "Verwaltung", icon: a.folder },
-  { id: "vorlagen", label: "Ordnervorlagen", icon: a.category },
   { id: "typen", label: "Dokumenttypen", icon: a.docList },
-  { id: "regeln", label: "Ablageregeln", icon: a.tickList },
   { id: "rechte", label: "Gruppen & Berechtigungen", icon: a.contacts },
   { id: "eingang", label: "Eingang", icon: a.navFolder },
   { id: "quellen", label: "Upload-Quellen (Demo)", icon: a.upload },
 ] as const;
-type Page = (typeof PAGES)[number]["id"];
+type Page = (typeof PAIR)[number]["id"] | (typeof PAGES)[number]["id"];
 
 /** Configuration screens are for DMS-Admins; others see who they are browsing as and can switch. */
 function AdminOnly({ children }: { children: React.ReactNode }) {
@@ -46,7 +48,9 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 export function AdminView() {
   const { closeAdmin } = useWorkflow();
   const { state } = useDms();
-  const [page, setPage] = useState<Page>("verwaltung");
+  const [page, setPage] = useState<Page>("zuordnung");
+  // Both pills of the pair show the same Ansicht, so switching between building and checking keeps the place.
+  const [ansicht, setAnsicht] = useState<Ansicht>("Verwaltung");
   const waiting = eingang(state).length;
 
   return (
@@ -88,6 +92,19 @@ export function AdminView() {
         </nav>
 
         <div className="module-nav">
+          <div className="module-group">
+            {PAIR.map((item) => (
+              <button
+                type="button"
+                className={item.id === page ? "module-pill active" : "module-pill ghost"}
+                key={item.id}
+                onClick={() => setPage(item.id)}
+              >
+                <Icon src={item.icon} size={24} />
+                {item.label}
+              </button>
+            ))}
+          </div>
           {PAGES.map((item) => (
             <button
               type="button"
@@ -107,20 +124,17 @@ export function AdminView() {
         </div>
 
         <div className="content-shell admin-body">
-          {page === "verwaltung" ? <DmsBrowser ansicht="Verwaltung" title="Verwaltung" lockConfidential /> : null}
-          {page === "vorlagen" ? (
+          {page === "zuordnung" ? (
             <AdminOnly>
-              <Ordnervorlagen />
+              <Zuordnung ansicht={ansicht} onAnsicht={setAnsicht} />
             </AdminOnly>
+          ) : null}
+          {page === "spaces" ? (
+            <DmsBrowser key={ansicht} ansicht={ansicht} title="Spaces" lockConfidential={ansicht === "Verwaltung"} onAnsicht={setAnsicht} />
           ) : null}
           {page === "typen" ? (
             <AdminOnly>
               <Dokumenttypen />
-            </AdminOnly>
-          ) : null}
-          {page === "regeln" ? (
-            <AdminOnly>
-              <Ablageregeln />
             </AdminOnly>
           ) : null}
           {page === "rechte" ? (

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import * as a from "../../assets/index";
-import { addTyp, removeState, renameState, updateTyp } from "../../lib/dms/admin";
+import { addTyp, newId, removeState, renameState, updateTyp } from "../../lib/dms/admin";
 import type { Dokumenttyp, MetaField } from "../../types/dms";
 import { META_FIELDS } from "../../types/dms";
 import { Icon } from "../../ui";
@@ -179,13 +179,9 @@ export function Dokumenttypen() {
             type="button"
             className="btn-secondary"
             onClick={() => {
-              let id = "";
-              apply((s) => {
-                const made = addTyp(s, "Neuer Dokumenttyp");
-                id = made.typId;
-                return made.state;
-              });
-              window.setTimeout(() => setSelected(id));
+              const id = newId("typ");
+              apply((s) => addTyp(s, "Neuer Dokumenttyp", id).state);
+              setSelected(id);
             }}
           >
             + Dokumenttyp
