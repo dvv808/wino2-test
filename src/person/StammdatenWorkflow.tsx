@@ -23,6 +23,7 @@ import {
   WicoDatenFields,
   GewerbeFields,
   PartnerFields,
+  partnerUpload,
   VereinFields,
   WirtschaftFields,
 } from "./forms";
@@ -546,6 +547,7 @@ export function StammdatenWorkflow() {
                           form={partner}
                           onChange={updatePartner}
                           publishedNachname={isHistorical ? undefined : publishedNachname}
+                          partnerId={filePartnerId}
                         />
                       </fieldset>
                     </>
@@ -574,7 +576,12 @@ export function StammdatenWorkflow() {
                     />
                   )}
                   {stammdatenArea === "wirtschaftsdaten" && isCompany && selected?.id === "wirtschaft-anhaenge" && (
-                    <AnhaengeFields files={companyFiles} onChange={updateCompanyFiles} onRemoved={notifyRemoved} />
+                    <AnhaengeFields
+                      files={companyFiles}
+                      onChange={updateCompanyFiles}
+                      onRemoved={notifyRemoved}
+                      context={partnerUpload("partner.stammdaten.anhang", filePartnerId, "anhang")}
+                    />
                   )}
                   {stammdatenArea === "wirtschaftsdaten" && !isCompany && selected?.id === "wirtschaft-gewerbe" && (
                     <GewerbeFields
@@ -593,7 +600,12 @@ export function StammdatenWorkflow() {
                     />
                   )}
                   {stammdatenArea === "wirtschaftsdaten" && !isCompany && selected?.id === "wirtschaft-anhaenge" && (
-                    <AnhaengeFields files={wirtschaftFiles} onChange={updateWirtschaftFiles} onRemoved={notifyRemoved} />
+                    <AnhaengeFields
+                      files={wirtschaftFiles}
+                      onChange={updateWirtschaftFiles}
+                      onRemoved={notifyRemoved}
+                      context={partnerUpload("partner.stammdaten.anhang", filePartnerId, "wirtschaft")}
+                    />
                   )}
                   {stammdatenArea === "wirtschaftsdaten" &&
                     !isCompany &&
@@ -613,7 +625,7 @@ export function StammdatenWorkflow() {
                     <AddressFields form={address} onChange={updateAddress} />
                   )}
                   {stammdatenArea === "bankverbindungen" && (
-                    <BankFields form={bank} onChange={updateBank} />
+                    <BankFields form={bank} onChange={updateBank} partnerId={filePartnerId} />
                   )}
                 </form>
                 </div>

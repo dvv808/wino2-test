@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { DateField, EntityIcon, Icon, InfoBox, Notice } from "../ui";
+import { DmsUpload } from "../dms/upload";
+import type { UploadContext, UploadSource } from "../types/dms";
 import type {
   AddressForm,
   BankForm,
@@ -354,7 +356,12 @@ function EntryPanel({
   );
 }
 
-function filesFromList(list: FileList | null): FileEntry[] {
+/** Upload context of a partner file: the DMS places the files in Partner/{Name}/… by its Ablageregeln. */
+export function partnerUpload(source: UploadSource, partnerId: string, slot: string): UploadContext {
+  return { source, entityType: "Partner", entityId: partnerId, slot, knownMetadata: {} };
+}
+
+function filesFromList(list: FileList | File[] | null): FileEntry[] {
   return Array.from(list ?? []).map((file) => ({
     label: file.name.replace(/\.[^.]+$/, ""),
     name: file.name,
@@ -377,23 +384,28 @@ function Area({
   );
 }
 
-function Drop({ files, onFiles }: { files: FileEntry[]; onFiles: (files: FileEntry[]) => void }) {
+function Drop({
+  files,
+  onFiles,
+  context,
+}: {
+  files: FileEntry[];
+  onFiles: (files: FileEntry[]) => void;
+  context: UploadContext;
+}) {
   return (
     <div className="sw-files">
-      <label className="dropzone">
-        <input
-          type="file"
-          multiple
-          onChange={(event) => {
-            const next = filesFromList(event.target.files);
-            if (next.length) onFiles([...files, ...next]);
-            event.target.value = "";
-          }}
-        />
+      <DmsUpload
+        context={context}
+        onFiles={(list) => {
+          const next = filesFromList(list);
+          if (next.length) onFiles([...files, ...next]);
+        }}
+      >
         <span>Dateien hier hinziehen</span>
         <span>oder</span>
         <span className="dropzone-btn">Datei auswählen</span>
-      </label>
+      </DmsUpload>
       {files.map((file, index) => (
         <div className="file-chip" key={`${file.name}-${index}`}>
           <img src={file.type === "jpg" ? a.jpg : a.pdf} alt="" width={17} height={20} />
@@ -427,10 +439,13 @@ export function PartnerFields({
   form,
   onChange,
   publishedNachname,
+  partnerId,
 }: {
   form: PartnerForm;
   onChange: (form: PartnerForm) => void;
   publishedNachname?: string;
+  /** The file the attachments belong to (DMS upload context). */
+  partnerId: string;
 }) {
   const set = <K extends keyof PartnerForm>(key: K, value: PartnerForm[K]) =>
     onChange({ ...form, [key]: value });
@@ -495,7 +510,7 @@ export function PartnerFields({
       </InfoBox>
       <div className="sw-group">
         <h3>Anhänge</h3>
-        <Drop files={form.files} onFiles={(files) => set("files", files)} />
+        <Drop files={form.files} onFiles={(files) => set("files", files)} context={partnerUpload("partner.stammdaten.anhang", partnerId, "anhang")} />
       </div>
     </>
   );
@@ -728,29 +743,29 @@ export function AnhaengeFields({
   files,
   onChange,
   onRemoved,
+  context,
 }: {
   files: FileEntry[];
   onChange: (files: FileEntry[]) => void;
   onRemoved?: (message: string, undo: () => void) => void;
+  context: UploadContext;
 }) {
   return (
     <>
       <Field label="Dokumente">
-        <label className="dropzone sw-drop">
-          <input
-            type="file"
-            multiple
-            onChange={(event) => {
-              const next = filesFromList(event.target.files);
-              if (next.length) onChange([...files, ...next]);
-              event.target.value = "";
-            }}
-          />
+        <DmsUpload
+          className="dropzone sw-drop"
+          context={context}
+          onFiles={(list) => {
+            const next = filesFromList(list);
+            if (next.length) onChange([...files, ...next]);
+          }}
+        >
           <img src={a.upload} alt="" width={36} height={34} />
           <span>Dateien hier hinziehen</span>
           <span>oder</span>
           <span className="dropzone-btn">Datei auswählen</span>
-        </label>
+        </DmsUpload>
       </Field>
       {files.map((file, index) => (
         <EntryPanel
@@ -1109,9 +1124,12 @@ export function AddressFields({
 export function BankFields({
   form,
   onChange,
+  partnerId,
 }: {
   form: BankForm;
   onChange: (form: BankForm) => void;
+  /** The file the bank documents belong to (DMS upload context). */
+  partnerId: string;
 }) {
   const set = <K extends keyof BankForm>(key: K, value: BankForm[K]) =>
     onChange({ ...form, [key]: value });
@@ -1143,7 +1161,7 @@ export function BankFields({
       </Field>
       <div className="sw-group">
         <h3>Dokumente hochladen</h3>
-        <Drop files={form.files} onFiles={(files) => set("files", files)} />
+        <Drop files={form.files} onFiles={(files) => set("files", files)} context={partnerUpload("partner.bank", partnerId, "bank")} />
       </div>
     </>
   );

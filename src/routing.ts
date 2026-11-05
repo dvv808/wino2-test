@@ -140,6 +140,7 @@ export function routeToHash({
     return `#/${root}/${PERSON_AREA}`;
   }
   if (view === "meinBereich") return "#/mein-bereich";
+  if (view === "admin") return "#/admin";
   if (view === "home") return "#/home";
   if (view === "finanzen") {
     if (finanzenPage === "sammelfaktura") return `#/${FINANZEN}/sammelfaktura${finanzenYear ? `/${finanzenYear}` : ""}`;
@@ -162,6 +163,7 @@ export function routeToHash({
 export function hashToRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "mein-bereich") return { view: "meinBereich" };
+  if (parts[0] === "admin") return { view: "admin" };
   if (parts[0] === "home") return { view: "home" };
   if (parts[0] === "bestandsmanager" && parts[1] === "finanzen") {
     const rest = parts.slice(2);

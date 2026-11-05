@@ -1,9 +1,10 @@
 import * as a from "../assets/index";
-import { FileTabs, LogoButton, ProfileMenu } from "../chrome";
+import { AdminTab, FileTabs, LogoButton, ProfileMenu } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "../honorar/store";
 import { MyForderungen, ownActionCount } from "./MyForderungen";
+import { DmsBrowser } from "../dms/DmsBrowser";
 
 type Area = "Mein Bereich" | "Bestand";
 const AREAS: Area[] = ["Mein Bereich", "Bestand"];
@@ -57,13 +58,15 @@ export function ConstructionArt() {
   );
 }
 
-/** Personal area behind the profile menu. "Mein Bereich" is not designed yet; "Bestand" shows the own Honorare/Forderungen. */
+/** Personal area behind the profile menu. "Dokumente" is the user DMS; "Bestand" shows the own Honorare/Forderungen. */
 export function MeinBereichView() {
   const { closeMeinBereich, meinBereichNav, setMeinBereichNav } = useWorkflow();
   const area = meinBereichNav.area as Area;
   const page = meinBereichNav.page;
   const setPage = (next: string) => setMeinBereichNav({ area, page: next });
   const forderungen = area === "Bestand" && page === "Honorare/Forderungen";
+  // The user DMS: the Standard view over the same documents, filtered by the person's permissions.
+  const dokumente = area === "Mein Bereich" && page === "Dokumente";
   const { state } = useHonorar();
   // Red bubble on Honorare/Forderungen: own invoices that are open and need action.
   const actionCount = ownActionCount(state);
@@ -90,6 +93,7 @@ export function MeinBereichView() {
               </span>
               <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
             </div>
+            <AdminTab />
           </div>
           <div className="main-nav-right">
             <button type="button" className="search-btn" aria-label="Suche">
@@ -135,6 +139,10 @@ export function MeinBereichView() {
 
         {forderungen ? (
           <MyForderungen />
+        ) : dokumente ? (
+          <div className="content-shell admin-body">
+            <DmsBrowser ansicht="Standard" title="Meine Dateien" />
+          </div>
         ) : (
           <div className="content-shell mb-body">
             <section className="mb-empty">

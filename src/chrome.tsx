@@ -54,7 +54,7 @@ export function FileTabs() {
       {openFileIds.map((id) => {
         // On Home, Management or Mein Bereich every partner tab is parked; only a partner view has an active one.
         const active =
-          id === filePartnerId && view !== "konzernHub" && view !== "home" && view !== "meinBereich" && !MANAGEMENT_VIEWS.includes(view);
+          id === filePartnerId && view !== "konzernHub" && view !== "home" && view !== "meinBereich" && view !== "admin" && !MANAGEMENT_VIEWS.includes(view);
         const name = active ? personName : getPartner(id).name;
         const tabIcon = getPartner(id).fileKind === "company" ? a.company : a.person;
         if (active) {
@@ -190,8 +190,9 @@ export function FileTabs() {
 /** The "Mein Bereich" tab while it is open but another tab is shown; clicking it switches over without closing anything. */
 export function MeinBereichTab() {
   const { view, meinBereichOpen, openMeinBereich, closeMeinBereich } = useWorkflow();
-  if (!meinBereichOpen || view === "meinBereich") return null;
+  if (!meinBereichOpen || view === "meinBereich") return <AdminTab />;
   return (
+    <>
     <div className="person-tab inactive">
       <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
       <span className="person-tab-body">
@@ -200,6 +201,29 @@ export function MeinBereichTab() {
           Mein Bereich
         </button>
         <button type="button" className="close-icon" aria-label="Mein Bereich schließen" onClick={closeMeinBereich}>
+          <img src={a.iconClose} alt="" width={18} height={18} />
+        </button>
+      </span>
+      <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+    </div>
+    <AdminTab />
+    </>
+  );
+}
+
+/** The "Admin" tab while it is open but another tab is shown. */
+export function AdminTab() {
+  const { view, adminOpen, openAdmin, closeAdmin } = useWorkflow();
+  if (!adminOpen || view === "admin") return null;
+  return (
+    <div className="person-tab inactive">
+      <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+      <span className="person-tab-body">
+        <Icon src={a.profileAdmin} size={24} />
+        <button type="button" className="person-tab-open" onClick={openAdmin}>
+          Admin
+        </button>
+        <button type="button" className="close-icon" aria-label="Admin schließen" onClick={closeAdmin}>
           <img src={a.iconClose} alt="" width={18} height={18} />
         </button>
       </span>
@@ -261,7 +285,7 @@ function ProfileAreaIcon({
 
 /** Header avatar. Opens the Figma profile menu; item actions come later. */
 export function ProfileMenu() {
-  const { openManager, openMeinBereich, widgetOn, setWidgetOn } = useWorkflow();
+  const { openManager, openMeinBereich, openAdmin, widgetOn, setWidgetOn } = useWorkflow();
   const [open, setOpen] = useState(false);
   const [popBox, setPopBox] = useState<{ top: number; right: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -360,7 +384,15 @@ export function ProfileMenu() {
               <ProfileIcon src={a.profileSettings} />
               Einstellungen
             </button>
-            <button type="button" className="profile-pop-item" role="menuitem">
+            <button
+              type="button"
+              className="profile-pop-item"
+              role="menuitem"
+              onClick={() => {
+                openAdmin();
+                setOpen(false);
+              }}
+            >
               <ProfileIcon src={a.profileAdmin} />
               Admin
             </button>

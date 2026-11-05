@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { DmsUpload } from "../dms/upload";
 import {
   ADVISOR,
   ADVISOR_TASKS,
@@ -228,6 +229,7 @@ function SignaturFields({ locked }: { locked: boolean }) {
     setSignMonth,
     signYear,
     setSignYear,
+    filePartnerId,
   } = useWorkflow();
 
   return (
@@ -267,20 +269,28 @@ function SignaturFields({ locked }: { locked: boolean }) {
                 </button>
               </div>
             ) : (
-              <label className="dropzone">
+              <DmsUpload
+                context={{
+                  source: "maklervereinbarung.vertrag",
+                  entityType: "Partner",
+                  entityId: filePartnerId,
+                  slot: "vertrag",
+                  knownMetadata: {},
+                }}
+                accept="application/pdf"
+                multiple={false}
+                disabled={locked}
+                note={false}
+                onFiles={(files) => {
+                  const file = files[0];
+                  setSignFile(file ? file.name.replace(/\.pdf$/i, "") : "Maklervereinbarung");
+                }}
+              >
                 <Icon src={a.upload} size={36} />
                 <span>Dateien hier hinziehen</span>
                 <small>oder</small>
                 <span className="dropzone-btn">Datei auswählen</span>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    setSignFile(file ? file.name.replace(/\.pdf$/i, "") : "Maklervereinbarung");
-                  }}
-                />
-              </label>
+              </DmsUpload>
             )}
           </div>
         ) : null}

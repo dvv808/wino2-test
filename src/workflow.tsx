@@ -61,7 +61,7 @@ export type SignMode = "upload" | "digital";
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
 /** "rechnung" is the workflow of one invoice (Gutschrift, Zahlungsziel, ...), opened from Info zur Rechnung. */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home";
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home" | "admin";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
 /** Views that belong to the Management tab. */
 export const MANAGEMENT_VIEWS: View[] = ["manager", "freigabe", "finanzen", "rechnung"];
@@ -304,6 +304,9 @@ function useWorkflowState() {
   const [meinBereichFrom, setMeinBereichFrom] = useState<View | null>(null);
   /** "Mein Bereich" is a tab of its own that stays open next to the others until it is closed. */
   const [meinBereichOpen, setMeinBereichOpen] = useState(initialRoute.view === "meinBereich");
+  /** "Admin" (profile menu) is a tab of its own too, like "Mein Bereich". */
+  const [adminOpen, setAdminOpen] = useState(initialRoute.view === "admin");
+  const [adminFrom, setAdminFrom] = useState<View | null>(null);
   const [meinBereichNav, setMeinBereichNav] = useState({ area: "Mein Bereich", page: "Dashboard" });
   /** The home area behind the logo: Planner, Kommunikation, Bestand, Wissen. */
   const [homeFrom, setHomeFrom] = useState<View | null>(null);
@@ -1401,13 +1404,30 @@ function useWorkflowState() {
 
   /** Back to the tab that was open before, which keeps its pages; "Mein Bereich" stays open. */
   function leaveMeinBereich() {
-    setView(meinBereichFrom && meinBereichFrom !== "meinBereich" ? meinBereichFrom : "manager");
+    const back = meinBereichFrom && meinBereichFrom !== "meinBereich" && !(meinBereichFrom === "admin" && !adminOpen);
+    setView(back ? meinBereichFrom : "manager");
   }
 
   /** Closes the "Mein Bereich" tab. */
   function closeMeinBereich() {
     setMeinBereichOpen(false);
     if (view === "meinBereich") leaveMeinBereich();
+  }
+
+  /** The admin area behind the profile menu; it opens as its own tab. */
+  function openAdmin() {
+    if (view !== "admin") setAdminFrom(view);
+    setAdminOpen(true);
+    setReviewStep(null);
+    setView("admin");
+  }
+
+  /** Closes the "Admin" tab and goes back to the tab that was open before. */
+  function closeAdmin() {
+    setAdminOpen(false);
+    if (view !== "admin") return;
+    const back = adminFrom && adminFrom !== "admin" && !(adminFrom === "meinBereich" && !meinBereichOpen);
+    setView(back ? adminFrom : "manager");
   }
 
   function openFinanzen(page: FinanzenPage = "month", month = finanzenMonth, step: HonorarStepKey = "status") {
@@ -1553,6 +1573,9 @@ function useWorkflowState() {
     leaveMeinBereich,
     closeMeinBereich,
     openMeinBereich,
+    adminOpen,
+    openAdmin,
+    closeAdmin,
     openFinanzen,
     openFinanzenStep,
     openFinanzenInkasso,

@@ -10,6 +10,14 @@ import { liveFileIdentity, type Card, type Section } from "./stammdaten";
 import { useHonorar } from "../honorar/store";
 import { agreementLines } from "../honorar/invoiceCells";
 import type { Fee, Partner } from "../types/honorar";
+import { useDms } from "../dms/store";
+import { setDmsFocus } from "../dms/focus";
+import { formatDate, formatSize, StatusChip } from "../dms/ui";
+import { partnerAgreements, type AgreementSection } from "../lib/dms/agreements";
+import { formatPath } from "../lib/dms/placeholders";
+import { buildView, locateDocument } from "../lib/dms/views";
+import { nextStates, setStatus } from "../lib/dms/workflow";
+import type { DmsState, Dokument } from "../types/dms";
 
 const MANDATE_SECTIONS = [
   {
@@ -216,6 +224,72 @@ function honorarAgreementCard(partner: Partner, fee: Fee): Card {
   };
 }
 
+/** A Maklervereinbarung from the DMS as a card: the same record as the file in the DMS. */
+function dmsAgreementCard(doc: Dokument, place: string[] | null): Card {
+  const version = doc.versions.at(-1);
+  return {
+    id: `dms-${doc.id}`,
+    icon: a.iconBrokerContract,
+    title: doc.name,
+    blocks: [
+      {
+        kind: "rows",
+        caption: "Vereinbarung",
+        rows: [
+          { label: "Laufzeit", value: `${formatDate(doc.meta.gueltig_von)} – ${formatDate(doc.meta.gueltig_bis)}` },
+          { label: "Datei", value: version ? `${version.fileName} · ${formatSize(version.size)}` : "–" },
+          { label: "Hochgeladen", value: formatDate(version?.uploadedAt ?? doc.createdAt) },
+        ],
+      },
+      { kind: "rows", caption: "Ablage im DMS", rows: [{ label: "Ordner", value: place ? formatPath(place) : "–" }] },
+    ],
+  };
+}
+
+function DmsAgreementCards({ docs, state }: { docs: Dokument[]; state: DmsState }) {
+  const { apply } = useDms();
+  const { setMeinBereichNav, openMeinBereich } = useWorkflow();
+  const view = buildView(state, "Standard");
+  const typ = state.dokumenttypen.find((t) => t.id === "maklervereinbarung");
+  return (
+    <>
+      {docs.map((doc) => {
+        const place = locateDocument(view, doc.id)[0] ?? null;
+        return (
+          <DataCard
+            key={doc.id}
+            card={dmsAgreementCard(doc, place)}
+            headerExtra={
+              <span className="mm-dms-head" onClick={(event) => event.stopPropagation()}>
+                <StatusChip status={doc.status} />
+                {nextStates(typ, doc.status).map((to) => (
+                  <button type="button" key={to} className="dms-next-btn" onClick={() => apply((s) => setStatus(s, doc.id, to))}>
+                    → {to}
+                  </button>
+                ))}
+                {place ? (
+                  <button
+                    type="button"
+                    className="btn-secondary fg-verlauf-btn"
+                    onClick={() => {
+                      setDmsFocus({ path: place, docId: doc.id });
+                      setMeinBereichNav({ area: "Mein Bereich", page: "Dokumente" });
+                      openMeinBereich();
+                    }}
+                  >
+                    <Icon src={a.folder} size={18} />
+                    Im DMS
+                  </button>
+                ) : null}
+              </span>
+            }
+          />
+        );
+      })}
+    </>
+  );
+}
+
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -301,7 +375,7 @@ function EmptyArt({ icon, title, children }: { icon: string; title: string; chil
   );
 }
 
-function Sidebar({ converted, gueltigCount }: { converted: boolean; gueltigCount: number }) {
+function Sidebar({ converted, counts }: { converted: boolean; counts: Record<AgreementSection, number> }) {
   const { personName, openPersonArea } = useWorkflow();
   return (
     <aside className="pp-side">
@@ -348,7 +422,13 @@ function Sidebar({ converted, gueltigCount }: { converted: boolean; gueltigCount
             <button type="button" className="pp-tree-item" key={item.id} onClick={() => scrollTo(item.id)}>
               <span className="pp-tree-name">
                 <Icon src={item.icon} size={18} />
-                {item.id === "gueltig" ? `Gültig (${gueltigCount})` : item.label}
+                {item.id === "gueltig"
+                  ? `Gültig (${counts.gueltig})`
+                  : item.id === "entwuerfe"
+                    ? `Entwürfe (${counts.entwuerfe})`
+                    : item.id === "abgelaufen"
+                      ? `Abgelaufen (${counts.abgelaufen})`
+                      : item.label}
               </span>
               <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
             </button>
@@ -503,11 +583,19 @@ export function MaklermandatPage() {
     : honorarPartner && honorarFee
       ? honorarAgreementCard(honorarPartner, honorarFee)
       : null;
+  // Maklervereinbarungen stored in the DMS: the same records, grouped by status.
+  const dms = useDms().state;
+  const dmsDocs = partnerAgreements(dms, filePartnerId, dms.activePerson);
+  const counts: Record<AgreementSection, number> = {
+    gueltig: dmsDocs.gueltig.length + (agreement ? 1 : 0),
+    entwuerfe: dmsDocs.entwuerfe.length,
+    abgelaufen: dmsDocs.abgelaufen.length,
+  };
 
   return (
     <>
       <ShelfBody>
-        <Sidebar converted={ready} gueltigCount={agreement ? 1 : 0} />
+        <Sidebar converted={ready} counts={counts} />
         <main className="pp-main">
           <header className="fg-head pp-main-head">
             <ShelfTitle icon={a.iconBrokerContract}>Maklermandat</ShelfTitle>
@@ -541,7 +629,13 @@ export function MaklermandatPage() {
                 <header className="pp-section-head">
                   <span className="pp-section-title">
                     <Icon src={section.icon} size={32} />
-                    {section.id === "gueltig" ? `${section.title} (${agreement ? 1 : 0})` : section.title}
+                    {section.id === "gueltig"
+                      ? `${section.title} (${counts.gueltig})`
+                      : section.id === "entwuerfe"
+                        ? `${section.title} (${counts.entwuerfe})`
+                        : section.id === "abgelaufen"
+                          ? `Abgelaufen (${counts.abgelaufen})`
+                          : section.title}
                   </span>
                   {"create" in section && section.create ? (
                     <button type="button" className="btn-primary pp-edit" onClick={() => setCreateOpen(true)}>
@@ -549,19 +643,22 @@ export function MaklermandatPage() {
                     </button>
                   ) : null}
                 </header>
-                {section.id === "gueltig" && agreement ? (
+                {(section.id === "gueltig" && agreement) || (section.id !== "kurzfristig" && dmsDocs[section.id].length) ? (
                   <div className="pp-cards">
-                    <DataCard
-                      card={agreement}
-                      onSelect={openMakler}
-                      onEdit={openMakler}
-                      headerExtra={
-                        <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openMakler}>
-                          <Icon src={a.history} size={18} />
-                          Version 1
-                        </button>
-                      }
-                    />
+                    {section.id === "gueltig" && agreement ? (
+                      <DataCard
+                        card={agreement}
+                        onSelect={openMakler}
+                        onEdit={openMakler}
+                        headerExtra={
+                          <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openMakler}>
+                            <Icon src={a.history} size={18} />
+                            Version 1
+                          </button>
+                        }
+                      />
+                    ) : null}
+                    <DmsAgreementCards docs={dmsDocs[section.id as AgreementSection]} state={dms} />
                   </div>
                 ) : (
                   <div className="pp-cards center mm-empty">

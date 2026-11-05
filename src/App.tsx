@@ -14,9 +14,11 @@ import { TasksStep } from "./steps/TasksStep";
 import { TermsStep } from "./steps/TermsStep";
 import { ManagerView } from "./manager/ManagerView";
 import { HonorarProvider } from "./honorar/store";
+import { DmsProvider } from "./dms/store";
 import { HonorarView } from "./honorar/HonorarView";
 import { RechnungWorkflowPage } from "./honorar/RechnungWorkflow";
 import { MeinBereichView } from "./mein-bereich/MeinBereichView";
+import { AdminView } from "./admin/AdminView";
 import { HomeView } from "./home/HomeView";
 import { CompanyGroupsProvider } from "./person/companyGroups";
 import { FamilyLinksProvider } from "./person/familyLinks";
@@ -216,6 +218,15 @@ function Screen() {
       </>
     );
   }
+  if (view === "admin") {
+    return (
+      <>
+        <AdminView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
   if (view === "meinBereich") {
     return (
       <>
@@ -337,6 +348,7 @@ export default function App() {
   return (
     <WorkflowProvider>
       <HonorarProvider>
+        <DmsProvider>
         <FamilyLinksProvider>
           <CompanyGroupsProvider>
             <KonzernLinksProvider>
@@ -346,6 +358,7 @@ export default function App() {
             </KonzernLinksProvider>
           </CompanyGroupsProvider>
         </FamilyLinksProvider>
+        </DmsProvider>
       </HonorarProvider>
     </WorkflowProvider>
   );
