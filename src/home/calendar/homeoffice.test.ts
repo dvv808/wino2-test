@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockedReason, decide, forDay, nextBlock, parseTime, remove, saveDay, sollzeit, startBlocks, total, validate, type HomeofficeBlock } from "./homeoffice";
+import { seedAntraege, blockedReason, decide, forDay, nextBlock, parseTime, remove, saveDay, sollzeit, startBlocks, total, validate, type HomeofficeBlock } from "./homeoffice";
 
 const NOW = "2026-11-09T09:00:00.000Z";
 const LATER = "2026-11-09T10:00:00.000Z";
@@ -70,5 +70,14 @@ describe("Homeoffice-Anträge (Zeitblöcke)", () => {
   it("reads typed times and adds the next block after the last", () => {
     expect([parseTime("8"), parseTime("830"), parseTime("8.30"), parseTime("17:00"), parseTime("25"), parseTime("")]).toEqual([480, 510, 510, 1020, null, null]);
     expect(nextBlock([b("a", 480, 750)], "n")).toMatchObject({ start: 780, end: 840 });
+  });
+
+  it("seeds two open requests for Lucy on the next two working days", () => {
+    // Tuesday 10.11.2026 is the demo holiday; Friday is followed by the weekend.
+    expect(seedAntraege("2026-11-10").map((x) => [x.day, x.status])).toEqual([
+      ["2026-11-11", "offen"],
+      ["2026-11-12", "offen"],
+    ]);
+    expect(seedAntraege("2026-11-12").map((x) => x.day)).toEqual(["2026-11-13", "2026-11-16"]);
   });
 });

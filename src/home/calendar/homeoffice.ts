@@ -6,7 +6,7 @@
  * calendar and the employee is told to ask again (with the reason). Saving a day again keeps unchanged blocks as they are;
  * a changed or new block is open again. Deleting removes the request.
  */
-import { parseIso } from "./calendarData";
+import { addDays, iso, parseIso, seedWeek } from "./calendarData";
 
 export type HomeofficeStatus = "offen" | "genehmigt" | "zurueckgesetzt";
 
@@ -176,12 +176,39 @@ export function takeFocus() {
 // ---------------------------------------------------------------- storage
 
 /** v2: time blocks. Requests of the earlier Ganztag / Vormittag / Nachmittag version are not read. */
-const KEY = "wino.kalender.homeoffice.v2";
+/** v3: starts with Lucy's two open demo requests (earlier test data is not read). */
+const KEY = "wino.kalender.homeoffice.v3";
+
+/**
+ * Demo: Lucy Dallon has two open Homeoffice requests on the next two working days (no weekend, no holiday),
+ * so the Kalender, Beantragungen, HRM Anträge, Freigaben and Mein Bereich show them from the start.
+ */
+export function seedAntraege(today: string): HomeofficeAntrag[] {
+  const holidays = seedWeek(today).holidays;
+  const days: string[] = [];
+  for (let day = addDays(today, 1); days.length < 2; day = addDays(day, 1)) {
+    if (!blockedReason(day, today, holidays)) days.push(day);
+  }
+  const stamp = (offset: number, hours: number, minutes: number) => {
+    const d = parseIso(addDays(today, offset));
+    d.setHours(hours, minutes);
+    return d.toISOString();
+  };
+  return [
+    { id: "ho-demo-1", day: days[0], start: 8 * 60, end: 12 * 60 + 30, kommentar: "Handwerker kommt am Vormittag.", status: "offen", beantragt: stamp(-1, 9, 12) },
+    { id: "ho-demo-2", day: days[1], start: 13 * 60, end: 17 * 60, status: "offen", beantragt: stamp(0, 8, 5) },
+  ];
+}
 
 export function loadAntraege(): HomeofficeAntrag[] {
   try {
     const raw = localStorage.getItem(KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
+    if (raw === null) {
+      const seeded = seedAntraege(iso(new Date()));
+      localStorage.setItem(KEY, JSON.stringify(seeded));
+      return seeded;
+    }
+    const parsed = JSON.parse(raw);
     // "abgelehnt" was the earlier name of zurückgesetzt.
     return Array.isArray(parsed)
       ? parsed.filter((x) => typeof x?.start === "number").map((x) => (x.status === "abgelehnt" ? { ...x, status: "zurueckgesetzt" } : x))
