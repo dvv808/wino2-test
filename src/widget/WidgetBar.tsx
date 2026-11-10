@@ -6,6 +6,17 @@ import { setFocusFees } from "../honorar/focusFee";
 import { noticeForMe } from "../honorar/ownership";
 import type { HonorarNotice } from "../types/honorar";
 import { useWorkflow } from "../workflow";
+import { hhmm, iso, parseIso } from "../home/calendar/calendarData";
+import {
+  GENEHMIGER,
+  decisions,
+  focusAntrag,
+  loadAntraege,
+  markGelesen,
+  onAntraegeChange,
+  saveAntraege,
+  type HomeofficeAntrag,
+} from "../home/calendar/homeoffice";
 
 /** Only the notifications tab is built; the other tabs are shown as in Figma but stay inactive. */
 const TABS = [
@@ -22,19 +33,48 @@ function kindOf(notice: HonorarNotice) {
   return notice.kind ?? "openItems";
 }
 
+/** One card in the list: an Honorar notice, or the decision on a Homeoffice request. */
+type Card = {
+  id: string;
+  title: string;
+  subject?: string;
+  text: string;
+  /** Local "YYYY-MM-DDTHH:MM". */
+  createdAt: string;
+  read: boolean;
+  icon: string;
+  open: () => void;
+};
+
+const WEEKDAY = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const pad = (n: number) => String(n).padStart(2, "0");
+const localStamp = (isoTime: string) => {
+  const d = new Date(isoTime);
+  return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+function homeofficeText(x: HomeofficeAntrag) {
+  const d = parseIso(x.day);
+  const when = `${WEEKDAY[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} · ${hhmm(x.start)} - ${hhmm(x.end)}`;
+  const reason = x.entscheidNotiz ? ` „${x.entscheidNotiz}“` : "";
+  return x.status === "genehmigt"
+    ? `Dein Homeoffice am ${when} wurde genehmigt.${reason}`
+    : `Dein Homeoffice am ${when} wurde zurückgesetzt. Bitte neu beantragen.${reason}`;
+}
+
 function dayLabel(day: string, today: string) {
   if (day === today) return "Heute";
   if (day === addDays(today, -1)) return "Gestern";
   return formatDate(day);
 }
 
-function NoticeCard({ notice, onOpen }: { notice: HonorarNotice; onOpen: () => void }) {
+function NoticeCard({ notice, onOpen }: { notice: Card; onOpen: () => void }) {
   const time = notice.createdAt.slice(11, 16);
   return (
     <article className={notice.read ? "wg-card" : "wg-card unread"}>
       <div className="wg-card-head">
         <span className="wg-card-ico">
-          <img src={kindOf(notice) === "advisor" ? a.widgetCardMail : a.widgetCardCalendar} alt="" />
+          <img src={notice.icon} alt="" />
           {notice.read ? null : <span className="wg-card-dot" />}
         </span>
         <span className="wg-card-title">
@@ -53,7 +93,10 @@ function NoticeCard({ notice, onOpen }: { notice: HonorarNotice; onOpen: () => v
 
 /** Right-hand widget bar, shown while "Widget einschalten" is on in the profile menu. */
 export function WidgetBar() {
-  const { widgetOn, openMeinBereich, setMeinBereichNav } = useWorkflow();
+  const { widgetOn, openMeinBereich, setMeinBereichNav, openHome } = useWorkflow();
+  // Homeoffice decisions (HRM / Freigaben) reach the employee here.
+  const [homeoffice, setHomeoffice] = useState(loadAntraege);
+  useEffect(() => onAntraegeChange(setHomeoffice), []);
   const { state, markNoticeRead, markNoticesRead } = useHonorar();
   const [filter, setFilter] = useState<FilterId>("all");
   const [newestFirst, setNewestFirst] = useState(true);
@@ -66,10 +109,46 @@ export function WidgetBar() {
   }, [widgetOn]);
 
   // Only the logged-in person's notices, told for their own invoices (the rows of their Honorare/Forderungen).
-  const mine = useMemo(
-    () => state.notices.map((notice) => noticeForMe(state, notice)).filter((notice): notice is NonNullable<typeof notice> => Boolean(notice)),
-    [state],
-  );
+  const mine = useMemo((): Card[] => {
+    const honorar = state.notices
+      .map((notice) => noticeForMe(state, notice))
+      .filter((notice): notice is NonNullable<typeof notice> => Boolean(notice))
+      .map(
+        (notice): Card => ({
+          id: notice.id,
+          title: notice.title ?? "Hinweis",
+          subject: notice.subject,
+          text: notice.text,
+          createdAt: notice.createdAt,
+          read: !!notice.read,
+          icon: kindOf(notice) === "advisor" ? a.widgetCardMail : a.widgetCardCalendar,
+          open: () => openHonorar(notice),
+        }),
+      );
+    const ho = decisions(homeoffice).map(
+      (x): Card => ({
+        id: `ho-${x.id}`,
+        title: x.status === "genehmigt" ? "Homeoffice genehmigt" : "Homeoffice zurückgesetzt",
+        subject: x.entschiedenVon ?? GENEHMIGER.name,
+        text: homeofficeText(x),
+        createdAt: onDemoDay(localStamp(x.entschieden!)),
+        read: !!x.gelesen,
+        icon: x.status === "genehmigt" ? a.calHomeofficeApproved : a.calUrlaubRejected,
+        open: () => {
+          saveAntraege(markGelesen(loadAntraege(), x.id));
+          focusAntrag(x.id);
+          openHome("Planner", "Kalender");
+        },
+      }),
+    );
+    return [...honorar, ...ho];
+
+    /** The Honorar notices live on the demo date: a decision from today is filed under that same "Heute". */
+    function onDemoDay(stamp: string) {
+      return stamp.slice(0, 10) === iso(new Date()) ? `${state.today}${stamp.slice(10)}` : stamp;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, homeoffice]);
   const unread = mine.filter((notice) => !notice.read).length;
 
   const groups = useMemo(() => {
@@ -82,7 +161,7 @@ export function WidgetBar() {
           [notice.title, notice.subject, notice.text].some((part) => part?.toLowerCase().includes(needle)),
       )
       .sort((x, y) => (newestFirst ? y.createdAt.localeCompare(x.createdAt) : x.createdAt.localeCompare(y.createdAt)));
-    const byDay = new Map<string, HonorarNotice[]>();
+    const byDay = new Map<string, Card[]>();
     for (const notice of shown) {
       const day = notice.createdAt.slice(0, 10);
       byDay.set(day, [...(byDay.get(day) ?? []), notice]);
@@ -93,7 +172,7 @@ export function WidgetBar() {
   if (!widgetOn) return null;
 
   /** "Ansehen": Mein Bereich → Bestand → Honorare/Forderungen, on the invoice's month, with its rows marked. */
-  function open(notice: HonorarNotice) {
+  function openHonorar(notice: HonorarNotice) {
     markNoticeRead(notice.id);
     setMeinBereichNav({ area: "Bestand", page: "Honorare/Forderungen" });
     openMeinBereich();
@@ -168,7 +247,14 @@ export function WidgetBar() {
             </button>
           </div>
           {unread ? (
-            <button type="button" className="wg-mark-read" onClick={() => markNoticesRead()}>
+            <button
+              type="button"
+              className="wg-mark-read"
+              onClick={() => {
+                markNoticesRead();
+                saveAntraege(markGelesen(loadAntraege()));
+              }}
+            >
               Alle als gelesen markieren
             </button>
           ) : null}
@@ -176,7 +262,7 @@ export function WidgetBar() {
 
         {groups.length === 0 ? (
           <p className="wg-empty">
-            Keine Benachrichtigungen. Neue Offene Posten und Nachrichten an Berater erscheinen hier.
+            Keine Benachrichtigungen. Neue Offene Posten, Nachrichten an Berater und Entscheidungen zu deinen Anträgen erscheinen hier.
           </p>
         ) : (
           groups.map(([day, notices], index) => (
@@ -191,7 +277,7 @@ export function WidgetBar() {
               </div>
               <div className="wg-list">
                 {notices.map((notice) => (
-                  <NoticeCard key={notice.id} notice={notice} onOpen={() => open(notice)} />
+                  <NoticeCard key={notice.id} notice={notice} onOpen={notice.open} />
                 ))}
               </div>
             </section>

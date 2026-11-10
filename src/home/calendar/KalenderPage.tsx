@@ -23,7 +23,7 @@ import {
 import { AktivitaetenPanel, BeantragungenPanel, counts } from "./Aktivitaeten";
 import { HomeofficeModal, HomeofficePopover } from "./HomeofficeUI";
 import { MiniMonth } from "./MiniMonth";
-import { decide, inCalendar, loadAntraege, takeFocus, onAntraegeChange, remove, saveAntraege, saveDay, type HomeofficeAntrag } from "./homeoffice";
+import { decide, inCalendar, loadAntraege, onFocus, takeFocus, onAntraegeChange, remove, saveAntraege, saveDay, type HomeofficeAntrag } from "./homeoffice";
 
 /** Home → Planner → Kalender: "Mein Kalender", Ansicht Woche (Figma 16702:185207). Tag/Monat/Jahr follow. */
 
@@ -671,13 +671,29 @@ export function KalenderPage() {
   /** The day the Homeoffice modal is open on, or null. */
   const [hoModal, setHoModal] = useState<string | null>(null);
   const [hoOpen, setHoOpen] = useState<string | null>(focused && focused.status !== "zurueckgesetzt" ? focused.id : null);
-  const [panel, setPanel] = useState<SidePanel>("kalender");
+  // A reset request has no bar in the calendar: show its notice in Beantragungen instead.
+  const [panel, setPanel] = useState<SidePanel>(focused?.status === "zurueckgesetzt" ? "beantragungen" : "kalender");
   /** The request highlighted in Beantragungen (opened from the status in the calendar popover). */
   const [highlight, setHighlight] = useState<string | null>(null);
   const setAntraege = (next: HomeofficeAntrag[]) => {
     setAntraegeState(next);
     saveAntraege(next);
   };
+  // A jump from the widget while the Kalender is already open.
+  useEffect(
+    () =>
+      onFocus(() => {
+        const id = takeFocus();
+        const x = id ? loadAntraege().find((y) => y.id === id) : undefined;
+        if (!x) return;
+        setDay(x.day);
+        setView("Woche");
+        setVisible((prev) => new Set(prev).add("lucy"));
+        setHoOpen(x.status === "zurueckgesetzt" ? null : x.id);
+        if (x.status === "zurueckgesetzt") setPanel("beantragungen");
+      }),
+    [],
+  );
   // Decisions made in Bestand → Freigaben reach the calendar right away.
   useEffect(() => onAntraegeChange(setAntraegeState), []);
   const holidays = useMemo(() => seedWeek(today).holidays, [today]);

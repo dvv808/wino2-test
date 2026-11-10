@@ -24,6 +24,8 @@ export type HomeofficeAntrag = {
   entschiedenVon?: string;
   /** Note written with the decision in Freigaben. */
   entscheidNotiz?: string;
+  /** The employee has seen the decision (widget notification). */
+  gelesen?: boolean;
 };
 
 /** One row of the modal while it is edited. `id` is set for a block that already exists. */
@@ -134,8 +136,18 @@ export const decide = (
   notiz?: string,
 ) =>
   antraege.map((x) =>
-    x.id === id && x.status === "offen" ? { ...x, status, entschieden: now, entschiedenVon: by, entscheidNotiz: notiz?.trim() || undefined } : x,
+    x.id === id && x.status === "offen"
+      ? { ...x, status, entschieden: now, entschiedenVon: by, entscheidNotiz: notiz?.trim() || undefined, gelesen: false }
+      : x,
   );
+
+/** Decided requests as notifications for the employee (widget), newest first. */
+export const decisions = (antraege: HomeofficeAntrag[]) =>
+  antraege.filter((x) => x.status !== "offen" && x.entschieden).sort((x, y) => y.entschieden!.localeCompare(x.entschieden!));
+
+/** Marks the decision of one request (or, without id, of all) as seen. */
+export const markGelesen = (antraege: HomeofficeAntrag[], id?: string) =>
+  antraege.map((x) => (x.entschieden && (!id || x.id === id) ? { ...x, gelesen: true } : x));
 
 export const remove = (antraege: HomeofficeAntrag[], id: string) => antraege.filter((x) => x.id !== id);
 
@@ -166,7 +178,14 @@ export function parseTime(text: string): number | null {
 let focus: string | null = null;
 export const focusAntrag = (id: string) => {
   focus = id;
+  // An open Kalender reacts right away (the widget can jump while the Kalender is shown).
+  window.dispatchEvent(new CustomEvent(FOCUS_EVENT));
 };
+const FOCUS_EVENT = "wino:homeoffice-focus";
+export function onFocus(callback: () => void) {
+  window.addEventListener(FOCUS_EVENT, callback);
+  return () => window.removeEventListener(FOCUS_EVENT, callback);
+}
 export function takeFocus() {
   const id = focus;
   focus = null;

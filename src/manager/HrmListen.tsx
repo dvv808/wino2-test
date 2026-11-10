@@ -268,8 +268,7 @@ const TABS = [
   { id: "gespraeche", label: "Mitarbeitergespräche", icon: a.comment },
 ];
 
-export function HrmListen() {
-  const [tab, setTab] = useState("antraege");
+export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: string) => void }) {
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
   useEffect(() => onAntraegeChange(setHomeoffice), []);
   /** Decisions on the demo rows stay on this screen. */

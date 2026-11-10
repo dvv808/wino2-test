@@ -15450,7 +15450,8 @@ button.hn-kpi.active strong {
 /* ---------------------------------------------------------------- DMS: browser (Figma 17315-166798) */
 
 .admin-body {
-  padding: 16px calc(24px + var(--widget-space, 0px)) 24px 24px;
+  /* No widget space here: .app already keeps the widget bar's width free. */
+  padding: 16px 24px 24px;
   gap: 16px;
   min-height: 0;
 }
@@ -17008,7 +17009,8 @@ button.hn-kpi.active strong {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr);
   gap: 12px;
-  padding: 16px calc(24px + var(--widget-space, 0px)) 24px 24px;
+  /* No widget space here: .app already keeps the widget bar's width free. */
+  padding: 16px 24px 24px;
   background: var(--wino-bg-lighter);
   /* Fixed height: side nav and week grid scroll inside their panels, the page does not. */
   flex: 0 0 auto;

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { hashToRoute, routeToHash, type PersonArea, type PersonModule } from "./routing";
+import { hashToRoute, routeToHash, type ManagerNav, type PersonArea, type PersonModule } from "./routing";
 import type { FinanzenPage, HonorarStepKey, Partner as HonorarPartner } from "./types/honorar";
 import { buildHonorarPartner } from "./person/createDraft";
 import { getPartner, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
@@ -307,7 +307,9 @@ function useWorkflowState() {
   /** "Admin" (profile menu) is a tab of its own too, like "Mein Bereich". */
   const [adminOpen, setAdminOpen] = useState(initialRoute.view === "admin");
   const [adminFrom, setAdminFrom] = useState<View | null>(null);
-  const [meinBereichNav, setMeinBereichNav] = useState({ area: "Mein Bereich", page: "Dashboard" });
+  const [meinBereichNav, setMeinBereichNav] = useState(initialRoute.view === "meinBereich" && initialRoute.nav ? initialRoute.nav : { area: "Mein Bereich", page: "Dashboard" });
+  /** Management: Bestand (Freigaben …) or HRM (Anträge …), and the list tab. In the URL. */
+  const [managerNav, setManagerNav] = useState<ManagerNav>(initialRoute.managerNav ?? { area: "bestand", tab: "freigaben" });
   /** The home area behind the logo: Planner, Kommunikation, Bestand, Wissen. */
   const [homeFrom, setHomeFrom] = useState<View | null>(null);
   /** Management (Bestandsmanager, Finanzen) is a tab like the partner files: it stays in the header until it is closed. */
@@ -315,7 +317,7 @@ function useWorkflowState() {
   const [lastManagementView, setLastManagementView] = useState<View>(
     MANAGEMENT_VIEWS.includes(initialRoute.view ?? "person") ? (initialRoute.view as View) : "manager",
   );
-  const [homeNav, setHomeNav] = useState({ area: "Planner", page: "Workflows & To-Dos" });
+  const [homeNav, setHomeNav] = useState(initialRoute.view === "home" && initialRoute.nav ? initialRoute.nav : { area: "Planner", page: "Workflows & To-Dos" });
   /** The right-hand widget bar, switched on from the profile menu. */
   const [widgetOn, setWidgetOn] = useState(() => localStorage.getItem(WIDGET_KEY) === "1");
   useEffect(() => {
@@ -481,6 +483,8 @@ function useWorkflowState() {
       finanzenPartnerId,
       finanzenYear,
       rechnungFeeId: rechnungFeeId ?? undefined,
+      nav: view === "home" ? homeNav : view === "meinBereich" ? meinBereichNav : undefined,
+      managerNav,
     });
     if (window.location.hash === next) {
       hashWritten.current = true;
@@ -506,6 +510,9 @@ function useWorkflowState() {
     finanzenPartnerId,
     finanzenYear,
     rechnungFeeId,
+    homeNav,
+    meinBereichNav,
+    managerNav,
   ]);
 
   useEffect(() => {
@@ -524,6 +531,12 @@ function useWorkflowState() {
       setKonzernHubId(route.konzernHubId ?? null);
       if (route.view === "workflow") setMaklerOpen(true);
       if (route.view === "rechnung" && route.rechnungFeeId) setRechnungFeeId(route.rechnungFeeId);
+      if (route.view === "home" && route.nav) setHomeNav(route.nav);
+      if (route.view === "meinBereich" && route.nav) {
+        setMeinBereichNav(route.nav);
+        setMeinBereichOpen(true);
+      }
+      if (route.managerNav) setManagerNav(route.managerNav);
       if (route.view === "finanzen") {
         setFinanzenPage(route.finanzenPage ?? "month");
         if (route.finanzenMonth) setFinanzenMonth(route.finanzenMonth);
@@ -1568,6 +1581,8 @@ function useWorkflowState() {
     meinBereichOpen,
     meinBereichNav,
     setMeinBereichNav,
+    managerNav,
+    setManagerNav,
     widgetOn,
     setWidgetOn,
     leaveMeinBereich,

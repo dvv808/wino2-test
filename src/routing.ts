@@ -13,8 +13,9 @@ export type PersonArea = "stammdaten" | "maklermandat" | "inkasso";
  * Maklervereinbarung hangs off the partner who opened it.
  */
 const WORKFLOW = "maklervereinbarung";
-const MANAGER = "bestandsmanager/freigaben";
-const FINANZEN = "bestandsmanager/finanzen";
+/** Management: the area tab (Bestand, HRM, Finanzen …), then the list tab. "bestandsmanager/…" links still open. */
+const MANAGER = "management/bestand/freigaben";
+const FINANZEN = "management/finanzen";
 /** The profile page opens on Stammdaten; Ashley's file opens on Maklermandat. */
 const PERSON_AREA = "stammdaten";
 const MAKLERMANDAT_AREA = "maklermandat";
@@ -79,8 +80,59 @@ const FINANZEN_STEP_BY_SLUG = new Map(
   Object.entries(FINANZEN_STEP_SLUGS).map(([id, slug]) => [slug, id as HonorarStepKey]),
 );
 
+/** Area and page of a tabbed section (Home, Mein Bereich), by their labels. */
+export type NavPlace = { area: string; page: string };
+
+/** Management: area tab and the list tab inside it. */
+export type ManagerNav = { area: "bestand" | "hrm"; tab: string };
+
+/** Every area / page label that can stand in a URL; the slug is made from the label. */
+const NAV_LABELS = [
+  "Planner",
+  "Kommunikation",
+  "Bestand",
+  "Wissen",
+  "Dashboard",
+  "Kalender",
+  "Workflows & To-Dos",
+  "Notizblock",
+  "Meine Dateien",
+  "Chat",
+  "E-Mail",
+  "Telefonie",
+  "Mein Bereich",
+  "Profil",
+  "Listen",
+  "Dokumente",
+  "Honorare/Forderungen",
+];
+
+/** "Workflows & To-Dos" → "workflows-und-to-dos", "Übersicht" → "uebersicht". */
+export function toSlug(label: string) {
+  return label
+    .toLowerCase()
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .replace(/&/g, "und")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+const LABEL_BY_SLUG = new Map(NAV_LABELS.map((label) => [toSlug(label), label]));
+
+function navOf(parts: string[], fallback: NavPlace): NavPlace {
+  const area = LABEL_BY_SLUG.get(parts[0] ?? "");
+  const page = LABEL_BY_SLUG.get(parts[1] ?? "");
+  return area ? { area, page: page ?? "Dashboard" } : fallback;
+}
+
 export type Route = {
   view: View;
+  /** Home and Mein Bereich: the open area and page. */
+  nav?: NavPlace;
+  managerNav?: ManagerNav;
   activeStep?: StepId;
   freigabeId?: string;
   stammdatenArea?: StammdatenAreaId;
@@ -121,6 +173,8 @@ export function routeToHash({
   finanzenYear,
   konzernHubId,
   rechnungFeeId,
+  nav,
+  managerNav,
 }: Route): string {
   if (view === "rechnung" && rechnungFeeId) return `#/${FINANZEN}/rechnung/${rechnungFeeId}`;
   if (view === "konzernHub" && konzernHubId) {
@@ -139,9 +193,9 @@ export function routeToHash({
     if (personArea === "maklermandat") return `#/${root}/${MAKLERMANDAT_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
   }
-  if (view === "meinBereich") return "#/mein-bereich";
+  if (view === "meinBereich") return nav ? `#/mein-bereich/${toSlug(nav.area)}/${toSlug(nav.page)}` : "#/mein-bereich";
   if (view === "admin") return "#/admin";
-  if (view === "home") return "#/home";
+  if (view === "home") return nav ? `#/home/${toSlug(nav.area)}/${toSlug(nav.page)}` : "#/home";
   if (view === "finanzen") {
     if (finanzenPage === "sammelfaktura") return `#/${FINANZEN}/sammelfaktura${finanzenYear ? `/${finanzenYear}` : ""}`;
     if (finanzenPage === "openItems") return `#/${FINANZEN}/offene-posten`;
@@ -153,7 +207,10 @@ export function routeToHash({
     return `#/${FINANZEN}/${month}${step}`;
   }
   if (view === "freigabe" && freigabeId) return `#/${MANAGER}/${freigabeId}`;
-  if (view === "manager" || view === "freigabe") return `#/${MANAGER}`;
+  if (view === "manager" || view === "freigabe") {
+    const place = managerNav ?? { area: "bestand", tab: "freigaben" };
+    return `#/management/${place.area}/${place.tab}`;
+  }
   const pane = workflowPane && workflowPane !== "workflow" ? PANE_SLUGS[workflowPane] : null;
   if (pane) return `#/${personRoot(partnerId)}/${WORKFLOW}/${pane}`;
   const slug = STEP_SLUGS[activeStep ?? "tasks"];
@@ -162,10 +219,17 @@ export function routeToHash({
 
 export function hashToRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (parts[0] === "mein-bereich") return { view: "meinBereich" };
+  if (parts[0] === "mein-bereich") return { view: "meinBereich", nav: navOf(parts.slice(1), { area: "Mein Bereich", page: "Dashboard" }) };
   if (parts[0] === "admin") return { view: "admin" };
-  if (parts[0] === "home") return { view: "home" };
-  if (parts[0] === "bestandsmanager" && parts[1] === "finanzen") {
+  if (parts[0] === "home") return { view: "home", nav: navOf(parts.slice(1), { area: "Planner", page: "Workflows & To-Dos" }) };
+  // Management: management/<area>/<tab>[/<freigabe>]. Older links (bestandsmanager/…) mean the same.
+  if (parts[0] === "management" && parts[1] !== "finanzen") {
+    const area = parts[1] === "hrm" ? "hrm" : "bestand";
+    const tab = parts[2] ?? (area === "hrm" ? "antraege" : "freigaben");
+    if (area === "bestand" && tab === "freigaben" && parts[3]) return { view: "freigabe", freigabeId: parts[3], managerNav: { area, tab } };
+    return { view: "manager", managerNav: { area, tab } };
+  }
+  if (parts[0] === "management" || (parts[0] === "bestandsmanager" && parts[1] === "finanzen")) {
     const rest = parts.slice(2);
     if (rest[0] === "sammelfaktura") {
       const year = /^\d{4}$/.test(rest[1] ?? "") ? rest[1] : "";
@@ -184,7 +248,7 @@ export function hashToRoute(hash: string): Route {
   }
   if (parts[0] === "bestandsmanager") {
     const id = parts[2];
-    return id ? { view: "freigabe", freigabeId: id } : { view: "manager" };
+    return id ? { view: "freigabe", freigabeId: id } : { view: "manager", managerNav: { area: "bestand", tab: "freigaben" } };
   }
   if (parts[0] === "person" && parts[2] === STAMMDATEN_WORKFLOW) {
     const area = AREA_BY_SLUG.get(parts[3] ?? "") ?? STAMMDATEN_AREAS[0].id;

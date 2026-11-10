@@ -49,9 +49,11 @@ export function ManagerView() {
   const [deleted, setDeleted] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<RequestRow | null>(null);
   const { state: honorar, decideInvoiceCorrection } = useHonorar();
-  const [listenTab, setListenTab] = useState<BestandListenTab>("freigaben");
-  /** Management area: Bestand (Freigaben) or HRM (Anträge of the employees). */
-  const [area, setArea] = useState<"Bestand" | "HRM">("Bestand");
+  // Area (Bestand / HRM) and list tab live in the URL: management/<area>/<tab>.
+  const { managerNav, setManagerNav } = useWorkflow();
+  const area = managerNav.area === "hrm" ? "HRM" : "Bestand";
+  const listenTab = (managerNav.area === "bestand" ? managerNav.tab : "freigaben") as BestandListenTab;
+  const setListenTab = (tab: BestandListenTab) => setManagerNav({ area: "bestand", tab });
   /** Homeoffice-Anträge from the Kalender, shared through the same store. */
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
   useEffect(() => onAntraegeChange(setHomeoffice), []);
@@ -124,13 +126,16 @@ export function ManagerView() {
     <div className="app">
       <div className="shell">
         <BestandMainNav />
-        <BestandAreaNav active={area} onArea={(next) => setArea(next as "Bestand" | "HRM")} />
+        <BestandAreaNav
+          active={area}
+          onArea={(next) => setManagerNav(next === "HRM" ? { area: "hrm", tab: "antraege" } : { area: "bestand", tab: "freigaben" })}
+        />
         <BestandModuleNav />
 
         <div className="content-shell bestand-body">
           <MitarbeiterSidebar />
           {area === "HRM" ? (
-            <HrmListen />
+            <HrmListen tab={managerNav.tab} onTab={(tab) => setManagerNav({ area: "hrm", tab })} />
           ) : (
           <FreigabenPanel
             rows={rows}
