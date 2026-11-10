@@ -125,8 +125,10 @@ function SideNav({
       ) : (
       <div className="kal-side-body">
         <button type="button" className="kal-activities" onClick={() => setPanel("aktivitaeten")}>
-          <Icon src={a.calBell} size={20} />
-          {aktivitaeten > 0 ? <span className="mb-action-count">{aktivitaeten}</span> : null}
+          <span className="kal-activities-ico">
+            <Icon src={a.calBell} size={20} />
+          </span>
+          {aktivitaeten > 0 ? <span className="kal-akt-badge">{aktivitaeten}</span> : null}
           Kalender Aktivitäten
         </button>
 

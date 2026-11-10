@@ -17103,12 +17103,15 @@ button.hn-kpi.active strong {
   gap: 12px;
 }
 
+/* Figma 17586:114488: 239×40, a 32px icon strip on the left, then the badge and the label. */
 .kal-activities {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 37px;
-  padding: 0 12px;
+  height: 40px;
+  padding: 0 12px 0 0;
+  overflow: hidden;
   border: 0;
   border-radius: 6px;
   background: linear-gradient(13deg, var(--wino-white) -13%, var(--wino-bg-darker) 97%);
@@ -19492,4 +19495,20 @@ button.stat-card.active .stat-copy span {
 
 .mb-ant-row.to-calendar {
   cursor: pointer;
+}
+
+.kal-activities-ico {
+  align-self: stretch;
+  width: 32px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(24deg, var(--wino-white) -40%, var(--wino-bg-darker) 100%);
+}
+
+.kal-activities .kal-akt-badge {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  line-height: 18px;
+  font-size: 11px;
 }
