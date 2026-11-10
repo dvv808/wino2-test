@@ -6,8 +6,8 @@
 export type PersonId = string;
 export type GroupId = string;
 
-/** Entities a document can be linked to and that can trigger a folder template. */
-export type EntityType = "Partner" | "Kunde" | "Versicherer" | "Schaden";
+/** Entities a document can be linked to and that can trigger a folder template. A Kunde is a Partner. */
+export type EntityType = "Partner" | "Versicherer" | "Schaden";
 
 export type DmsEntity = {
   id: string;
@@ -113,6 +113,12 @@ export type Bedingung =
  */
 export type GroupBy = { kind: "meta"; field: MetaField } | { kind: "link"; entityType: EntityType; allEntities?: boolean };
 
+/**
+ * A connected folder. Its sub-folders come along merged by name (the same "Transportversicherung" in every
+ * insurer becomes one); `include` lists the chosen ones as name paths ("Transportversicherung/2026"), null = all.
+ */
+export type Verbindung = { nodeId: string; include: string[] | null };
+
 /** An upload point linked to a folder: its files show up here and get this Dokumenttyp. */
 export type QuellenLink = { source: UploadSource; slot: string | null; dokumenttyp: string };
 
@@ -139,6 +145,8 @@ export type Knoten = {
   quellen?: QuellenLink[];
   /** Takes over the sub-folders of another folder (by id), filled with this folder's own documents. */
   linkTo?: string;
+  /** Ordner verbinden: shows the files of other folders (every place that folder appears) in this one. */
+  verbindungen?: Verbindung[];
   /** The folder name is the value, e.g. a folder "Feuerversicherung" holds documents with that Sparte. */
   nameMatches?: MetaField;
   permissions: Berechtigung[];
@@ -180,7 +188,7 @@ export type DmsPerson = { id: PersonId; name: string; rollen: Rolle[]; photo?: s
 export type Gruppe = { id: GroupId; name: string; members: PersonId[] };
 
 export type DmsState = {
-  version: 2;
+  version: 3;
   /** "Today" of the prototype, so automatic transitions and "nicht aktuell" are reproducible. */
   today: string;
   activePerson: PersonId;

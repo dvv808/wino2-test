@@ -1,8 +1,8 @@
-import type { Ablageregel, Ansicht, DmsState, EntityType, Knoten, Ordnervorlage, QuellenLink, UploadSource } from "../../types/dms";
+import type { Ablageregel, Ansicht, DmsState, EntityType, Knoten, Ordnervorlage, QuellenLink, UploadSource, Verbindung } from "../../types/dms";
 import { editVorlage, findNode, newId } from "./admin";
 import { safeSegment } from "./placeholders";
 import { sourceItem, sourceLabel } from "./sources";
-import { childrenOf, nodeIndex } from "./views";
+import { buildView, childrenOf, instancesOfNode, mergeByName, nodeIndex } from "./views";
 
 /**
  * Ordner Zuordnung: upload points are linked to folders. Each link is the Ablageregel for that upload point,
@@ -119,9 +119,10 @@ function stripLink(node: Knoten, link: Pick<QuellenLink, "source" | "slot">): Kn
 }
 
 /**
- * Drops an upload point on a folder. An upload point is linked once, so it moves here. When the folder has no
- * level for its entity yet (e.g. "Partner" without "{Partner.Name}"), that level is created and the link goes
- * there; sub-folders such as "Partnerdaten Anhänge" can then be added under it and the link moved onto them.
+ * Drops an upload point on a folder; it can be linked to several folders (the file is stored once and shows in
+ * each). When the folder has no level for its entity yet (e.g. "Partner" without "{Partner.Name}"), that level
+ * is created and the link goes there. In one branch the deepest linked folder takes the file, so a link on
+ * "Partnerdaten Anhänge" below "{Partner.Name}" wins over one on "{Partner.Name}".
  */
 export function linkSource(
   state: DmsState,
@@ -132,7 +133,7 @@ export function linkSource(
 ): { state: DmsState; nodeId: string } {
   const item = sourceItem(link.source, link.slot);
   const quelle: QuellenLink = { source: link.source, slot: link.slot, dokumenttyp: link.dokumenttyp ?? item?.dokumenttyp ?? "anhang" };
-  let next: DmsState = { ...state, vorlagen: state.vorlagen.map((v) => ({ ...v, root: stripLink(v.root, quelle) })) };
+  let next: DmsState = state;
   let target = nodeId;
   const vorlage = next.vorlagen.find((v) => v.id === vorlageId);
   const entityType = item?.entityType ?? null;
@@ -153,7 +154,13 @@ export function linkSource(
       next = editVorlage(next, vorlageId, (v) => ({ ...v, root: mapNode(v.root, nodeId, (n) => ({ ...n, children: [...n.children, level] })) }));
     }
   }
-  next = editVorlage(next, vorlageId, (v) => ({ ...v, root: mapNode(v.root, target, (n) => ({ ...n, quellen: [...(n.quellen ?? []), quelle] })) }));
+  next = editVorlage(next, vorlageId, (v) => ({
+    ...v,
+    root: mapNode(v.root, target, (n) => ({
+      ...n,
+      quellen: (n.quellen ?? []).some((q) => sameLink(q, quelle)) ? n.quellen : [...(n.quellen ?? []), quelle],
+    })),
+  }));
   return { state: next, nodeId: target };
 }
 
@@ -162,8 +169,21 @@ function mapNode(root: Knoten, id: string, fn: (n: Knoten) => Knoten): Knoten {
   return { ...next, children: next.children.map((c) => mapNode(c, id, fn)) };
 }
 
-export function unlinkSource(state: DmsState, link: Pick<QuellenLink, "source" | "slot">): DmsState {
-  return { ...state, vorlagen: state.vorlagen.map((v) => ({ ...v, root: stripLink(v.root, link) })) };
+/** Removes the link from one folder, or (without `nodeId`) from every folder. */
+export function unlinkSource(state: DmsState, link: Pick<QuellenLink, "source" | "slot">, nodeId?: string): DmsState {
+  if (!nodeId) return { ...state, vorlagen: state.vorlagen.map((v) => ({ ...v, root: stripLink(v.root, link) })) };
+  return {
+    ...state,
+    vorlagen: state.vorlagen.map((v) => ({
+      ...v,
+      root: mapNode(v.root, nodeId, (n) => ({ ...n, quellen: (n.quellen ?? []).filter((q) => !sameLink(q, link)) })),
+    })),
+  };
+}
+
+/** Every folder an upload point is linked to. */
+export function placesOf(state: Pick<DmsState, "vorlagen">, link: Pick<QuellenLink, "source" | "slot">) {
+  return linkPlaces(state).filter((p) => sameLink(p.link, link));
 }
 
 export function setLinkTyp(state: DmsState, vorlageId: string, nodeId: string, link: Pick<QuellenLink, "source" | "slot">, dokumenttyp: string) {
@@ -178,12 +198,12 @@ export function setFolderLink(state: DmsState, vorlageId: string, nodeId: string
   return editVorlage(state, vorlageId, (v) => ({ ...v, root: mapNode(v.root, nodeId, (n) => ({ ...n, linkTo: targetId ?? undefined })) }));
 }
 
-/** A new top-level folder in one Ansicht. */
-export function addTopFolder(state: DmsState, ansicht: Ansicht, name: string, ids = { vorlage: newId("tpl"), node: newId("n") }) {
+/** A new top-level folder; it shows in both Ansichten (Spaces shows the outcome of each). */
+export function addTopFolder(state: DmsState, ansichten: Ansicht[], name: string, ids = { vorlage: newId("tpl"), node: newId("n") }) {
   const vorlage: Ordnervorlage = {
     id: ids.vorlage,
     name,
-    ansichten: [ansicht],
+    ansichten,
     scope: "global",
     mount: [],
     root: { id: ids.node, name, filter: [], permissions: [{ principal: { kind: "Rolle", id: "DMS-Admin" }, level: "Verwalten" }], children: [] },
@@ -195,11 +215,11 @@ export function removeTopFolder(state: DmsState, vorlageId: string) {
   return { ...state, vorlagen: state.vorlagen.filter((v) => v.id !== vorlageId) };
 }
 
-/** Every folder of an Ansicht a folder link can point to, with its template path. */
-export function linkTargets(state: Pick<DmsState, "vorlagen">, ansicht: Ansicht) {
+/** Every folder a folder link can point to, with its template path (optionally of one Ansicht). */
+export function linkTargets(state: Pick<DmsState, "vorlagen">, ansicht?: Ansicht) {
   const nodes = nodeIndex(state.vorlagen);
   const out: { id: string; path: string[] }[] = [];
-  for (const vorlage of state.vorlagen.filter((v) => v.ansichten.includes(ansicht))) {
+  for (const vorlage of state.vorlagen.filter((v) => !ansicht || v.ansichten.includes(ansicht))) {
     const go = (node: Knoten, parent: string[]) => {
       const path = [...parent, node.name];
       out.push({ id: node.id, path });
@@ -208,4 +228,36 @@ export function linkTargets(state: Pick<DmsState, "vorlagen">, ansicht: Ansicht)
     go(vorlage.root, vorlage.mount);
   }
   return out.filter((t) => nodes.has(t.id));
+}
+
+// ---------------------------------------------------------------- Ordner verbinden
+
+/** Connects (or updates the connection to) another folder; `include` = chosen sub-folder name paths, null = all. */
+export function setVerbindung(state: DmsState, vorlageId: string, nodeId: string, verbindung: Verbindung) {
+  return editVorlage(state, vorlageId, (v) => ({
+    ...v,
+    root: mapNode(v.root, nodeId, (n) => ({
+      ...n,
+      verbindungen: [...(n.verbindungen ?? []).filter((x) => x.nodeId !== verbindung.nodeId), verbindung],
+    })),
+  }));
+}
+
+export function removeVerbindung(state: DmsState, vorlageId: string, nodeId: string, sourceNodeId: string) {
+  return editVorlage(state, vorlageId, (v) => ({
+    ...v,
+    root: mapNode(v.root, nodeId, (n) => ({ ...n, verbindungen: (n.verbindungen ?? []).filter((x) => x.nodeId !== sourceNodeId) })),
+  }));
+}
+
+/**
+ * What connecting a folder brings along: every place it appears (e.g. the Fachbereiche of five insurers) and its
+ * recurring sub-folders merged by name, with how often each occurs.
+ */
+export function connectionPreview(state: DmsState, sourceNodeId: string) {
+  const vorlage = state.vorlagen.find((v) => findNode(v.root, sourceNodeId));
+  const ansicht: Ansicht = vorlage?.ansichten.includes("Verwaltung") ? "Verwaltung" : "Standard";
+  const view = buildView(state, ansicht);
+  const instances = instancesOfNode(view, sourceNodeId);
+  return { ansicht, instances, tree: mergeByName(instances), docs: instances.reduce((n, f) => n + f.count, 0) };
 }

@@ -240,3 +240,42 @@ export { default as widgetCardCalendar } from "./icons/widget-card-calendar.svg"
 export { default as widgetCardMail } from "./icons/widget-card-mail.svg";
 export { default as channelGeschaeftsfuehrung } from "./icons/channel-geschaeftsfuehrung.svg";
 export { default as channelInnendienst } from "./icons/channel-innendienst.svg";
+// Kalender (Figma 16702:185207, exported from the file)
+export { default as calZeiterfassung } from "./icons/cal-zeiterfassung.svg";
+export { default as calNeuerTermin } from "./icons/cal-neuer-termin.svg";
+export { default as calTeams } from "./icons/cal-teams.svg";
+export { default as calPin } from "./icons/cal-pin.svg";
+export { default as calDocApproved } from "./icons/cal-doc-approved.svg";
+export { default as calDocRejected } from "./icons/cal-doc-rejected.svg";
+export { default as calUrlaubPending } from "./icons/cal-urlaub-pending.svg";
+export { default as calUrlaubRejected } from "./icons/cal-urlaub-rejected.svg";
+export { default as calSharing } from "./icons/cal-sharing.svg";
+export { default as calShared } from "./icons/cal-shared.svg";
+export { default as calBell } from "./icons/cal-bell.svg";
+export { default as calHomeofficeApproved } from "./icons/cal-homeoffice-approved.svg";
+// Zeiterfassung dropdown markers (Figma 16702:176459)
+export { default as zeitArbeitszeit } from "./icons/zeit-arbeitszeit.svg";
+export { default as zeitUrlaub } from "./icons/zeit-urlaub.svg";
+export { default as zeitZeitausgleich } from "./icons/zeit-zeitausgleich.svg";
+export { default as zeitAbwesend } from "./icons/zeit-abwesend.svg";
+
+/* Homeoffice-Antrag and Kalender Aktivitäten (Figma 22647:252180, 22647:285979, 17586:114121) */
+export { default as hoDot } from "./icons/ho-dot.svg";
+export { default as hoEdit } from "./icons/ho-edit.svg";
+export { default as hoDelete } from "./icons/ho-delete.svg";
+export { default as hoOnhold } from "./icons/ho-onhold.svg";
+export { default as aktRequest } from "./icons/akt-request.svg";
+export { default as aktTimeConfirm } from "./icons/akt-time-confirm.svg";
+export { default as aktClock } from "./icons/akt-clock.svg";
+export { default as aktMailSent } from "./icons/akt-mail-sent.svg";
+export { default as aktCalShared } from "./icons/akt-cal-shared.svg";
+
+/* Mein Bereich → Listen → Anträge (Figma 17685:117446) */
+export { default as mbCar } from "./icons/mb-car.svg";
+export { default as mbEducation } from "./icons/mb-education.svg";
+export { default as mbHoliday } from "./icons/mb-holiday.svg";
+export { default as mbArzt } from "./icons/mb-arzt.svg";
+export { default as mbBlocked } from "./icons/mb-blocked.svg";
+export { default as mbSickness } from "./icons/mb-sickness.svg";
+export { default as mbUrlaub } from "./icons/mb-urlaub.svg";
+export { default as mbOffline } from "./icons/mb-offline.svg";

@@ -53,16 +53,16 @@ const entities: DmsEntity[] = [
   { id: "julia", type: "Partner", name: "Julia Atkinson" },
   { id: "ashley", type: "Partner", name: "Ashley Johnson" },
   { id: "lunixo", type: "Partner", name: "Lunixo AG" },
-  { id: "k-hoeller", type: "Kunde", name: "Bäckerei Höller & Söhne OG" },
-  { id: "k-gruber", type: "Kunde", name: "Dr. Maria Gruber" },
-  { id: "k-steiner", type: "Kunde", name: "Transporte Steiner / Wels GmbH" },
-  { id: "k-zentral", type: "Kunde", name: "Café Zentral Huber KG" },
+  { id: "k-hoeller", type: "Partner", name: "Bäckerei Höller & Söhne OG" },
+  { id: "k-gruber", type: "Partner", name: "Dr. Maria Gruber" },
+  { id: "k-steiner", type: "Partner", name: "Transporte Steiner / Wels GmbH" },
+  { id: "k-zentral", type: "Partner", name: "Café Zentral Huber KG" },
   {
     id: "s-0142",
     type: "Schaden",
     name: "Ladungsschaden A1 Linz",
     nummer: "S-2026-0142",
-    parent: { entityType: "Kunde", entityId: "k-steiner" },
+    parent: { entityType: "Partner", entityId: "k-steiner" },
   },
   ...VERSICHERER.map((name): DmsEntity => ({ id: v(name), type: "Versicherer", name })),
 ];
@@ -116,12 +116,11 @@ const dokumenttypen: Dokumenttyp[] = [
 const admin: Berechtigung = { principal: { kind: "Rolle", id: "DMS-Admin" }, level: "Verwalten" };
 const group = (id: string, level: Berechtigung["level"]): Berechtigung => ({ principal: { kind: "Gruppe", id }, level });
 
-const slug = (name: string) => name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/-+$/, "");
 
 /**
- * Folder structures as built in Ordner Zuordnung. Partner and Kunden are shared by both views; "{Partner.Name}"
- * and "{Kunde.Name}" are levels with a folder for every entity in Stammdaten. Upload points are linked to folders
- * (`quellen`); each link is the Ablageregel for that upload point.
+ * Folder structures as built in Ordner Zuordnung. A Kunde is a Partner, so everything about a client lives in
+ * Partner / {Partner.Name} / …; "{Partner.Name}" is a level with a folder for every partner in Stammdaten.
+ * Upload points are linked to folders (`quellen`); each link is the Ablageregel for that upload point.
  */
 const vorlagen: Ordnervorlage[] = [
   {
@@ -141,13 +140,55 @@ const vorlagen: Ordnervorlage[] = [
           name: "{Partner.Name}",
           filter: [],
           groupBy: { kind: "link", entityType: "Partner", allEntities: true },
-          permissions: [group("partner", "Bearbeiten"), group("gf", "Sehen")],
+          permissions: [group("partner", "Bearbeiten"), group("backoffice", "Bearbeiten"), group("gf", "Sehen")],
           children: [
             {
               id: "p-vereinbarungen",
               name: "Vereinbarungen",
               filter: [{ kind: "typ", in: ["maklervereinbarung", "kooperationsvertrag", "nda"] }],
               quellen: [{ source: "maklervereinbarung.vertrag", slot: "vertrag", dokumenttyp: "maklervereinbarung" }],
+              permissions: [],
+              children: [],
+            },
+            {
+              id: "p-polizzen",
+              name: "Polizzen",
+              filter: [{ kind: "typ", in: ["polizze"] }],
+              quellen: [{ source: "kunde.polizze", slot: null, dokumenttyp: "polizze" }],
+              permissions: [],
+              children: [
+                { id: "p-polizzen-sparte", name: "{Sparte}", filter: [], groupBy: { kind: "meta", field: "sparte" }, permissions: [], children: [] },
+              ],
+            },
+            {
+              id: "p-schaeden",
+              name: "Schäden",
+              filter: [{ kind: "typ", in: ["schadendokument"] }],
+              quellen: [{ source: "schaden.dokumente", slot: null, dokumenttyp: "schadendokument" }],
+              permissions: [group("schaden", "Bearbeiten")],
+              children: [
+                {
+                  id: "p-schaeden-nr",
+                  name: "{Schaden.Nummer}",
+                  filter: [],
+                  groupBy: { kind: "link", entityType: "Schaden", allEntities: true },
+                  permissions: [],
+                  children: [],
+                },
+              ],
+            },
+            {
+              id: "p-vollmachten",
+              name: "Vollmachten & Verträge",
+              filter: [{ kind: "typ", in: ["vollmacht"] }],
+              permissions: [],
+              children: [],
+            },
+            {
+              id: "p-korrespondenz",
+              name: "Korrespondenz",
+              filter: [{ kind: "typ", in: ["korrespondenz"] }],
+              quellen: [{ source: "kommunikation.email", slot: null, dokumenttyp: "korrespondenz" }],
               permissions: [],
               children: [],
             },
@@ -161,76 +202,9 @@ const vorlagen: Ordnervorlage[] = [
                 { source: "partner.bank", slot: "bank", dokumenttyp: "bankdokument" },
                 { source: "partner.aktivitaet.anhang", slot: null, dokumenttyp: "anhang" },
               ],
-              permissions: [group("backoffice", "Bearbeiten")],
-              children: [],
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    id: "tpl-kunde",
-    name: "Kunden",
-    ansichten: ["Verwaltung", "Standard"],
-    scope: "global",
-    mount: [],
-    root: {
-      id: "kunden-top",
-      name: "Kunden",
-      filter: [],
-      permissions: [admin],
-      children: [
-        {
-          id: "k-root",
-          name: "{Kunde.Name}",
-          filter: [],
-          groupBy: { kind: "link", entityType: "Kunde", allEntities: true },
-          permissions: [group("backoffice", "Bearbeiten"), group("gf", "Sehen")],
-          children: [
-            {
-              id: "k-polizzen",
-              name: "Polizzen",
-              filter: [{ kind: "typ", in: ["polizze"] }],
-              quellen: [{ source: "kunde.polizze", slot: null, dokumenttyp: "polizze" }],
-              permissions: [],
-              children: [
-                { id: "k-polizzen-sparte", name: "{Sparte}", filter: [], groupBy: { kind: "meta", field: "sparte" }, permissions: [], children: [] },
-              ],
-            },
-            {
-              id: "k-schaeden",
-              name: "Schäden",
-              filter: [{ kind: "typ", in: ["schadendokument"] }],
-              quellen: [{ source: "schaden.dokumente", slot: null, dokumenttyp: "schadendokument" }],
-              permissions: [group("schaden", "Bearbeiten")],
-              children: [
-                {
-                  id: "k-schaeden-nr",
-                  name: "{Schaden.Nummer}",
-                  filter: [],
-                  groupBy: { kind: "link", entityType: "Schaden", allEntities: true },
-                  permissions: [],
-                  children: [],
-                },
-              ],
-            },
-            {
-              id: "k-vollmachten",
-              name: "Vollmachten & Verträge",
-              filter: [{ kind: "typ", in: ["vollmacht"] }],
               permissions: [],
               children: [],
             },
-            {
-              id: "k-korrespondenz",
-              name: "Korrespondenz",
-              filter: [{ kind: "typ", in: ["korrespondenz"] }],
-              quellen: [{ source: "kommunikation.email", slot: null, dokumenttyp: "korrespondenz" }],
-              permissions: [],
-              children: [],
-            },
-            { id: "k-anhaenge", name: "Anhänge", filter: [{ kind: "typ", in: ["anhang"] }], permissions: [], children: [] },
           ],
         },
       ],
@@ -256,14 +230,21 @@ const vorlagen: Ordnervorlage[] = [
           permissions: [],
           children: [
             {
-              // Takes over the Fachbereiche of Global (same names), filled with this insurer's Bedingungen.
               id: "vv-fachbereiche",
               name: "Fachbereiche",
               filter: [{ kind: "typ", in: ["bedingungen"] }],
               quellen: [{ source: "versicherer.bedingungen", slot: null, dokumenttyp: "bedingungen" }],
-              linkTo: "gl-fachbereiche",
               permissions: [],
-              children: [],
+              children: [
+                {
+                  id: "vv-sparte",
+                  name: "{Sparte}",
+                  filter: [],
+                  groupBy: { kind: "meta", field: "sparte" },
+                  permissions: [],
+                  children: [{ id: "vv-jahr", name: "{Jahr}", filter: [], groupBy: { kind: "meta", field: "jahr" }, permissions: [], children: [] }],
+                },
+              ],
             },
           ],
         },
@@ -283,20 +264,13 @@ const vorlagen: Ordnervorlage[] = [
       permissions: [admin, group("backoffice", "Bearbeiten")],
       children: [
         {
+          // Ordner verbinden: every insurer's Fachbereiche in one place, merged by Sparte and Jahr.
           id: "gl-fachbereiche",
           name: "Fachbereiche",
-          filter: [{ kind: "typ", in: ["bedingungen"] }],
+          filter: [],
+          verbindungen: [{ nodeId: "vv-fachbereiche", include: null }],
           permissions: [],
-          children: SPARTEN.map((sparte) => ({
-            id: `gl-${slug(sparte)}`,
-            name: sparte,
-            filter: [],
-            nameMatches: "sparte" as const,
-            permissions: [],
-            children: [
-              { id: `gl-${slug(sparte)}-jahr`, name: "{Jahr}", filter: [], groupBy: { kind: "meta" as const, field: "jahr" as const }, permissions: [], children: [] },
-            ],
-          })),
+          children: [],
         },
       ],
     },
@@ -401,7 +375,8 @@ function doc(input: {
 }
 
 const P = (id: string): EntityLink => ({ entityType: "Partner", entityId: id });
-const K = (id: string): EntityLink => ({ entityType: "Kunde", entityId: id });
+/** Kunden are partners. */
+const K = (id: string): EntityLink => ({ entityType: "Partner", entityId: id });
 const V = (name: string): EntityLink => ({ entityType: "Versicherer", entityId: v(name) });
 const S = (id: string): EntityLink => ({ entityType: "Schaden", entityId: id });
 
@@ -534,7 +509,7 @@ function kundenDocuments(): Dokument[] {
       typ: "vollmacht",
       links: [K("k-zentral")],
       meta: { gueltig_von: "2026-01-01" },
-      context: { ...ctx("dms.dragdrop", null), folderPath: ["Kunden", "Café Zentral Huber KG", "Vollmachten & Verträge"] },
+      context: { ...ctx("dms.dragdrop", null), folderPath: ["Partner", "Café Zentral Huber KG", "Vollmachten & Verträge"] },
       by: "lucy",
       at: "2025-12-18T09:00:00",
     }),
@@ -589,7 +564,7 @@ function eingangDocuments(): Dokument[] {
       context: ctx("kommunikation.email", null),
       by: "anna",
       at: "2026-11-03T09:15:00",
-      kommentar: "Aus dem Sammelpostfach, kein Kunde erkannt.",
+      kommentar: "Aus dem Sammelpostfach, kein Partner erkannt.",
     }),
     doc({
       name: "Gutachten Brandschaden",
@@ -605,7 +580,7 @@ function eingangDocuments(): Dokument[] {
 export function createDmsSeed(today = DMS_TODAY): DmsState {
   counter = 0;
   return {
-    version: 2,
+    version: 3,
     today,
     activePerson: "lucy",
     people,

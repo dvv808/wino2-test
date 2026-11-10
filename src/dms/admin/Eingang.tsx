@@ -9,13 +9,13 @@ import type { DocMeta, Dokument, EntityType, MetaField } from "../../types/dms";
 import { useDms } from "../store";
 import { DmsModal, DmsTable, formatDate } from "../ui";
 
-const ENTITY_TYPES: EntityType[] = ["Partner", "Kunde", "Versicherer", "Schaden"];
+const ENTITY_TYPES: EntityType[] = ["Partner", "Versicherer", "Schaden"];
 const META_LABEL: Record<MetaField, string> = { sparte: "Sparte", jahr: "Jahr", gueltig_von: "Gültig von", gueltig_bis: "Gültig bis" };
 
 function AssignModal({ doc, onClose }: { doc: Dokument; onClose: () => void }) {
   const { state, apply } = useDms();
   const [typId, setTypId] = useState(state.dokumenttypen[0]?.id ?? "");
-  const [entityType, setEntityType] = useState<EntityType>(doc.upload_context.entityType ?? "Kunde");
+  const [entityType, setEntityType] = useState<EntityType>(doc.upload_context.entityType ?? "Partner");
   const [entityId, setEntityId] = useState(doc.upload_context.entityId ?? state.entities.find((e) => e.type === entityType)?.id ?? "");
   const [meta, setMeta] = useState<DocMeta>({ ...doc.meta });
   const [asRule, setAsRule] = useState(false);

@@ -287,3 +287,16 @@ Definition of Done wie in der Aufgabe.
 - **F5:** Soll der Build hart scheitern, wenn außerhalb der Upload-Komponente ein `type="file"` steht? Annahme: ja, als kleines Check-Script vor `tsc`.
 - **F6:** Bankverbindung-Upload (U2): eigener Dokumenttyp „Bankdokument“ unter Partner/Anhänge? Annahme: ja, Ziel `Partner/{Name}/Anhänge`.
 - **F7:** Datumsformat TT.MM.JJJJ, „heute“ = Datum des Prototyp-Stores (aktuell 04.11.2026), damit „nicht aktuell“ für 2025-Bedingungen sichtbar ist.
+
+- **Umbau 06.11.2026: Kunde = Partner, Ordner verbinden**
+  - **Kunde = Partner:**
+    - Es gibt keinen eigenen Kunden-Baum mehr. Partner / {Partner.Name} enthält Vereinbarungen, Polizzen/{Sparte}, Schäden/{Schaden.Nummer}, Vollmachten & Verträge, Korrespondenz und Anhänge.
+    - Der Entitätstyp „Kunde“ entfällt im DMS; Polizzen- und E-Mail-Uploads sind an den Partner gebunden.
+  - **Ordner Zuordnung:** Neben dem Baum liegt ein breites Panel mit den Tabs „Quellen“, „Ordner verbinden“ und „Einstellungen“.
+  - **Ordner verbinden** (`Knoten.verbindungen`, `setVerbindung`, `connectionPreview` in `links.ts`):
+    - Ein Ordner zeigt zusätzlich die Dateien eines anderen Ordners, von jeder Stelle, an der es ihn gibt.
+    - Gleichnamige Unterordner werden zusammengeführt („in 4 von 5“), und man wählt, welche übernommen werden.
+    - Beispiel: Global / Fachbereiche ← Versicherungen / {Versicherer} / Fachbereiche.
+    - Es wird nichts kopiert.
+  - **Ersetzt:** „Verknüpfter Ordner“ (`linkTo`) und „Name = Sparte“ sind aus der Oberfläche entfernt.
+  - **Gespeicherter Zustand:** Version 3.

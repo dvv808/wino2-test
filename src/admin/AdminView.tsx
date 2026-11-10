@@ -49,8 +49,10 @@ export function AdminView() {
   const { closeAdmin } = useWorkflow();
   const { state } = useDms();
   const [page, setPage] = useState<Page>("zuordnung");
-  // Both pills of the pair show the same Ansicht, so switching between building and checking keeps the place.
-  const [ansicht, setAnsicht] = useState<Ansicht>("Verwaltung");
+  // Spaces simulates the real thing: a DMS-Admin gets the Verwaltung structure, everyone else the Standard one.
+  // Switch the person in the Spaces header to see the other outcome.
+  const viewer = state.people.find((p) => p.id === state.activePerson);
+  const ansicht: Ansicht = viewer?.rollen.includes("DMS-Admin") ? "Verwaltung" : "Standard";
   const waiting = eingang(state).length;
 
   return (
@@ -126,11 +128,11 @@ export function AdminView() {
         <div className="content-shell admin-body">
           {page === "zuordnung" ? (
             <AdminOnly>
-              <Zuordnung ansicht={ansicht} onAnsicht={setAnsicht} />
+              <Zuordnung />
             </AdminOnly>
           ) : null}
           {page === "spaces" ? (
-            <DmsBrowser key={ansicht} ansicht={ansicht} title="Spaces" lockConfidential={ansicht === "Verwaltung"} onAnsicht={setAnsicht} />
+            <DmsBrowser key={ansicht} ansicht={ansicht} title="Spaces" lockConfidential={ansicht === "Verwaltung"} />
           ) : null}
           {page === "typen" ? (
             <AdminOnly>

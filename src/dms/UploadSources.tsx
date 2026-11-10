@@ -21,9 +21,9 @@ type Source = {
 };
 
 const SOURCES: Source[] = [
-  { source: "kunde.polizze", title: "Kunde → Polizze anlegen", entityType: "Kunde", slot: "", knows: ["sparte"] },
+  { source: "kunde.polizze", title: "Polizzen → Polizze anlegen", entityType: "Partner", slot: "", knows: ["sparte"] },
   { source: "schaden.dokumente", title: "Schaden → Dokumente", entityType: "Schaden", slot: "", knows: [] },
-  { source: "kommunikation.email", title: "Kommunikation → E-Mail-Anhang", entityType: "Kunde", slot: "", knows: [] },
+  { source: "kommunikation.email", title: "Kommunikation → E-Mail-Anhang", entityType: "Partner", slot: "", knows: [] },
   { source: "versicherer.bedingungen", title: "Versicherer → Bedingungen", entityType: "Versicherer", slot: "", knows: ["sparte", "jahr"] },
   { source: "partner.aktivitaet.anhang", title: "Partner → Aktivität → Anhang", entityType: "Partner", slot: "", knows: [] },
 ];

@@ -59,7 +59,7 @@ describe("resolveAblage – specificity", () => {
   });
 
   it("an entity rule needs the entity id", () => {
-    const context = ctx({ source: "kunde.polizze", entityType: "Kunde", entityId: null, knownMetadata: { sparte: "Kfz-Versicherung" } });
+    const context = ctx({ source: "kunde.polizze", entityType: "Partner", entityId: null, knownMetadata: { sparte: "Kfz-Versicherung" } });
     expect(isUnmatched(resolveAblage(context, effectiveRules(base), env(base)))).toBe(true);
   });
 });
@@ -68,14 +68,14 @@ describe("resolveAblage – missing fields", () => {
   const base = fresh();
 
   it("asks only for what the context does not know", () => {
-    const polizze = ctx({ source: "kunde.polizze", entityType: "Kunde", entityId: "k-gruber" });
+    const polizze = ctx({ source: "kunde.polizze", entityType: "Partner", entityId: "k-gruber" });
     const open = matched(resolveAblage(polizze, effectiveRules(base), env(base)));
     expect(open.missingFields).toEqual(["sparte"]);
-    expect(open.targetPath).toEqual(["Kunden", "Dr. Maria Gruber", "Polizzen", "{Sparte}"]);
+    expect(open.targetPath).toEqual(["Partner", "Dr. Maria Gruber", "Polizzen", "{Sparte}"]);
 
     const known = matched(resolveAblage({ ...polizze, knownMetadata: { sparte: "Kfz-Versicherung" } }, effectiveRules(base), env(base)));
     expect(known.missingFields).toEqual([]);
-    expect(known.targetPath).toEqual(["Kunden", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"]);
+    expect(known.targetPath).toEqual(["Partner", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"]);
   });
 
   it("combines rule and Dokumenttyp requirements", () => {
@@ -90,7 +90,7 @@ describe("resolveAblage – missing fields", () => {
   it("a Schaden upload resolves its Kunde through the parent", () => {
     const schaden = ctx({ source: "schaden.dokumente", entityType: "Schaden", entityId: "s-0142" });
     expect(matched(resolveAblage(schaden, effectiveRules(base), env(base))).targetPath).toEqual([
-      "Kunden",
+      "Partner",
       "Transporte Steiner ∕ Wels GmbH",
       "Schäden",
       "S-2026-0142",
@@ -115,7 +115,7 @@ describe("unmatched → Eingang", () => {
 
   it("a drop on a folder without a single Dokumenttyp goes to Eingang", () => {
     const base = fresh();
-    const kunde = findFolder(buildView(base, "Verwaltung"), ["Kunden", "Dr. Maria Gruber"])!;
+    const kunde = findFolder(buildView(base, "Verwaltung"), ["Partner", "Dr. Maria Gruber"])!;
     const context = ctx({ source: "dms.dragdrop", folderPath: kunde.path });
     const { doc } = uploadToState(base, { id: "d-drop", file, context, folder: kunde.defaults, now: NOW });
     expect(doc.dokumenttyp).toBeNull();
@@ -123,12 +123,12 @@ describe("unmatched → Eingang", () => {
 
   it("a drop on a typed folder takes type, links and metadata from the folder", () => {
     const base = fresh();
-    const sparte = findFolder(buildView(base, "Verwaltung"), ["Kunden", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"])!;
+    const sparte = findFolder(buildView(base, "Verwaltung"), ["Partner", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"])!;
     const context = ctx({ source: "dms.dragdrop", folderPath: sparte.path });
     const { state, doc } = uploadToState(base, { id: "d-drop", file, context, folder: sparte.defaults, now: NOW });
     expect(doc.dokumenttyp).toBe("polizze");
     expect(doc.meta.sparte).toBe("Kfz-Versicherung");
-    expect(doc.links).toContainEqual({ entityType: "Kunde", entityId: "k-gruber" });
+    expect(doc.links).toContainEqual({ entityType: "Partner", entityId: "k-gruber" });
     expect(locateDocument(buildView(state, "Verwaltung"), "d-drop")).toEqual([sparte.path]);
   });
 });
@@ -184,18 +184,18 @@ describe("placeholders with special characters", () => {
   it("keeps umlauts and & and turns a slash into one segment", () => {
     expect(safeSegment("Bäckerei Höller & Söhne OG")).toBe("Bäckerei Höller & Söhne OG");
     expect(safeSegment("Transporte Steiner / Wels GmbH")).toBe("Transporte Steiner ∕ Wels GmbH");
-    const { path, missing } = fillPath("Kunden/{Kunde.Name}/Polizzen/{Sparte}", {
-      "Kunde.Name": "Transporte Steiner / Wels GmbH",
+    const { path, missing } = fillPath("Partner/{Partner.Name}/Polizzen/{Sparte}", {
+      "Partner.Name": "Transporte Steiner / Wels GmbH",
       Sparte: "Kfz-Versicherung",
     });
-    expect(path).toEqual(["Kunden", "Transporte Steiner ∕ Wels GmbH", "Polizzen", "Kfz-Versicherung"]);
+    expect(path).toEqual(["Partner", "Transporte Steiner ∕ Wels GmbH", "Polizzen", "Kfz-Versicherung"]);
     expect(missing).toEqual([]);
   });
 
   it("resolved target and view folder are the same path", () => {
     const base = fresh();
     for (const kunde of ["k-hoeller", "k-steiner"]) {
-      const context = ctx({ source: "kunde.polizze", entityType: "Kunde", entityId: kunde, knownMetadata: { sparte: "Feuerversicherung" } });
+      const context = ctx({ source: "kunde.polizze", entityType: "Partner", entityId: kunde, knownMetadata: { sparte: "Feuerversicherung" } });
       const { state, doc, result } = uploadToState(base, { id: `d-${kunde}`, file, context, now: NOW });
       const target = matched(result).targetPath;
       expect(locateDocument(buildView(state, "Verwaltung"), doc.id)).toEqual([target]);
@@ -203,17 +203,20 @@ describe("placeholders with special characters", () => {
     }
   });
 
-  it("every Kunde gets its folder tree automatically, even without documents", () => {
+  it("every Partner (Kunden included) gets its folder tree automatically, even without documents", () => {
     const view = buildView(fresh(), "Verwaltung");
-    const kunden = findFolder(view, ["Kunden"])!;
-    expect(kunden.children.map((c) => c.name)).toEqual([
+    const partner = findFolder(view, ["Partner"])!;
+    expect(partner.children.map((c) => c.name)).toEqual([
+      "Ashley Johnson",
       "Bäckerei Höller & Söhne OG",
       "Café Zentral Huber KG",
       "Dr. Maria Gruber",
+      "Julia Atkinson",
+      "Lunixo AG",
       "Transporte Steiner ∕ Wels GmbH",
     ]);
-    for (const k of kunden.children) {
-      expect(k.children.map((c) => c.name)).toEqual(["Polizzen", "Schäden", "Vollmachten & Verträge", "Korrespondenz", "Anhänge"]);
+    for (const k of partner.children) {
+      expect(k.children.map((c) => c.name)).toEqual(["Vereinbarungen", "Polizzen", "Schäden", "Vollmachten & Verträge", "Korrespondenz", "Anhänge"]);
     }
   });
 });
@@ -263,13 +266,13 @@ describe("views", () => {
     const view = buildView(fresh(), "Verwaltung");
     const vereinbarungen = findFolder(view, ["Partner", "Ashley Johnson", "Vereinbarungen"])!;
     expect(vereinbarungen.docs.map((d) => d.name).sort()).toEqual(["Maklervereinbarung Ashley Johnson 2022", "Maklervereinbarung Ashley Johnson 2027"]);
-    expect(findFolder(view, ["Partner"])!.count).toBe(10);
+    expect(findFolder(view, ["Partner"])!.count).toBe(22);
   });
 
   it("one record shows in both views without copies", () => {
     const state = fresh();
     const polizze = state.documents.find((d) => d.name === "Polizze UQ-T-5512")!;
-    const path = ["Kunden", "Transporte Steiner ∕ Wels GmbH", "Polizzen", "Transportversicherung"];
+    const path = ["Partner", "Transporte Steiner ∕ Wels GmbH", "Polizzen", "Transportversicherung"];
     expect(locateDocument(buildView(state, "Verwaltung"), polizze.id)).toEqual([path]);
     expect(locateDocument(buildView(state, "Standard"), polizze.id)).toEqual([path]);
     expect(findFolder(buildView(state, "Standard"), path)!.docs[0]).toBe(polizze);

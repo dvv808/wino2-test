@@ -11,7 +11,7 @@ const verwaltung = buildView(state, "Verwaltung");
 const standard = buildView(state, "Standard");
 const level = (id: string, path: string[], view = verwaltung) => effectiveLevel(view, path, person(id), state.groups);
 
-const STEINER = ["Kunden", "Transporte Steiner ∕ Wels GmbH"];
+const STEINER = ["Partner", "Transporte Steiner ∕ Wels GmbH"];
 const nda = state.documents.find((d) => d.vertraulich)!;
 
 describe("permission inheritance", () => {
@@ -26,8 +26,8 @@ describe("permission inheritance", () => {
     expect(level("markus", [...STEINER, "Polizzen"])).toBeNull();
     expect(level("markus", [...STEINER, "Schäden"])).toBe("Bearbeiten");
     expect(level("markus", [...STEINER, "Schäden", "S-2026-0142"])).toBe("Bearbeiten");
-    expect(level("anna", ["Partner", "Julia Atkinson"])).toBeNull();
-    expect(level("anna", ["Partner", "Julia Atkinson", "Anhänge"])).toBe("Bearbeiten");
+    expect(level("markus", ["Partner", "Julia Atkinson"])).toBeNull();
+    expect(level("markus", ["Partner", "Julia Atkinson", "Schäden"])).toBe("Bearbeiten");
   });
 
   it("the highest level wins; a lower one below never takes access away (no deny)", () => {
@@ -38,8 +38,8 @@ describe("permission inheritance", () => {
 
   it("Alle and top folders", () => {
     expect(level("elif", ["Unternehmen", "Versicherer", "Feuerversicherung"], standard)).toBe("Sehen");
-    expect(level("lucy", ["Kunden"])).toBe("Verwalten"); // the top folder carries the DMS-Admin rule
-    expect(level("anna", ["Kunden"])).toBeNull(); // Backoffice starts one level below
+    expect(level("lucy", ["Partner"])).toBe("Verwalten"); // the top folder carries the DMS-Admin rule
+    expect(level("anna", ["Partner"])).toBeNull(); // Backoffice starts one level below
   });
 });
 
@@ -51,18 +51,19 @@ describe("filtered views", () => {
     expect(steiner.docs).toEqual([]);
     expect(steiner.children.map((c) => c.name)).toEqual(["Schäden"]);
     expect(findFolder(markus, [...STEINER, "Schäden", "S-2026-0142"])!.docs).toHaveLength(2);
-    expect(findFolder(markus, ["Partner"])).toBeNull();
-    // Every Kunde has a Schäden folder (empty ones too); Markus sees only that folder in each.
-    for (const kunde of findFolder(markus, ["Kunden"])!.children) {
+    expect(findFolder(markus, ["Partner"])!.level).toBeNull();
+    // Every partner has a Schäden folder (empty ones too); Markus sees only that folder in each.
+    for (const kunde of findFolder(markus, ["Partner"])!.children) {
       expect(kunde.children.map((c) => c.name)).toEqual(["Schäden"]);
     }
   });
 
   it("counts only what the person sees", () => {
     const markus = filterView(verwaltung, person("markus"), state.groups);
-    expect(findFolder(markus, ["Kunden"])!.count).toBe(2);
+    expect(findFolder(markus, ["Partner"])!.count).toBe(2);
     const lucy = filterView(verwaltung, person("lucy"), state.groups);
-    expect(findFolder(lucy, ["Kunden"])!.count).toBe(findFolder(verwaltung, ["Kunden"])!.count);
+    // Lucy sees all but the vertraulich NDA.
+    expect(findFolder(lucy, ["Partner"])!.count).toBe(findFolder(verwaltung, ["Partner"])!.count - 1);
   });
 });
 
@@ -90,11 +91,11 @@ describe("Wer hat Zugriff?", () => {
   it("lists every person with level and source, inheritance resolved", () => {
     const list = whoHasAccess(verwaltung, [...STEINER, "Schäden"], state);
     const row = (id: string) => list.find((e) => e.person.id === id);
-    expect(row("lucy")).toMatchObject({ level: "Verwalten", inherited: true, via: "Rolle DMS-Admin · geerbt von Kunden" });
+    expect(row("lucy")).toMatchObject({ level: "Verwalten", inherited: true, via: "Rolle DMS-Admin · geerbt von Partner" });
     expect(row("markus")).toMatchObject({ level: "Bearbeiten", inherited: false, via: "Schadenabteilung" });
     expect(row("anna")).toMatchObject({ level: "Bearbeiten", inherited: true });
-    expect(row("thomas")).toMatchObject({ level: "Sehen", via: "Geschäftsführung · geerbt von Kunden / Transporte Steiner ∕ Wels GmbH" });
-    expect(row("mike")).toBeUndefined();
+    expect(row("thomas")).toMatchObject({ level: "Sehen", via: "Geschäftsführung · geerbt von Partner / Transporte Steiner ∕ Wels GmbH" });
+    expect(row("mike")).toMatchObject({ level: "Bearbeiten", via: "Partnerbetreuung · geerbt von Partner / Transporte Steiner ∕ Wels GmbH" });
     expect(list[0].level).toBe("Verwalten");
   });
 

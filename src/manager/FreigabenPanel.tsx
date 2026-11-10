@@ -44,7 +44,37 @@ const GLYPH_COLUMNS = new Set([
   "Status",
 ]);
 
-export function StatCard({ label, value, icon }: { label: string; value: number; icon: string }) {
+export function StatCard({
+  label,
+  value,
+  icon,
+  active,
+  onClick,
+  unit,
+}: {
+  label: string;
+  value: number;
+  icon: string;
+  /** Clickable cards filter the list by their status; a second click shows all again. */
+  active?: boolean;
+  onClick?: () => void;
+  /** Small word under the number (default "gesamt"). */
+  unit?: string;
+}) {
+  if (onClick) {
+    return (
+      <button type="button" className={`stat-card clickable${active ? " active" : ""}`} aria-pressed={!!active} onClick={onClick}>
+        <span className="stat-copy">
+          <small>{label}</small>
+          <strong>{String(value).padStart(2, "0")}</strong>
+          <span>{unit ?? "gesamt"}</span>
+        </span>
+        <span className="stat-icon">
+          <Icon src={icon} size={16} />
+        </span>
+      </button>
+    );
+  }
   return (
     <div className="stat-card">
       <div className="stat-copy">
@@ -327,6 +357,16 @@ function WorkflowRow({
   );
 }
 
+type FreigabeKind = NonNullable<RequestRow["kind"]>;
+
+/** Freigabe types shown as cards next to the status cards. */
+const FREIGABE_KINDS: { id: FreigabeKind; label: string; icon: string }[] = [
+  { id: "makler", label: "Maklerverein.", icon: a.iconBrokerContract },
+  { id: "rechnung", label: "Rechnung", icon: a.docList },
+  { id: "homeoffice", label: "Homeoffice", icon: a.hoDot },
+  { id: "stammdaten", label: "Stammdaten", icon: a.stammdaten },
+];
+
 export function FreigabenPanel({
   rows,
   tab,
@@ -345,10 +385,24 @@ export function FreigabenPanel({
   const visible = rows.filter((row) =>
     tab === "stammdaten" ? isStammdatenRequest(row) : !isStammdatenRequest(row),
   );
-  const groups = groupRequestRows(visible);
+  const allGroups = groupRequestRows(visible);
+  /** Offen / Zurückgesetzt / Abgeschl.: a clicked card shows only the workflows in that state. */
+  const [statusFilter, setStatusFilter] = useState<RequestStatus | null>(null);
+  /** Which kind of Freigabe: Maklervereinbarung, Rechnung, Homeoffice … (Stammdaten have their own tab). */
+  const [kindFilter, setKindFilter] = useState<FreigabeKind | null>(null);
+  const kindOfGroup = (group: RequestRow[]): FreigabeKind => group[0].kind ?? "makler";
+  const groups = allGroups.filter(
+    (group) => (!statusFilter || statusOfGroup(group) === statusFilter) && (!kindFilter || kindOfGroup(group) === kindFilter),
+  );
+  const kinds = FREIGABE_KINDS.filter((k) => allGroups.some((group) => kindOfGroup(group) === k.id));
+  const openOf = (kind: FreigabeKind) => allGroups.filter((group) => kindOfGroup(group) === kind && statusOfGroup(group) === "offen").length;
   const [collapsed, setCollapsed] = useState<string[]>([]);
   const count = (status: RequestStatus) =>
-    groups.filter((group) => statusOfGroup(group) === status).length;
+    allGroups.filter((group) => statusOfGroup(group) === status).length;
+  const card = (status: RequestStatus) => ({
+    active: statusFilter === status,
+    onClick: () => setStatusFilter((current) => (current === status ? null : status)),
+  });
   const showTable = tab === "freigaben" || tab === "stammdaten";
 
   function toggle(key: string) {
@@ -383,9 +437,23 @@ export function FreigabenPanel({
       {/* Stat cards and Export share one row as wide as the table, so Export sits at the table's right edge. */}
       <div className="freigaben-statbar">
         <div className="freigaben-stats">
-          <StatCard label="Offen" value={count("offen")} icon={a.onhold} />
-          <StatCard label="Zurückgesetzt" value={count("abgelehnt")} icon={a.revertDark} />
-          <StatCard label="Abgeschl." value={count("abgeschlossen")} icon={a.confirm} />
+          <StatCard label="Offen" value={count("offen")} icon={a.hoOnhold} {...card("offen")} />
+          <StatCard label="Zurückgesetzt" value={count("abgelehnt")} icon={a.revertDark} {...card("abgelehnt")} />
+          <StatCard label="Abgeschl." value={count("abgeschlossen")} icon={a.confirm} {...card("abgeschlossen")} />
+          {kinds.length > 1 ? <i className="freigaben-stats-rule" aria-hidden /> : null}
+          {kinds.length > 1
+            ? kinds.map((k) => (
+                <StatCard
+                  key={k.id}
+                  label={k.label}
+                  value={openOf(k.id)}
+                  unit="offen"
+                  icon={k.icon}
+                  active={kindFilter === k.id}
+                  onClick={() => setKindFilter((current) => (current === k.id ? null : k.id))}
+                />
+              ))
+            : null}
         </div>
         <button type="button" className="export-btn">
           <Icon src={a.download} size={18} />
@@ -408,6 +476,7 @@ export function FreigabenPanel({
           ))}
         </div>
 
+        {groups.length === 0 ? <p className="atab-empty center">Keine Freigaben in diesem Status.</p> : null}
         {groups.map((group) => {
           const key = group[0].group;
           const open = !collapsed.includes(key);

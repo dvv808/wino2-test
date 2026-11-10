@@ -162,13 +162,13 @@ export function BestandMainNav({
   );
 }
 
-export function BestandAreaNav() {
+export function BestandAreaNav({ active: current = "Bestand", onArea }: { active?: string; onArea?: (area: string) => void } = {}) {
   const { openFinanzen } = useWorkflow();
 
   return (
     <nav className="area-nav">
       {AREAS.map((area) => {
-        const active = area === "Bestand";
+        const active = area === current;
         return (
           <span className={active ? "area-tab active" : "area-tab"} key={area}>
             {active ? (
@@ -179,6 +179,7 @@ export function BestandAreaNav() {
               className="area-tab-body"
               onClick={() => {
                 if (area === "Finanzen") openFinanzen();
+                else if (area === "HRM" || area === "Bestand") onArea?.(area);
               }}
             >
               {area}

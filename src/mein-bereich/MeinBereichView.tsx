@@ -5,6 +5,7 @@ import { useWorkflow } from "../workflow";
 import { useHonorar } from "../honorar/store";
 import { MyForderungen, ownActionCount } from "./MyForderungen";
 import { DmsBrowser } from "../dms/DmsBrowser";
+import { MeineListen } from "./MeineAntraege";
 
 type Area = "Mein Bereich" | "Bestand";
 const AREAS: Area[] = ["Mein Bereich", "Bestand"];
@@ -13,6 +14,7 @@ const PAGES: Record<Area, { label: string; icon: string }[]> = {
   "Mein Bereich": [
     { label: "Dashboard", icon: a.dashboard },
     { label: "Profil", icon: a.moduleProfile },
+    { label: "Listen", icon: a.tickList },
     { label: "Dokumente", icon: a.folder },
   ],
   Bestand: [
@@ -67,6 +69,8 @@ export function MeinBereichView() {
   const forderungen = area === "Bestand" && page === "Honorare/Forderungen";
   // The user DMS: the Standard view over the same documents, filtered by the person's permissions.
   const dokumente = area === "Mein Bereich" && page === "Dokumente";
+  // Listen → Anträge: what I asked for (Homeoffice, Urlaub, Krank …) and where it stands.
+  const listen = area === "Mein Bereich" && page === "Listen";
   const { state } = useHonorar();
   // Red bubble on Honorare/Forderungen: own invoices that are open and need action.
   const actionCount = ownActionCount(state);
@@ -139,6 +143,8 @@ export function MeinBereichView() {
 
         {forderungen ? (
           <MyForderungen />
+        ) : listen ? (
+          <MeineListen />
         ) : dokumente ? (
           <div className="content-shell admin-body">
             <DmsBrowser ansicht="Standard" title="Meine Dateien" />

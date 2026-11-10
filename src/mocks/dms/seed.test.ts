@@ -53,7 +53,8 @@ describe("DMS seed", () => {
     // Seeded as Aktiv, but gueltig_bis lies before today: the automatic transition (phase b) makes it Abgelaufen.
     expect(mv.some((d) => d.status === "Aktiv" && (d.meta.gueltig_bis ?? "") < seed.today)).toBe(true);
 
-    expect(seed.entities.filter((e) => e.type === "Kunde")).toHaveLength(4);
+    // Kunden are partners.
+    expect(seed.entities.filter((e) => e.type === "Partner" && e.id.startsWith("k-"))).toHaveLength(4);
     expect(seed.entities.filter((e) => e.type === "Schaden")).toHaveLength(1);
     expect(byType("polizze").length).toBeGreaterThanOrEqual(4);
     expect(byType("korrespondenz").length).toBeGreaterThan(0);

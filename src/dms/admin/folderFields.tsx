@@ -5,7 +5,7 @@ import { META_FIELDS } from "../../types/dms";
 import { Icon } from "../../ui";
 import { useDms } from "../store";
 
-const ENTITY_TYPES: EntityType[] = ["Partner", "Kunde", "Versicherer", "Schaden"];
+const ENTITY_TYPES: EntityType[] = ["Partner", "Versicherer", "Schaden"];
 const META_LABEL: Record<MetaField, string> = { sparte: "Sparte", jahr: "Jahr", gueltig_von: "Gültig von", gueltig_bis: "Gültig bis" };
 
 export function principalKey(p: Principal) {
@@ -31,7 +31,7 @@ export function ConditionRow({ cond, onChange, onRemove }: { cond: Bedingung; on
           if (kind === "typ") onChange({ kind, in: [] });
           if (kind === "status") onChange({ kind, in: [] });
           if (kind === "meta") onChange({ kind, field: "sparte", op: "eq", value: "" });
-          if (kind === "link") onChange({ kind, entityType: "Kunde", to: "$entity" });
+          if (kind === "link") onChange({ kind, entityType: "Partner", to: "$entity" });
         }}
       >
         <option value="typ">Dokumenttyp ist</option>

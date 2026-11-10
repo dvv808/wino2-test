@@ -1,4 +1,5 @@
 import * as a from "../assets/index";
+import { KalenderPage } from "./calendar/KalenderPage";
 import { FileTabs, LogoButton, ProfileMenu } from "../chrome";
 import { ConstructionArt } from "../mein-bereich/MeinBereichView";
 import { Icon } from "../ui";
@@ -35,6 +36,7 @@ export function HomeView() {
 
   const partners = area === "Bestand" && page === "Dashboard";
   const workflows = area === "Planner" && page === "Workflows & To-Dos";
+  const kalender = area === "Planner" && page === "Kalender";
 
   function openArea(next: Area) {
     setHomeNav({ area: next, page: next === "Planner" ? "Workflows & To-Dos" : PAGES[next][0].label });
@@ -81,6 +83,11 @@ export function HomeView() {
             >
               <Icon src={item.icon} size={24} />
               {item.label}
+              {item.label === "Kalender" ? (
+                <span className="mb-action-count" aria-label="3 Kalender Aktivitäten">
+                  3
+                </span>
+              ) : null}
             </button>
           ))}
           <button type="button" className="module-pill ghost module-history">
@@ -93,6 +100,8 @@ export function HomeView() {
           <div className="content-shell mb-page">
             <PartnerList />
           </div>
+        ) : kalender ? (
+          <KalenderPage />
         ) : workflows ? (
           <div className="content-shell hw-page">
             <HomeWorkflows />

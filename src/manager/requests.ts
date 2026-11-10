@@ -11,6 +11,8 @@ import { formatDate } from "../lib/honorar/format";
 import { partnerOf } from "../lib/honorar/queries";
 import { ROLE_USER } from "../mocks/honorar/seed";
 import type { HonorarState } from "../types/honorar";
+import { hhmm, parseIso } from "../home/calendar/calendarData";
+import type { HomeofficeAntrag } from "../home/calendar/homeoffice";
 import type { Approval, ApprovalStep, PostedComment, RequestStamp } from "../workflow";
 import { JULIA_STAMMDATEN_DIFF, LUNIXO_WICO_DIFF, type StammdatenDiff } from "./stammdatenDiff";
 
@@ -64,7 +66,9 @@ export type RequestRow = {
   stepLabel?: string;
   stepPosition?: string;
   /** Maklervereinbarung is the default; Stammdaten rows live on their own tab. */
-  kind?: "makler" | "stammdaten" | "rechnung";
+  kind?: "makler" | "stammdaten" | "rechnung" | "homeoffice";
+  /** Homeoffice: the request (one time block) the Bestandsmanager decides. */
+  homeofficeId?: string;
   /** Rechnungskorrektur: the invoice whose Antrag the Bestandsmanager decides. */
   feeId?: string;
   /** Who authored the change — an employee, or WICO as an outside source. */
@@ -83,6 +87,10 @@ export function isStammdatenRequest(row: RequestRow) {
 
 export function isRechnungRequest(row: RequestRow) {
   return row.kind === "rechnung";
+}
+
+export function isHomeofficeRequest(row: RequestRow) {
+  return row.kind === "homeoffice";
 }
 
 export function isWicoRequest(row: RequestRow) {
@@ -534,4 +542,55 @@ export function liveRechnungRows(state: HonorarState): RequestRow[] {
     });
   }
   return rows;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const WEEKDAY = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+const dmy = (day: string) => {
+  const d = parseIso(day);
+  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+};
+const stamp = (isoTime: string) => {
+  const d = new Date(isoTime);
+  return { date: `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`, time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}` };
+};
+
+export const HOMEOFFICE_REQUESTER = { name: "Lucy Dallon", role: "Innendienst", photo: a.empLucy };
+
+/**
+ * Homeoffice-Anträge from Kalender → Zeiterfassung (one row per time block, grouped per day). Deciding one here
+ * updates the request, so the calendar and Kalender Aktivitäten → Beantragungen show the result.
+ */
+export function liveHomeofficeRows(antraege: HomeofficeAntrag[]): RequestRow[] {
+  return [...antraege]
+    .sort((x, y) => y.day.localeCompare(x.day) || x.start - y.start)
+    .map((x) => {
+      const sent = stamp(x.beantragt);
+      const decidedAt = x.entschieden ? stamp(x.entschieden) : undefined;
+      const initials = (x.entschiedenVon ?? ROLE_USER.head)
+        .split(" ")
+        .map((part) => part[0])
+        .join("");
+      return {
+        id: `homeoffice-${x.id}`,
+        group: `homeoffice-${x.day}`,
+        partner: { name: "Lucy Dallon", meta: `${WEEKDAY[parseIso(x.day).getDay()]}, ${dmy(x.day)}`, kind: "person", photo: a.empLucy },
+        types: ["Mitarbeiter"],
+        art: "Homeoffice",
+        schritt: "Homeoffice freigeben",
+        stepLabel: `Homeoffice ${hhmm(x.start)} - ${hhmm(x.end)}`,
+        stepPosition: dmy(x.day),
+        requester: HOMEOFFICE_REQUESTER,
+        reviewer: { name: ROLE_USER.head, role: "Bestandsmanager", photo: a.reqAnna },
+        date: sent.date,
+        time: sent.time,
+        status: x.status === "offen" ? "offen" : x.status === "zurueckgesetzt" ? "abgelehnt" : "abgeschlossen",
+        decided: decidedAt ? `${decidedAt.date}, ${initials}` : undefined,
+        comment: x.entscheidNotiz,
+        note: x.kommentar,
+        commentCount: (x.kommentar ? 1 : 0) + (x.entscheidNotiz ? 1 : 0),
+        kind: "homeoffice",
+        homeofficeId: x.id,
+      } satisfies RequestRow;
+    });
 }

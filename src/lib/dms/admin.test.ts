@@ -12,7 +12,7 @@ import {
   renameState,
   updateNode,
 } from "./admin";
-import { addTopFolder, effectiveRules, linkSource, unlinkSource } from "./links";
+import { addTopFolder, connectionPreview, effectiveRules, linkSource, placesOf, removeVerbindung, setVerbindung, unlinkSource } from "./links";
 import { isUnmatched, resolveAblage, type AblageMatch } from "./resolveAblage";
 import { uploadToState } from "./upload";
 import { buildView, eingang, findFolder, locateDocument } from "./views";
@@ -25,31 +25,31 @@ const env = (s: DmsState) => ({ entities: s.entities, dokumenttypen: s.dokumentt
 
 describe("Ordnervorlagen editing", () => {
   it("a renamed node renames the folder in every Kunde instance", () => {
-    const state = updateNode(fresh(), "tpl-kunde", "k-korrespondenz", { name: "Schriftverkehr" });
+    const state = updateNode(fresh(), "tpl-partner", "p-korrespondenz", { name: "Schriftverkehr" });
     const view = buildView(state, "Verwaltung");
-    expect(findFolder(view, ["Kunden", "Dr. Maria Gruber", "Schriftverkehr"])!.docs).toHaveLength(1);
-    expect(findFolder(view, ["Kunden", "Dr. Maria Gruber", "Korrespondenz"])).toBeNull();
+    expect(findFolder(view, ["Partner", "Dr. Maria Gruber", "Schriftverkehr"])!.docs).toHaveLength(1);
+    expect(findFolder(view, ["Partner", "Dr. Maria Gruber", "Korrespondenz"])).toBeNull();
   });
 
   it("adding, moving and removing nodes", () => {
-    const added = addChildNode(fresh(), "tpl-kunde", "k-root", "Angebote");
+    const added = addChildNode(fresh(), "tpl-partner", "p-root", "Angebote");
     let state = added.state;
-    const names = () => findFolder(buildView(state, "Verwaltung"), ["Kunden", "Dr. Maria Gruber"])!.children.map((c) => c.name);
+    const names = () => findFolder(buildView(state, "Verwaltung"), ["Partner", "Dr. Maria Gruber"])!.children.map((c) => c.name);
     expect(names().at(-1)).toBe("Angebote");
-    state = moveNode(state, "tpl-kunde", added.nodeId, "up");
+    state = moveNode(state, "tpl-partner", added.nodeId, "up");
     expect(names().at(-2)).toBe("Angebote");
-    state = moveNode(state, "tpl-kunde", added.nodeId, "in");
-    expect(findNode(state.vorlagen.find((v) => v.id === "tpl-kunde")!.root, "k-korrespondenz")!.children[0].id).toBe(added.nodeId);
-    state = moveNode(state, "tpl-kunde", added.nodeId, "out");
+    state = moveNode(state, "tpl-partner", added.nodeId, "in");
+    expect(findNode(state.vorlagen.find((v) => v.id === "tpl-partner")!.root, "p-korrespondenz")!.children[0].id).toBe(added.nodeId);
+    state = moveNode(state, "tpl-partner", added.nodeId, "out");
     expect(names()).toContain("Angebote");
-    state = removeNode(state, "tpl-kunde", added.nodeId);
+    state = removeNode(state, "tpl-partner", added.nodeId);
     expect(names()).not.toContain("Angebote");
   });
 
   it("a filter change moves documents without touching them", () => {
-    const state = updateNode(fresh(), "tpl-kunde", "k-korrespondenz", { filter: [{ kind: "typ", in: ["korrespondenz", "vollmacht"] }] });
+    const state = updateNode(fresh(), "tpl-partner", "p-korrespondenz", { filter: [{ kind: "typ", in: ["korrespondenz", "vollmacht"] }] });
     const view = buildView(state, "Verwaltung");
-    const zentral = findFolder(view, ["Kunden", "Café Zentral Huber KG", "Korrespondenz"])!;
+    const zentral = findFolder(view, ["Partner", "Café Zentral Huber KG", "Korrespondenz"])!;
     expect(zentral.docs.map((d) => d.dokumenttyp)).toContain("vollmacht");
     expect(state.documents).toEqual(fresh().documents);
   });
@@ -75,12 +75,14 @@ describe("Dokumenttypen editing", () => {
 describe("Ordner Zuordnung: moving a link → upload lands elsewhere in both views", () => {
   it("linking the e-mail attachments to Anhänge", () => {
     const base = fresh();
-    const { state } = linkSource(base, "tpl-kunde", "k-anhaenge", { source: "kommunikation.email", slot: null, dokumenttyp: "anhang" });
+    // Unlink from Korrespondenz, link to Anhänge.
+    const unlinked = unlinkSource(base, { source: "kommunikation.email", slot: null }, "p-korrespondenz");
+    const { state } = linkSource(unlinked, "tpl-partner", "p-anhaenge", { source: "kommunikation.email", slot: null, dokumenttyp: "anhang" });
     const rule = effectiveRules(state).find((r) => r.source === "kommunikation.email")!;
-    expect(rule.targetPath).toBe("Kunden/{Kunde.Name}/Anhänge");
-    const context: UploadContext = { source: "kommunikation.email", entityType: "Kunde", entityId: "k-gruber", slot: "", knownMetadata: {} };
+    expect(rule.targetPath).toBe("Partner/{Partner.Name}/Anhänge");
+    const context: UploadContext = { source: "kommunikation.email", entityType: "Partner", entityId: "k-gruber", slot: "", knownMetadata: {} };
     const { state: after, doc, result } = uploadToState(state, { id: "d-mail", file, context, now: NOW });
-    const path = ["Kunden", "Dr. Maria Gruber", "Anhänge"];
+    const path = ["Partner", "Dr. Maria Gruber", "Anhänge"];
     expect((result as AblageMatch).targetPath).toEqual(path);
     expect(locateDocument(buildView(after, "Verwaltung"), doc.id)).toEqual([path]);
     expect(locateDocument(buildView(after, "Standard"), doc.id)).toEqual([path]);
@@ -90,43 +92,77 @@ describe("Ordner Zuordnung: moving a link → upload lands elsewhere in both vie
   });
 
   it("dropping an upload point on a folder without its entity level creates that level", () => {
-    const { state: withTop, vorlageId, nodeId } = addTopFolder(fresh(), "Verwaltung", "Partnerakten");
+    const { state: withTop, vorlageId, nodeId } = addTopFolder(fresh(), ["Verwaltung", "Standard"], "Partnerakten");
     const { state, nodeId: level } = linkSource(withTop, vorlageId, nodeId, { source: "partner.stammdaten.anhang", slot: "anhang" });
     const top = state.vorlagen.find((v) => v.id === vorlageId)!.root;
     expect(top.children.map((c) => c.name)).toEqual(["{Partner.Name}"]);
     expect(level).toBe(top.children[0].id);
-    // Then a sub-folder "Partnerdaten Anhänge" under it, and the link moves there.
+    // Then a sub-folder "Partnerdaten Anhänge" under it, linked as well: the deeper folder takes the file.
     const sub = addChildNode(state, vorlageId, level, "Partnerdaten Anhänge");
-    const moved = linkSource(sub.state, vorlageId, sub.nodeId, { source: "partner.stammdaten.anhang", slot: "anhang" });
-    expect(moved.nodeId).toBe(sub.nodeId);
-    const rule = effectiveRules(moved.state).filter((r) => r.source === "partner.stammdaten.anhang" && r.slot === "anhang");
-    expect(rule.map((r) => r.targetPath)).toEqual(["Partnerakten/{Partner.Name}/Partnerdaten Anhänge"]);
-    const lunixo = moved.state.documents.find((d) => d.name === "Firmenbuchauszug Lunixo AG")!;
-    const view = buildView(moved.state, "Verwaltung");
-    expect(locateDocument(view, lunixo.id)).toEqual([["Partnerakten", "Lunixo AG", "Partnerdaten Anhänge"]]);
-    // The old Partner/…/Anhänge no longer has it: the link moved.
-    expect(findFolder(view, ["Partner", "Lunixo AG", "Anhänge"])!.docs.map((d) => d.id)).not.toContain(lunixo.id);
+    const linked = linkSource(sub.state, vorlageId, sub.nodeId, { source: "partner.stammdaten.anhang", slot: "anhang" });
+    expect(linked.nodeId).toBe(sub.nodeId);
+    const link = { source: "partner.stammdaten.anhang" as const, slot: "anhang" };
+    expect(placesOf(linked.state, link).map((p) => p.path.join("/"))).toEqual([
+      "Partner/{Partner.Name}/Anhänge",
+      "Partnerakten/{Partner.Name}",
+      "Partnerakten/{Partner.Name}/Partnerdaten Anhänge",
+    ]);
+    const lunixo = linked.state.documents.find((d) => d.name === "Firmenbuchauszug Lunixo AG")!;
+    // Stored once, shown in both linked places; inside Partnerakten only in the deeper folder.
+    expect(locateDocument(buildView(linked.state, "Verwaltung"), lunixo.id)).toEqual([
+      ["Partner", "Lunixo AG", "Anhänge"],
+      ["Partnerakten", "Lunixo AG", "Partnerdaten Anhänge"],
+    ]);
+    // Unlinking the old place leaves the new one.
+    const only = unlinkSource(linked.state, link, "p-anhaenge");
+    expect(locateDocument(buildView(only, "Verwaltung"), lunixo.id)).toEqual([["Partnerakten", "Lunixo AG", "Partnerdaten Anhänge"]]);
+    expect(linked.state.documents).toHaveLength(fresh().documents.length);
   });
 
-  it("a folder link takes over the sub-folders of Global / Fachbereiche by name", () => {
-    const view = buildView(fresh(), "Verwaltung");
-    const allianz = findFolder(view, ["Versicherungen", "Allianz", "Fachbereiche"])!;
-    expect(allianz.children.map((c) => c.name)).toEqual(findFolder(view, ["Global", "Fachbereiche"])!.children.map((c) => c.name));
+  it("Ordner verbinden: Global / Fachbereiche shows every insurer's Fachbereiche, merged by name", () => {
+    const base = fresh();
+    const view = buildView(base, "Verwaltung");
     expect(findFolder(view, ["Versicherungen", "Allianz", "Fachbereiche", "Feuerversicherung", "2026"])!.docs.map((d) => d.name)).toEqual([
       "AVB Feuer Allianz 2026",
     ]);
-    // Global / Fachbereiche is the master list of names; the Bedingungen sit where their upload point is linked.
-    expect(findFolder(view, ["Global", "Fachbereiche"])!.count).toBe(0);
-    // A new Fachbereich in Global appears in every linked folder at once.
-    const added = addChildNode(fresh(), "tpl-global", "gl-fachbereiche", "Cyberversicherung");
-    const next = buildView(added.state, "Verwaltung");
-    expect(findFolder(next, ["Versicherungen", "UNIQA", "Fachbereiche", "Cyberversicherung"])).not.toBeNull();
+    const global = findFolder(view, ["Global", "Fachbereiche"])!;
+    expect(global.children.map((c) => c.name)).toEqual([
+      "Feuerversicherung",
+      "Haftpflichtversicherung",
+      "Kfz-Versicherung",
+      "Rechtsschutzversicherung",
+      "Transportversicherung",
+    ]);
+    expect(global.count).toBe(70);
+    // Same records, listed again: Transport 2026 has every insurer but UNIQA.
+    expect(findFolder(view, ["Global", "Fachbereiche", "Transportversicherung", "2026"])!.docs).toHaveLength(4);
+    expect(base.documents.filter((d) => d.dokumenttyp === "bedingungen")).toHaveLength(70);
+
+    // The preview shows where the folder appears and how often each sub-folder recurs.
+    const preview = connectionPreview(base, "vv-fachbereiche");
+    expect(preview.instances).toHaveLength(5);
+    const transport = preview.tree.find((t) => t.name === "Transportversicherung")!;
+    expect(transport.occurrences).toBe(5);
+    expect(transport.children.map((c) => `${c.name}:${c.occurrences}`)).toEqual(["2026:4", "2025:5", "2024:5"]);
+
+    // Only Transportversicherung, only 2026.
+    const picked = setVerbindung(base, "tpl-global", "gl-fachbereiche", {
+      nodeId: "vv-fachbereiche",
+      include: ["Transportversicherung", "Transportversicherung/2026"],
+    });
+    const next = findFolder(buildView(picked, "Verwaltung"), ["Global", "Fachbereiche"])!;
+    expect(next.children.map((c) => c.name)).toEqual(["Transportversicherung"]);
+    expect(next.children[0].children.map((c) => c.name)).toEqual(["2026"]);
+    expect(next.count).toBe(4);
+    // Disconnected: empty again.
+    const off = removeVerbindung(picked, "tpl-global", "gl-fachbereiche", "vv-fachbereiche");
+    expect(findFolder(buildView(off, "Verwaltung"), ["Global", "Fachbereiche"])!.count).toBe(0);
   });
 
   it("predictLocation tells where a document really shows, so a mismatching target path is visible", () => {
     const state = fresh();
-    const where = predictLocation(state, { dokumenttyp: "polizze", links: [{ entityType: "Kunde", entityId: "k-gruber" }], meta: { sparte: "Kfz-Versicherung" } });
-    expect(where.Verwaltung).toEqual([["Kunden", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"]]);
+    const where = predictLocation(state, { dokumenttyp: "polizze", links: [{ entityType: "Partner", entityId: "k-gruber" }], meta: { sparte: "Kfz-Versicherung" } });
+    expect(where.Verwaltung).toEqual([["Partner", "Dr. Maria Gruber", "Polizzen", "Kfz-Versicherung"]]);
     expect(where.Standard).toEqual(where.Verwaltung);
     const nowhere = predictLocation(state, { dokumenttyp: "polizze", links: [], meta: {} });
     expect(nowhere.Verwaltung).toEqual([]);
@@ -137,23 +173,23 @@ describe("Eingang", () => {
   it("assigning gives the same record a place; nothing is copied", () => {
     const base = fresh();
     const item = eingang(base)[0];
-    const state = assignDokument(base, item.id, { dokumenttyp: "korrespondenz", link: { entityType: "Kunde", entityId: "k-hoeller" }, meta: {} });
+    const state = assignDokument(base, item.id, { dokumenttyp: "korrespondenz", link: { entityType: "Partner", entityId: "k-hoeller" }, meta: {} });
     expect(state.documents).toHaveLength(base.documents.length);
     expect(eingang(state)).toHaveLength(1);
-    expect(locateDocument(buildView(state, "Verwaltung"), item.id)).toEqual([["Kunden", "Bäckerei Höller & Söhne OG", "Korrespondenz"]]);
+    expect(locateDocument(buildView(state, "Verwaltung"), item.id)).toEqual([["Partner", "Bäckerei Höller & Söhne OG", "Korrespondenz"]]);
   });
 
   it("assigning a Schaden also links its Kunde", () => {
     const base = fresh();
     const item = eingang(base)[1];
     const state = assignDokument(base, item.id, { dokumenttyp: "schadendokument", link: { entityType: "Schaden", entityId: "s-0142" }, meta: {} });
-    expect(locateDocument(buildView(state, "Verwaltung"), item.id)).toEqual([["Kunden", "Transporte Steiner ∕ Wels GmbH", "Schäden", "S-2026-0142"]]);
+    expect(locateDocument(buildView(state, "Verwaltung"), item.id)).toEqual([["Partner", "Transporte Steiner ∕ Wels GmbH", "Schäden", "S-2026-0142"]]);
   });
 
   it("Quelle verknüpfen: the next upload like it is placed automatically", () => {
     const base = fresh();
     // The e-mail had no Kunde, so no link could place it. With a Kunde the e-mail link places it.
-    const context: UploadContext = { source: "kommunikation.email", entityType: "Kunde", entityId: "k-zentral", slot: "", knownMetadata: {} };
+    const context: UploadContext = { source: "kommunikation.email", entityType: "Partner", entityId: "k-zentral", slot: "", knownMetadata: {} };
     expect(isUnmatched(resolveAblage(context, effectiveRules(base), env(base)))).toBe(false);
     const unlinked = unlinkSource(base, { source: "kommunikation.email", slot: null });
     expect(isUnmatched(resolveAblage(context, effectiveRules(unlinked), env(unlinked)))).toBe(true);
@@ -178,5 +214,22 @@ describe("Maklervereinbarung cards = DMS records", () => {
     // Same record in the DMS view.
     const folder = findFolder(buildView(state, "Verwaltung"), ["Partner", "Lunixo AG", "Vereinbarungen"])!;
     expect(folder.docs.find((d) => d.id === draft.id)?.status).toBe("Aktiv");
+  });
+});
+
+describe("Quellen catalog", () => {
+  it("lists every upload point of WINO; none can be added by hand", async () => {
+    const { SOURCE_ITEMS, SOURCE_LABEL } = await import("./sources");
+    const all = Object.keys(SOURCE_LABEL).filter((s) => s !== "dms.dragdrop");
+    expect(new Set(SOURCE_ITEMS.map((s) => s.source))).toEqual(new Set(all));
+    // The slots used by the upload points in the app (Stammdaten, Bank, Maklervereinbarung).
+    for (const [source, slot] of [
+      ["partner.stammdaten.anhang", "anhang"],
+      ["partner.stammdaten.anhang", "wirtschaft"],
+      ["partner.bank", "bank"],
+      ["maklervereinbarung.vertrag", "vertrag"],
+    ]) {
+      expect(SOURCE_ITEMS.some((s) => s.source === source && s.slot === slot), `${source}#${slot}`).toBe(true);
+    }
   });
 });

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { decide as decideHomeoffice, loadAntraege, onAntraegeChange, saveAntraege } from "../home/calendar/homeoffice";
 import { useHonorar } from "../honorar/store";
 import { ROLE_USER } from "../mocks/honorar/seed";
 import { useWorkflow } from "../workflow";
@@ -6,11 +7,13 @@ import { BestandAreaNav, BestandMainNav, BestandModuleNav } from "./BestandChrom
 import { DeleteWarning } from "./DeleteWarning";
 import { FreigabenPanel, type BestandListenTab } from "./FreigabenPanel";
 import { FreigabePage } from "./FreigabePage";
+import { HrmListen } from "./HrmListen";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
 import {
   ADVISOR_REQUESTS,
   DEMO_REQUESTS,
   STAMMDATEN_REQUESTS,
+  liveHomeofficeRows,
   liveMaklerRows,
   liveRechnungRows,
   type RequestRow,
@@ -47,6 +50,11 @@ export function ManagerView() {
   const [deleting, setDeleting] = useState<RequestRow | null>(null);
   const { state: honorar, decideInvoiceCorrection } = useHonorar();
   const [listenTab, setListenTab] = useState<BestandListenTab>("freigaben");
+  /** Management area: Bestand (Freigaben) or HRM (Anträge of the employees). */
+  const [area, setArea] = useState<"Bestand" | "HRM">("Bestand");
+  /** Homeoffice-Anträge from the Kalender, shared through the same store. */
+  const [homeoffice, setHomeoffice] = useState(loadAntraege);
+  useEffect(() => onAntraegeChange(setHomeoffice), []);
 
   const liveRows = liveMaklerRows({
     approvalOf,
@@ -61,6 +69,7 @@ export function ManagerView() {
     /* The workflow only reaches this list once the advisor has asked for something. */
     ...(liveRows.every((row) => row.pending) ? [] : liveRows),
     ...liveRechnungRows(honorar),
+    ...liveHomeofficeRows(homeoffice),
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...ADVISOR_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...STAMMDATEN_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
@@ -74,6 +83,21 @@ export function ManagerView() {
     if (reviewing.feeId) {
       /* An invoice Antrag goes back to the invoice workflow, where the Honorarverwalter books it. */
       decideInvoiceCorrection(reviewing.feeId, decision === "granted", note || FALLBACK_NOTE[decision], ROLE_USER.head);
+      return;
+    }
+    if (reviewing.homeofficeId) {
+      /* Homeoffice: the decision goes straight back to the employee's calendar. */
+      saveAntraege(
+        decideHomeoffice(
+          loadAntraege(),
+          reviewing.homeofficeId,
+          decision === "granted" ? "genehmigt" : "zurueckgesetzt",
+          new Date().toISOString(),
+          ROLE_USER.head,
+          note,
+        ),
+      );
+      closeFreigabe();
       return;
     }
     if (reviewing.step) {
@@ -100,11 +124,14 @@ export function ManagerView() {
     <div className="app">
       <div className="shell">
         <BestandMainNav />
-        <BestandAreaNav />
+        <BestandAreaNav active={area} onArea={(next) => setArea(next as "Bestand" | "HRM")} />
         <BestandModuleNav />
 
         <div className="content-shell bestand-body">
           <MitarbeiterSidebar />
+          {area === "HRM" ? (
+            <HrmListen />
+          ) : (
           <FreigabenPanel
             rows={rows}
             tab={listenTab}
@@ -113,6 +140,7 @@ export function ManagerView() {
             onView={(row) => openFreigabe(row.id, row.partner.name)}
             onDelete={setDeleting}
           />
+          )}
         </div>
       </div>
 

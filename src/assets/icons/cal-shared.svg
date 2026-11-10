@@ -1,0 +1,11 @@
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M3.75 7.12354L15.6635 7.12354" stroke-linecap="round" stroke-linejoin="round" stroke="#313537"/>
+<path d="M13.5611 3.62207H14.4721C15.1274 3.62207 15.6635 4.17463 15.6635 4.84997V9.22841M12.1595 3.62207H7.25396M5.85238 3.62207H4.94135C4.28611 3.62207 3.75 4.17463 3.75 4.84997V13.6069C3.75 14.2822 4.28611 14.8348 4.94135 14.8348H9.70674" stroke-linecap="round" stroke-linejoin="round" stroke="#313537"/>
+<path d="M6.55371 2.9165V4.31809" stroke-linecap="round" stroke-linejoin="round" stroke="#313537"/>
+<path d="M12.8594 2.9165V4.31809" stroke-linecap="round" stroke-linejoin="round" stroke="#313537"/>
+<mask id="stroke0_18059_122104" fill="white">
+<path d="M16.225 11.658C16.225 12.7833 15.3078 13.6955 14.1764 13.6955C13.0451 13.6955 12.1279 12.7833 12.1279 11.658C12.1279 10.5328 13.0451 9.62061 14.1764 9.62061C15.3078 9.62061 16.225 10.5328 16.225 11.658Z"/>
+</mask>
+<ellipse cx="14.1764" cy="11.658" rx="2.04851" ry="2.03744" stroke-width="2" stroke="#313537" mask="url(#stroke0_18059_122104)"/>
+<path d="M10.8242 16.9532C10.8242 15.4802 12.325 14.2861 14.1762 14.2861C16.0275 14.2861 17.5282 15.4802 17.5282 16.9532" stroke-linecap="round" stroke="#313537"/>
+</svg>

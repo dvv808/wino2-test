@@ -369,8 +369,101 @@ export function buildView(state: Pick<DmsState, "vorlagen" | "entities" | "docum
       result.folders.forEach((f) => mergeInto(target, f));
     }
   }
+  applyVerbindungen(roots, nodes);
   countAndSort(roots, false);
   return roots;
+}
+
+/** Sub-folders of several folders merged by name: the same "Transportversicherung" everywhere becomes one. */
+export type MergedFolder = {
+  name: string;
+  /** Name path below the connected folder, e.g. "Transportversicherung/2026". */
+  rel: string;
+  /** In how many of the connected places this sub-folder exists. */
+  occurrences: number;
+  docs: Dokument[];
+  staleIds: string[];
+  children: MergedFolder[];
+};
+
+const byMergedName = (a: { name: string }, b: { name: string }) =>
+  /^\d+$/.test(a.name) && /^\d+$/.test(b.name) ? Number(b.name) - Number(a.name) : a.name.localeCompare(b.name, "de");
+
+export function mergeByName(folders: FolderNode[], rel = ""): MergedFolder[] {
+  const groups = new Map<string, FolderNode[]>();
+  for (const f of folders) for (const c of f.children) groups.set(c.name, [...(groups.get(c.name) ?? []), c]);
+  return [...groups.entries()]
+    .map(([name, list]) => {
+      const here = rel ? `${rel}/${name}` : name;
+      const docs = list.flatMap((f) => f.docs);
+      return {
+        name,
+        rel: here,
+        occurrences: list.length,
+        docs: docs.filter((d, i) => docs.findIndex((x) => x.id === d.id) === i),
+        staleIds: list.flatMap((f) => f.staleIds),
+        children: mergeByName(list, here),
+      };
+    })
+    .sort(byMergedName);
+}
+
+/** Every folder in a view built from one template node (e.g. all five "Versicherungen / … / Fachbereiche"). */
+export function instancesOfNode(roots: FolderNode[], nodeId: string) {
+  const out: FolderNode[] = [];
+  walk(roots, (f) => {
+    if (f.nodeId === nodeId) out.push(f);
+  });
+  return out;
+}
+
+/**
+ * Ordner verbinden: a folder shows the files of another folder from every place it appears, with the chosen
+ * sub-folders merged by name. Nothing is copied: the same records are listed in a second place.
+ */
+function applyVerbindungen(roots: FolderNode[], nodes: Map<string, Knoten>) {
+  const targets: FolderNode[] = [];
+  walk(roots, (f) => {
+    if (f.nodeId && nodes.get(f.nodeId)?.verbindungen?.length) targets.push(f);
+  });
+  for (const target of targets) {
+    for (const v of nodes.get(target.nodeId!)!.verbindungen!) {
+      const sources = instancesOfNode(roots, v.nodeId).filter((f) => !f.key.startsWith(target.key));
+      if (!sources.length) continue;
+      const take = (rel: string) => v.include === null || v.include.includes(rel);
+      const ownDocs = sources.flatMap((f) => f.docs);
+      target.docs.push(...ownDocs.filter((d) => !target.docs.some((x) => x.id === d.id)));
+      const attach = (list: MergedFolder[], parent: FolderNode) => {
+        for (const m of list) {
+          if (!take(m.rel)) continue;
+          const path = [...parent.path, m.name];
+          let child = parent.children.find((c) => c.name === m.name);
+          if (!child) {
+            child = {
+              key: path.join("/"),
+              name: m.name,
+              path,
+              nodeId: `${target.nodeId}~${m.rel}`,
+              templateId: target.templateId,
+              entity: null,
+              docs: [],
+              staleIds: [],
+              count: 0,
+              children: [],
+              permissions: [],
+              defaults: { path, typen: [], meta: {}, links: [] },
+            };
+            parent.children.push(child);
+          }
+          child.docs.push(...m.docs.filter((d) => !child!.docs.some((x) => x.id === d.id)));
+          child.staleIds.push(...m.staleIds);
+          attach(m.children, child);
+        }
+      };
+      attach(mergeByName(sources), target);
+      target.children.sort(byMergedName);
+    }
+  }
 }
 
 export function walk(list: FolderNode[], visit: (folder: FolderNode) => void) {

@@ -26,7 +26,9 @@ import { formatDay } from "../lib/honorar/format";
 import { partnerOf } from "../lib/honorar/queries";
 import { invoiceNumberOf, money, openAmount } from "../honorar/invoiceCells";
 import { useHonorar } from "../honorar/store";
-import { isRechnungRequest, isStammdatenRequest, isWicoRequest, SCHRITT, type RequestRow } from "./requests";
+import { isHomeofficeRequest, isRechnungRequest, isStammdatenRequest, isWicoRequest, SCHRITT, type RequestRow } from "./requests";
+import { duration, hhmm, parseIso } from "../home/calendar/calendarData";
+import { forDay, loadAntraege, sollzeit } from "../home/calendar/homeoffice";
 
 const STAMMDATEN_TASKS = [
   {
@@ -50,6 +52,75 @@ const RECHNUNG_TASKS = [
   },
 ];
 
+const HOMEOFFICE_TASKS = [
+  {
+    title: "Antrag prüfen",
+    text: "Prüfe Tag, Uhrzeit und den Kommentar der Mitarbeiterin.",
+  },
+  {
+    title: "Genehmigen oder ablehnen",
+    text: "Die Entscheidung erscheint sofort im Kalender der Mitarbeiterin und unter Kalender Aktivitäten → Beantragungen.",
+  },
+];
+
+const HO_STATUS: Record<string, string> = { offen: "Offen", genehmigt: "Genehmigt", zurueckgesetzt: "Zurückgesetzt" };
+const WEEKDAY_LONG = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
+
+/** The Homeoffice-Antrag, shown where a Maklervereinbarung shows the PDF: the block and the whole day around it. */
+function HomeofficeAntragCard({ row }: { row: RequestRow }) {
+  const antraege = loadAntraege();
+  const antrag = antraege.find((x) => x.id === row.homeofficeId);
+  if (!antrag) return <p className="atab-empty center">Der Antrag ist nicht mehr verfügbar.</p>;
+  const d = parseIso(antrag.day);
+  const day = forDay(antraege, antrag.day);
+  return (
+    <div className="rw-card fg-ho-card">
+      <span className="hn-inv-label">
+        <img src={a.hoDot} alt="" width={11} height={11} /> Homeoffice-Antrag
+      </span>
+      <h2 className="rw-title">
+        {WEEKDAY_LONG[d.getDay()]}, {row.stepPosition}
+      </h2>
+      <dl className="hn-inv-figures">
+        <div>
+          <dt>Uhrzeit</dt>
+          <dd>
+            {hhmm(antrag.start)} - {hhmm(antrag.end)}
+          </dd>
+        </div>
+        <div>
+          <dt>Dauer</dt>
+          <dd>{duration(antrag.end - antrag.start)} h</dd>
+        </div>
+        <div>
+          <dt>Sollzeit</dt>
+          <dd>{duration(sollzeit(antrag.day))} h</dd>
+        </div>
+      </dl>
+      {antrag.kommentar ? (
+        <p className="hn-inv-fact">
+          <span>
+            <strong>Kommentar</strong>
+          </span>
+          <small>{antrag.kommentar}</small>
+        </p>
+      ) : null}
+      <p className="fg-ho-label">Alle Zeiten an diesem Tag</p>
+      <ul className="fg-ho-day">
+        {day.map((x) => (
+          <li key={x.id} className={x.id === antrag.id ? "current" : undefined}>
+            <i className={`fg-ho-bar ${x.status}`} />
+            <span>
+              {hhmm(x.start)} - {hhmm(x.end)}
+            </span>
+            <em className={x.status}>{HO_STATUS[x.status]}</em>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function localStamp() {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -61,13 +132,14 @@ function localStamp() {
 
 function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
   const { partner } = row;
-  const stammdaten = isStammdatenRequest(row) || isRechnungRequest(row);
+  const homeoffice = isHomeofficeRequest(row);
+  const stammdaten = isStammdatenRequest(row) || isRechnungRequest(row) || homeoffice;
   const wico = isWicoRequest(row);
 
   return (
     <div className="fg-meta">
       <div className="fg-meta-cell">
-        <span className="fg-meta-label">Kunde</span>
+        <span className="fg-meta-label">{homeoffice ? "Mitarbeiterin" : "Kunde"}</span>
         <div className="fg-meta-person">
           <span className="fg-meta-avatar">
             {partner.photo ? (
@@ -144,7 +216,28 @@ function MetaStrip({ row, signed }: { row: RequestRow; signed: boolean }) {
 
 function StatusBanner({ row, signed }: { row: RequestRow; signed: boolean }) {
   const rechnung = isRechnungRequest(row);
+  const homeoffice = isHomeofficeRequest(row);
   const stammdaten = isStammdatenRequest(row) || rechnung;
+
+  if (homeoffice) {
+    const tone = row.status === "abgeschlossen" ? "success" : row.status === "abgelehnt" ? "error" : "pending";
+    return (
+      <div className={`rev-banner ${tone}`}>
+        <div className="rev-banner-line">
+          <Icon src={tone === "success" ? a.checkGreen : tone === "error" ? a.warningCircle : a.onhold} size={24} />
+          <p>
+            <strong>{tone === "success" ? "Homeoffice genehmigt" : tone === "error" ? "Homeoffice zurückgesetzt" : "Freigabe ausstehend"}</strong>
+            <br />
+            {tone === "success"
+              ? "Die Mitarbeiterin sieht die Genehmigung in ihrem Kalender."
+              : tone === "error"
+                ? "Der Antrag wurde aus dem Kalender genommen. Die Mitarbeiterin wurde informiert und muss neu beantragen."
+                : "Die Mitarbeiterin hat Homeoffice beantragt und wartet auf die Genehmigung."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (row.status === "abgeschlossen") {
     return (
@@ -327,12 +420,13 @@ export function FreigabePage({
   const [deciding, setDeciding] = useState<"granted" | "rejected" | null>(null);
   const [stammdatenPosted, setStammdatenPosted] = useState<PostedComment[]>([]);
   const rechnung = isRechnungRequest(row);
+  const homeoffice = isHomeofficeRequest(row);
   const rechnungFee = rechnung && row.feeId ? honorar.fees.find((fee) => fee.id === row.feeId) : undefined;
-  const stammdaten = isStammdatenRequest(row) || rechnung;
+  const stammdaten = isStammdatenRequest(row) || rechnung || homeoffice;
   const signed = row.schritt === SCHRITT.sign;
   const decided = row.status !== "offen";
   const step = signed ? "sign" : "docs";
-  const tasks = rechnung ? RECHNUNG_TASKS : stammdaten ? STAMMDATEN_TASKS : MANAGER_TASKS[step];
+  const tasks = homeoffice ? HOMEOFFICE_TASKS : rechnung ? RECHNUNG_TASKS : stammdaten ? STAMMDATEN_TASKS : MANAGER_TASKS[step];
   const sentAt = { date: row.date, time: row.time };
   const comments = buildComments({
     note: row.note,
@@ -449,8 +543,12 @@ export function FreigabePage({
                     <div className="doc-heading">
                       <strong>{row.partner.name}</strong>
                       <span>
-                        <Icon src={rechnung ? a.request : a.stammdaten} size={18} className={rechnung ? "icon-dark" : undefined} />
-                        {rechnung ? "Rechnungs-Freigabe" : "Stammdaten-Freigabe"}
+                        {homeoffice ? (
+                          <img src={a.hoDot} alt="" width={11} height={11} />
+                        ) : (
+                          <Icon src={rechnung ? a.request : a.stammdaten} size={18} className={rechnung ? "icon-dark" : undefined} />
+                        )}
+                        {homeoffice ? "Homeoffice-Freigabe" : rechnung ? "Rechnungs-Freigabe" : "Stammdaten-Freigabe"}
                       </span>
                     </div>
                   ) : (
@@ -509,7 +607,9 @@ export function FreigabePage({
                 </section>
 
                 <section className="review-viewer">
-                  {rechnung ? (
+                  {homeoffice ? (
+                    <HomeofficeAntragCard row={row} />
+                  ) : rechnung ? (
                     <RechnungAntragCard row={row} />
                   ) : stammdaten && row.diff ? (
                     <StammdatenChangeCard diff={row.diff} />

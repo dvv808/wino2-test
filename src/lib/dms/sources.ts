@@ -17,9 +17,9 @@ export const SOURCE_ITEMS: SourceItem[] = [
   { source: "partner.bank", slot: "bank", module: "Stammdaten", label: "Bankverbindung → Dokumente", entityType: "Partner", dokumenttyp: "bankdokument" },
   { source: "maklervereinbarung.vertrag", slot: "vertrag", module: "Maklervereinbarung", label: "Vertrag hochladen", entityType: "Partner", dokumenttyp: "maklervereinbarung" },
   { source: "partner.aktivitaet.anhang", slot: null, module: "Partner", label: "Aktivität → Anhang", entityType: "Partner", dokumenttyp: "anhang" },
-  { source: "kunde.polizze", slot: null, module: "Kunde", label: "Polizze anlegen", entityType: "Kunde", dokumenttyp: "polizze" },
+  { source: "kunde.polizze", slot: null, module: "Polizzen", label: "Polizze anlegen", entityType: "Partner", dokumenttyp: "polizze" },
   { source: "schaden.dokumente", slot: null, module: "Schaden", label: "Dokumente", entityType: "Schaden", dokumenttyp: "schadendokument" },
-  { source: "kommunikation.email", slot: null, module: "Kommunikation", label: "E-Mail-Anhang", entityType: "Kunde", dokumenttyp: "korrespondenz" },
+  { source: "kommunikation.email", slot: null, module: "Kommunikation", label: "E-Mail-Anhang", entityType: "Partner", dokumenttyp: "korrespondenz" },
   { source: "versicherer.bedingungen", slot: null, module: "Versicherer", label: "Bedingungen", entityType: "Versicherer", dokumenttyp: "bedingungen" },
 ];
 
@@ -28,7 +28,7 @@ export const SOURCE_LABEL: Record<UploadSource, string> = {
   "partner.aktivitaet.anhang": "Partner → Aktivität → Anhang",
   "partner.stammdaten.anhang": "Stammdaten → Anhänge",
   "partner.bank": "Stammdaten → Bankverbindung",
-  "kunde.polizze": "Kunde → Polizze anlegen",
+  "kunde.polizze": "Polizzen → Polizze anlegen",
   "schaden.dokumente": "Schaden → Dokumente",
   "kommunikation.email": "Kommunikation → E-Mail-Anhang",
   "versicherer.bedingungen": "Versicherer → Bedingungen",

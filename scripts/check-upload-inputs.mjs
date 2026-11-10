@@ -28,4 +28,33 @@ if (hits.length) {
   console.error(`File input outside src/${ALLOWED}. Use <DmsUpload context={…}> instead:\n  ${hits.join("\n  ")}`);
   process.exit(1);
 }
+
+// Every upload point in the app is listed as a Quelle in Ordner Zuordnung (src/lib/dms/sources.ts):
+// partnerUpload("source", id, "slot") calls and literal contexts { source: "…", …, slot: "…" }.
+const catalog = readFileSync(join(ROOT, "lib/dms/sources.ts"), "utf8");
+const listed = (source, slot) =>
+  new RegExp(`source: "${source.replace(/\./g, "\\.")}", slot: ${slot === null ? "null" : `"${slot}"`}`).test(catalog);
+const missing = [];
+function scanUses(dir) {
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) {
+      if (!path.includes(`${join(ROOT, "mocks")}`) && !path.endsWith("lib/dms")) scanUses(path);
+      continue;
+    }
+    if (!/\.tsx?$/.test(name) || /\.test\./.test(name)) continue;
+    const text = readFileSync(path, "utf8");
+    for (const m of text.matchAll(/partnerUpload\("([a-z.]+)",[^,]+,\s*"([^"]*)"\)/g)) {
+      if (!listed(m[1], m[2])) missing.push(`src/${relative(ROOT, path)}: ${m[1]} / ${m[2]}`);
+    }
+    for (const m of text.matchAll(/source: "([a-z.]+)",\s*entityType: "[A-Za-z]+",\s*entityId: [^,]+,\s*slot: "([^"]*)"/g)) {
+      if (!listed(m[1], m[2])) missing.push(`src/${relative(ROOT, path)}: ${m[1]} / ${m[2]}`);
+    }
+  }
+}
+scanUses(ROOT);
+if (missing.length) {
+  console.error(`Upload point missing in the Quellen list (src/lib/dms/sources.ts):\n  ${missing.join("\n  ")}`);
+  process.exit(1);
+}
 console.log("check-upload-inputs: ok");
