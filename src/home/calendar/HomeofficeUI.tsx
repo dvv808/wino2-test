@@ -155,6 +155,8 @@ export function HomeofficeModal({
   const errors = validate(blocks);
   const valid = !blocked && blocks.length > 0 && Object.keys(errors).length === 0;
   const status = (b: HomeofficeBlock) => antraege.find((x) => x.id === b.id);
+  // An already beantragt time stays as it is. Speichern & Beantragen only once a new time was added.
+  const canApply = blocks.some((b) => status(b)?.status !== "offen");
   const weekday = WEEKDAYS[parseIso(day).getDay()];
 
   return (
@@ -232,7 +234,7 @@ export function HomeofficeModal({
                             type="button"
                             className={`kal-hom-comment-btn${b.kommentar ? " has" : ""}`}
                             aria-label={b.kommentar ? "Kommentar bearbeiten" : "Kommentar hinzufügen"}
-                            title={b.kommentar || "Kommentar hinzufügen"}
+                            title={b.kommentar ? "Kommentar bearbeiten" : "Kommentar hinzufügen"}
                             onClick={() => setComment(comment === b.key ? null : b.key)}
                           >
                             <img src={a.comment} alt="" width={13} height={14} />
@@ -248,7 +250,9 @@ export function HomeofficeModal({
                             />
                           ) : null}
                         </span>
-                        {existing ? <em className={`kal-hom-tag ${existing.status}`}>{STATUS_SHORT[existing.status]}</em> : null}
+                        {existing && existing.status !== "offen" ? (
+                          <em className={`kal-hom-tag ${existing.status}`}>{STATUS_SHORT[existing.status]}</em>
+                        ) : null}
                         <button
                           type="button"
                           className="kal-hom-remove"
@@ -260,7 +264,16 @@ export function HomeofficeModal({
                       </div>
                       <TimeInput label="Beginn" value={b.start} onChange={(v) => update(b.key, { start: v })} />
                       <TimeInput label="Ende" value={b.end} onChange={(v) => update(b.key, { end: v })} />
-                      {b.kommentar ? <p className="kal-hom-note">„{b.kommentar}“</p> : null}
+                      {existing?.status === "offen" ? (
+                        <div className="kal-hom-status">
+                          <img src={a.calUrlaubPending} alt="" width={25} height={19} />
+                          <p>
+                            Status: Beantragt
+                            <br />
+                            Genehmigung ausstehend
+                          </p>
+                        </div>
+                      ) : null}
                       {error ? <p className="kal-hom-error">{error}</p> : null}
                     </div>
                   );
@@ -288,7 +301,7 @@ export function HomeofficeModal({
           <button
             type="button"
             className="btn-primary"
-            disabled={!!blocked}
+            disabled={!!blocked || !canApply}
             onClick={() => {
               setTried(true);
               if (valid) onSave(day, blocks);

@@ -18504,6 +18504,33 @@ button.hn-kpi.active strong {
   color: var(--wino-green-homeoffice);
 }
 
+/* An already open request (Figma 22663:300309): status instead of the pill and the quoted comment. */
+.kal-hom-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 51px;
+  margin: 2px -4px 0;
+  padding: 0 15px 0 13px;
+  border-radius: 8px;
+  background: var(--wino-signal-yellowlight);
+  box-sizing: border-box;
+}
+
+.kal-hom-status img {
+  flex: none;
+}
+
+.kal-hom-status p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.37;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  text-align: left;
+}
+
 .kal-hom-row {
   display: grid;
   grid-template-columns: 1fr 114px 1fr;
@@ -18557,15 +18584,6 @@ button.hn-kpi.active strong {
   border: 0;
   background: none;
   cursor: pointer;
-}
-
-.kal-hom-note {
-  margin: 0;
-  padding: 0 4px;
-  font-size: 11px;
-  color: var(--wino-black-medium);
-  text-align: center;
-  overflow-wrap: anywhere;
 }
 
 .kal-hom-error {
