@@ -18,7 +18,7 @@ import {
   type RequestStatus,
 } from "../manager/requests";
 import { ROLE_USER } from "../mocks/honorar/seed";
-import { Icon } from "../ui";
+import { Icon, useClickOutside } from "../ui";
 import { useWorkflow } from "../workflow";
 
 /** The signed-in Honorarverwalter: "Meine Workflows" are the ones she started, "Mit mir" the ones waiting on her. */
@@ -160,6 +160,7 @@ export function HomeWorkflows() {
   // Whose workflows the page shows: mine (default), a Firmenkanal's, or a colleague's (dropdown on the side card).
   const [scope, setScope] = useState<Scope>({ kind: "me" });
   const [scopeOpen, setScopeOpen] = useState(false);
+  const scopeRef = useClickOutside(scopeOpen, () => setScopeOpen(false));
   const [scopeQuery, setScopeQuery] = useState("");
   const [chip, setChip] = useState<Chip | null>("Meine Workflows");
   const [status, setStatus] = useState<StatusFilter>("Alle");
@@ -471,6 +472,7 @@ export function HomeWorkflows() {
   return (
     <div className="hw-layout">
       <aside className="hw-side">
+        <div className="hw-scope" ref={scopeRef}>
         <button
           type="button"
           className={scopeOpen ? "hw-side-head open" : "hw-side-head"}
@@ -537,6 +539,7 @@ export function HomeWorkflows() {
               ))}
           </div>
         ) : null}
+        </div>
         <div className="hw-side-list">
           {(Object.keys(counts) as SideFilter[]).map((item) => (
             <button

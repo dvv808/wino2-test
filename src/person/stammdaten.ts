@@ -459,6 +459,7 @@ const KONTAKT_JULIA: Card = {
     {
       kind: "rows",
       rows: [
+        { label: "Telefon", value: "+43 664 22 22 15 2", icon: a.phone, action: true },
         { label: "Telefon", value: "+43 3810 393 112 3", icon: a.phone, action: true },
         { label: "Mail", value: "julia.atkinson@mail.at", icon: a.mail, action: true },
         { label: "Mail", value: "ja@kabsi.at", icon: a.mail, action: true },
@@ -739,6 +740,72 @@ function filled(value: string | undefined) {
 
 function liveCards(sections: Section[], sectionId: string) {
   return sections.find((section) => section.id === sectionId)?.cards.filter((card) => !card.empty) ?? [];
+}
+
+/** Kommunikationsdaten of the Maklervereinbarung: what can be picked, read from the live Stammdaten. */
+export type CommsType = "phone" | "mail" | "post";
+export type CommsOption = { value: string; second?: string; tags: string[] };
+/** One Stammdaten card (a contact or an address) with the values of one type it holds. */
+export type CommsGroup = { id: string; title: string; person?: { name: string; tag?: string; sub: string }; note?: string; options: CommsOption[] };
+
+const COMMS_LABEL: Record<Exclude<CommsType, "post">, string> = { phone: "Telefon", mail: "Mail" };
+
+export function commsOptions(sections: Section[], type: CommsType): CommsGroup[] {
+  if (type === "post") {
+    const partner = liveCards(sections, "personendaten")[0];
+    const form = partner ? partnerForm(partner) : null;
+    const owner = form ? [form.vorname, form.nachname].filter(filled).join(" ") : "";
+    return liveCards(sections, "adressen")
+      .map((card) => {
+        const rows = card.blocks?.flatMap((block) => ("rows" in block ? block.rows : [])) ?? [];
+        const tags = (card.blocks ?? []).flatMap((block) => (block.kind === "badge" && !block.open && block.caption ? [block.caption] : []));
+        const options = rows
+          .filter((row) => row.label.trim() === "Adresse")
+          .map((row) => {
+            const [value, ...rest] = valueText(row.value).split("\n");
+            return { value, second: rest.join(" ") || undefined, tags };
+          })
+          .filter((option) => filled(option.value));
+        // An address belongs to the partner: shown under it like the contact's name (Figma 21698:125830).
+        return { id: card.id, title: card.title ?? "Adresse", person: owner ? { name: owner, sub: "" } : undefined, options };
+      })
+      .filter((group) => group.options.length > 0);
+  }
+  return liveCards(sections, "kontakte")
+    .map((card) => {
+      const person = card.blocks?.find((block) => block.kind === "person");
+      const note = card.blocks?.find((block) => block.kind === "note");
+      const rows = card.blocks?.flatMap((block) => ("rows" in block ? block.rows : [])) ?? [];
+      const values = rows.filter((row) => row.label.trim() === COMMS_LABEL[type]).map((row) => valueText(row.value)).filter(filled);
+      return {
+        id: card.id,
+        title: card.title ?? "Kontakt",
+        person: person?.kind === "person" ? { name: person.name, tag: person.tag, sub: person.sub } : undefined,
+        note: note?.kind === "note" ? note.text : undefined,
+        options: values.map((value) => ({ value, tags: [] })),
+      };
+    })
+    .filter((group) => group.options.length > 0);
+}
+
+/** Offene Aufgaben of the Maklervereinbarung that are still missing in the Stammdaten. */
+export type OpenTask = "id" | "bank" | "contact";
+
+/**
+ * Checks the live Stammdaten: Ausweis/Reisepass as an attachment of the Partnerdaten, at least one Bankverbindung,
+ * and a contact with a phone number or e-mail. What is there drops off the task list.
+ */
+export function openTasks(sections: Section[]): OpenTask[] {
+  const attachments = liveCards(sections, "personendaten").flatMap(
+    (card) => card.blocks?.flatMap((block) => (block.kind === "files" ? block.rows : [])) ?? [],
+  );
+  const hasId = attachments.some((row) => /ausweis|reisepass|pass\b/i.test(`${row.label} ${valueText(row.value)}`));
+  const hasBank = liveCards(sections, "bankverbindungen").length > 0;
+  const hasContact = liveCards(sections, "kontakte").some((card) => {
+    const form = contactForm(card);
+    return form.phones.some((phone) => filled(phone.value)) || form.mails.some((mail) => filled(mail.value));
+  });
+  return [hasId ? null : "id", hasBank ? null : "bank", hasContact ? null : "contact"].filter((x): x is OpenTask => x !== null);
 }
 
 /** Header identity: live Stammdaten first, so a new contact or address shows on the file card. */

@@ -5,7 +5,7 @@ import { formatPath } from "../lib/dms/placeholders";
 import { buildView, findFolder, locateDocument, walk, type FolderNode } from "../lib/dms/views";
 import { nextStates, setStatus } from "../lib/dms/workflow";
 import type { Ansicht, DmsState, Dokument } from "../types/dms";
-import { Icon, ShelveToggleIcon } from "../ui";
+import { Icon, ShelveToggleIcon, useClickOutside } from "../ui";
 import { useDms } from "./store";
 import { Avatar, DmsModal, DmsTable, DocIcon, formatDate, formatSize, LevelChip, StatusChip, type DmsColumn } from "./ui";
 import { DmsDropArea } from "./upload";
@@ -38,10 +38,11 @@ function linkNames(state: DmsState, doc: Dokument) {
 export function PersonSwitch({ title }: { title: string }) {
   const { state, setActivePerson } = useDms();
   const [open, setOpen] = useState(false);
+  const ref = useClickOutside(open, () => setOpen(false));
   const person = state.people.find((p) => p.id === state.activePerson);
   const groupsOf = (id: string) => state.groups.filter((g) => g.members.includes(id)).map((g) => g.name);
   return (
-    <div className="dms-person">
+    <div className="dms-person" ref={ref}>
       <button type="button" className="dms-person-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
         <Avatar person={person} size={40} />
         <span className="dms-person-copy">

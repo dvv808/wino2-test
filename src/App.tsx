@@ -30,6 +30,8 @@ import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
 import { UnsavedChanges } from "./person/UnsavedChanges";
 import { VersionLayer } from "./person/VersionHistory";
 import { Icon } from "./ui";
+import { openTasks } from "./person/stammdaten";
+import { dateOf } from "./lib/maklervereinbarung/gueltigkeit";
 import { WidgetBar } from "./widget/WidgetBar";
 import {
   STEPS,
@@ -49,8 +51,41 @@ const LAYOUT: Record<StepId, string> = {
   sign: "page docs",
 };
 
+/**
+ * Honorar is complete when the chosen model has what it needs:
+ * Privat – a valid first billing (future 1st of a month when individual), Hauptfälligkeit, the Zahlart details
+ * and the Rechnungsversand mail / address; bei anderem Partner – a linked partner with a matching tariff;
+ * Individuell – the Notiz.
+ */
+function useHonorarComplete() {
+  const { model, customNote, selectedPartner, billing, month, year, dueDay, dueMonth, payment, paymentTerm, delivery, commsChoice } =
+    useWorkflow();
+  if (model === "custom") return Boolean(customNote.trim());
+  if (model === "partner") return Boolean(selectedPartner?.ok);
+  const first = billing === "custom" ? dateOf("01", month, year) : null;
+  const billingOk = billing !== "custom" || Boolean(first && first > new Date());
+  const dueOk = Boolean(dateOf(dueDay, dueMonth, "2000"));
+  const paymentOk = payment === "debit" || Number(paymentTerm) > 0;
+  const deliveryOk = delivery === "email" ? Boolean(commsChoice.mail) : Boolean(commsChoice.post);
+  return billingOk && dueOk && paymentOk && deliveryOk;
+}
+
 function Stepper() {
-  const { activeStep, done, goTo } = useWorkflow();
+  const { activeStep, done, goTo, sections } = useWorkflow();
+  // Offene Aufgaben is done as soon as the Stammdaten hold everything it asks for.
+  const honorar = useHonorarComplete();
+  const { commsChoice, termsOn, termsText } = useWorkflow();
+  const isDone = (id: StepId) =>
+    // Kommunikationsdaten: Fertig only while Telefon, Mail and Postadresse are all picked.
+    id === "comms"
+      ? Boolean(commsChoice.phone && commsChoice.mail && commsChoice.post)
+      : // Honorar: Fertig as soon as everything the chosen model needs is filled in.
+        id === "fee"
+        ? honorar
+        : // Individuelle Vereinbarung: off → Fertig; on → Fertig once text is there and "Weiter" was clicked.
+          id === "terms"
+          ? !termsOn || Boolean(termsText.trim() && done.terms)
+          : done[id] || (id === "tasks" && openTasks(sections).length === 0);
 
   return (
     <div className="stepper-wrap">
@@ -81,7 +116,7 @@ function Stepper() {
                 </span>
               ))}
             </span>
-            {done[step.id] ? (
+            {isDone(step.id) ? (
               <span className="badge done">
                 <Icon src={a.confirm} size={16} />
                 Fertig

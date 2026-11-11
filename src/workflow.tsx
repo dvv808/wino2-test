@@ -53,6 +53,10 @@ import {
 
 export type Model = "privat" | "partner" | "custom";
 export type OpenMenu = "partner" | "bank" | "textblock" | "docSigner" | "signer" | null;
+/** The picked Telefon, Mail and Postadresse; the value plus the Stammdaten card it comes from. */
+export type CommsPick = { value: string; second?: string; cardId: string; cardTitle: string; tags: string[]; owner?: string };
+export type CommsChoice = Partial<Record<"phone" | "mail" | "post", CommsPick>>;
+
 export type StepId = "tasks" | "comms" | "fee" | "terms" | "scope" | "docs" | "sign";
 export type Approval = "idle" | "requested" | "granted" | "rejected";
 export type SignMode = "upload" | "digital";
@@ -93,6 +97,11 @@ export type Partner = {
   name: string;
   tariff: string;
   ok: boolean;
+  /** Where the link comes from in the Stammdaten Verknüpfung, e.g. Familie · Mutter or Konzern. */
+  group: "Familie" | "Konzern";
+  relation: string;
+  /** Partner file the "anpassen" / row can open. */
+  fileId?: PartnerId;
 };
 
 export type Bank = {
@@ -103,9 +112,16 @@ export type Bank = {
   hint?: string;
 };
 
+/**
+ * Julia's Stammdaten Verknüpfungen that already pay a Maklervereinbarung (Figma 21165:29767, 21107:76293,
+ * 21107:76360): her mother Johanna (Kundin, Honorar Privat), her father Karl (Privat Individuell – does not
+ * cover others), and in the Konzern Lunixo AG (Business) and Lunixo Holding (Business Individuell).
+ */
 export const PARTNERS: Partner[] = [
-  { id: "herbert", name: "Herbert Hofer", tariff: "Privat", ok: true },
-  { id: "lunixo", name: "Lunixo AG", tariff: "Business Individuell", ok: false },
+  { id: "johanna", name: "Johanna Atkinson", tariff: "Privat", ok: true, group: "Familie", relation: "Mutter", fileId: "johanna" },
+  { id: "karl", name: "Karl Atkinson", tariff: "Privat Individuell", ok: false, group: "Familie", relation: "Vater", fileId: "karl" },
+  { id: "lunixo", name: "Lunixo AG", tariff: "Business", ok: true, group: "Konzern", relation: "Konzern", fileId: "lunixo" },
+  { id: "lunixo-holding", name: "Lunixo Holding", tariff: "Business Individuell", ok: true, group: "Konzern", relation: "Konzern", fileId: "lunixo-holding" },
 ];
 
 export const BANKS: Bank[] = [
@@ -143,10 +159,33 @@ export const DOCUMENTS = [
   "Vollmacht: Verhandl. m. Ver.",
 ];
 
-export const TEXT_BLOCKS = [
-  "Alleinvermittlungsauftrag",
-  "Beratung ausschließlich über den Makler",
-  "Kündigungsverzicht 12 Monate",
+/**
+ * Textbausteine for Individuelle Vereinbarungen (Figma 21698:125831): a title and the clause. The texts end where
+ * the Figma preview ends ("…"); the advisor completes them in the editor.
+ */
+/** Line between two Textbausteine in the agreement (and drawn as a rule in the summary). */
+export const CLAUSE_SEPARATOR = "\n\n────────────────────\n\n";
+
+/** Splits the agreement text into its clauses (the parts between separators). */
+export const clausesOf = (text: string) => text.split(CLAUSE_SEPARATOR.trim()).map((part) => part.trim()).filter(Boolean);
+
+export const TEXT_BLOCKS: { title: string; text: string }[] = [
+  {
+    title: "Alleinvermittlung",
+    text: "Es wird vereinbart, dass für die Dauer dieser Maklervereinbarung sämtliche Dienstleistungen zu diesen Versicherungssparten ausschließlich über …",
+  },
+  {
+    title: "Kündigungsverzicht der Maklervereinbarung",
+    text: "Abweichend zu den in dieser Maklervereinbarung festgelegten Kündigungsbestimmungen wird vereinbart, dass der Kunde bis zum 31.12.2029 auf das Recht …",
+  },
+  {
+    title: "Begrenzung der Maklervereinbarung auf bestimmte Sparten / Risiken",
+    text: "Auf ausdrücklichen Wunsch des Kunden betreffen die Leistungen des Maklers ausschließlich die folgenden Versicherungssparten …",
+  },
+  {
+    title: "Erhöhte Haftungssumme des Maklers",
+    text: "Abweichend von den allgemeinen Haftungsbestimmungen dieser Maklervereinbarung wird vereinbart, dass die Haftung des Maklers für …",
+  },
 ];
 
 export const STEPS: { id: StepId; label: string; n?: string }[] = [
@@ -257,12 +296,28 @@ function useWorkflowState() {
   const [delivery, setDelivery] = useState<"email" | "post">("email");
   const [amount] = useState("EUR 120,00");
   const [day, setDay] = useState("01");
-  const [month, setMonth] = useState("08");
-  const [year, setYear] = useState("2026");
+  // Erstmalige Verrechnung: next 1st of a month by default (only future dates are allowed).
+  const [month, setMonth] = useState(() => String(((new Date().getMonth() + 1) % 12) + 1).padStart(2, "0"));
+  const [year, setYear] = useState(() => String(new Date().getFullYear() + (new Date().getMonth() === 11 ? 1 : 0)));
   const [dueDay, setDueDay] = useState("01");
   const [dueMonth, setDueMonth] = useState("01");
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
-  const [partners, setPartners] = useState<Partner[]>([]);
+  // An open dropdown closes on a click outside of it (any .dropdown) or on Escape.
+  useEffect(() => {
+    if (!openMenu) return;
+    const onDown = (event: MouseEvent) => {
+      if (!(event.target as Element).closest?.(".dropdown")) setOpenMenu(null);
+    };
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpenMenu(null);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openMenu]);
+  // Julia has Verknüpfungen (Familie, Konzern); other files start without and show the empty state.
+  const [partners, setPartners] = useState<Partner[]>(() => (initialRoute.partnerId ?? "julia") === "julia" ? PARTNERS : []);
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [bankId, setBankId] = useState("julia");
   const [paymentTerm, setPaymentTerm] = useState("14");
@@ -278,6 +333,8 @@ function useWorkflowState() {
 
   const [textBlock, setTextBlock] = useState<string | null>(null);
   const [termsText, setTermsText] = useState("");
+  /** "Individuelle Vereinbarung erstellen": on by default; off means the step needs nothing. */
+  const [termsOn, setTermsOn] = useState(true);
 
   const [activeDoc, setActiveDoc] = useState(0);
   const [docsApproval, setDocsApproval] = useState<Approval>("idle");
@@ -290,6 +347,10 @@ function useWorkflowState() {
   const [signDay, setSignDay] = useState("24");
   const [signMonth, setSignMonth] = useState("11");
   const [signYear, setSignYear] = useState("2027");
+  /** Gegenzeichnung durch Makler Winter. The agreement is valid from the later of both signatures. */
+  const [winterSignDay, setWinterSignDay] = useState("");
+  const [winterSignMonth, setWinterSignMonth] = useState("");
+  const [winterSignYear, setWinterSignYear] = useState("");
   const [signApproval, setSignApproval] = useState<Approval>("idle");
   const [previewTab, setPreviewTab] = useState<"original" | "signed">("signed");
 
@@ -309,6 +370,8 @@ function useWorkflowState() {
   const [adminFrom, setAdminFrom] = useState<View | null>(null);
   const [meinBereichNav, setMeinBereichNav] = useState(initialRoute.view === "meinBereich" && initialRoute.nav ? initialRoute.nav : { area: "Mein Bereich", page: "Dashboard" });
   /** Management: Bestand (Freigaben …) or HRM (Anträge …), and the list tab. In the URL. */
+  /** Kommunikationsdaten of the Maklervereinbarung per partner: picked from the Stammdaten, empty ("Auswahl") at first. */
+  const [commsChoices, setCommsChoices] = useState<Record<string, CommsChoice>>({});
   const [managerNav, setManagerNav] = useState<ManagerNav>(initialRoute.managerNav ?? { area: "bestand", tab: "freigaben" });
   /** The home area behind the logo: Planner, Kommunikation, Bestand, Wissen. */
   const [homeFrom, setHomeFrom] = useState<View | null>(null);
@@ -1522,6 +1585,8 @@ function useWorkflowState() {
     setTextBlock,
     termsText,
     setTermsText,
+    termsOn,
+    setTermsOn,
     activeDoc,
     setActiveDoc,
     docsApproval,
@@ -1542,6 +1607,12 @@ function useWorkflowState() {
     setSignMonth,
     signYear,
     setSignYear,
+    winterSignDay,
+    setWinterSignDay,
+    winterSignMonth,
+    setWinterSignMonth,
+    winterSignYear,
+    setWinterSignYear,
     signApproval,
     setSignApproval,
     previewTab,
@@ -1583,6 +1654,9 @@ function useWorkflowState() {
     setMeinBereichNav,
     managerNav,
     setManagerNav,
+    commsChoice: commsChoices[filePartnerId] ?? {},
+    setCommsChoice: (patch: CommsChoice) =>
+      setCommsChoices((current) => ({ ...current, [filePartnerId]: { ...current[filePartnerId], ...patch } })),
     widgetOn,
     setWidgetOn,
     leaveMeinBereich,

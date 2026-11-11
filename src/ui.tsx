@@ -92,7 +92,8 @@ export function EntityIcon({ src }: { src: string }) {
   return (
     <span className="stack-icon" style={{ width: 32, height: 32 }}>
       <img src={a.avatarBg} alt="" width={32} height={32} />
-      <img src={src} alt="" width={21} height={21} style={{ inset: 5 }} />
+      {/* Figma: a 21.33px icon frame, centred (5.33px) in the 32px circle. */}
+      <img src={src} alt="" width={21.33} height={21.33} style={{ left: 5.33, top: 5.33 }} />
     </span>
   );
 }
@@ -132,6 +133,30 @@ export function RadioRow({
   );
 }
 
+/**
+ * Every dropdown closes on a click outside of it or on Escape. Put the returned ref on the element that holds
+ * both the toggle and the open list.
+ */
+export function useClickOutside<T extends HTMLElement = HTMLDivElement>(open: boolean, close: () => void) {
+  const ref = useRef<T>(null);
+  const closeRef = useRef(close);
+  closeRef.current = close;
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) closeRef.current();
+    };
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && closeRef.current();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return ref;
+}
+
 export function InfoBox({ children }: { children: ReactNode }) {
   return (
     <div className="info-box">
@@ -162,7 +187,7 @@ export function EditLink({ label = "anpassen", onClick }: { label?: string; onCl
 export function TarifLine({ tariff, ok }: { tariff: string; ok: boolean }) {
   return (
     <span className="tarif">
-      <Icon src={ok ? a.confirmOn : a.confirmOff} size={12} />
+      <img src={ok ? a.tarifConfirm : a.tarifCancelled} alt={ok ? "Passender Tarif" : "Kein passender Tarif"} width={12} height={12} />
       <span>
         Honorar <strong>{tariff}</strong>
       </span>

@@ -1,6 +1,3 @@
-<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-<g id="Icon_Edit">
-<g id="Vector">
-</g>
-</g>
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M13.163 4.43074L3.65407 13.9397C3.57755 14.0163 3.51632 14.1067 3.47369 14.2062L2.57137 16.3116C2.26885 17.0174 2.98256 17.7311 3.68842 17.4286L5.79384 16.5263C5.89331 16.4837 5.98374 16.4225 6.06027 16.3459L15.5692 6.83693L17.0016 5.40454C17.666 4.74008 17.666 3.66279 17.0016 2.99834C16.3371 2.33389 15.2598 2.33389 14.5954 2.99834L13.163 4.43074ZM15.5692 6.83693L13.163 4.43074" stroke="#6C7A84"/>
 </svg>

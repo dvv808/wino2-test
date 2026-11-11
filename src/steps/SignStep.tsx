@@ -1,3 +1,4 @@
+import { GueltigkeitInfo } from "./Gueltigkeit";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { DmsUpload } from "../dms/upload";
 import {
@@ -229,6 +230,12 @@ function SignaturFields({ locked }: { locked: boolean }) {
     setSignMonth,
     signYear,
     setSignYear,
+    winterSignDay,
+    setWinterSignDay,
+    winterSignMonth,
+    setWinterSignMonth,
+    winterSignYear,
+    setWinterSignYear,
     filePartnerId,
   } = useWorkflow();
 
@@ -314,6 +321,21 @@ function SignaturFields({ locked }: { locked: boolean }) {
             onYear={setSignYear}
             disabled={locked}
           />
+        </div>
+
+        {/* Gültig ab der letzten Unterschrift: Kunde oder Makler Winter, je nachdem wer später unterschreibt. */}
+        <div className="block">
+          <span className="field-label">Gegengezeichnet von Makler Winter am</span>
+          <DateField
+            prefix="Am"
+            day={winterSignDay}
+            month={winterSignMonth}
+            year={winterSignYear}
+            onDay={setWinterSignDay}
+            onMonth={setWinterSignMonth}
+            onYear={setWinterSignYear}
+          />
+          <GueltigkeitInfo />
         </div>
 
         {signMode === "upload" && (

@@ -1,0 +1,37 @@
+<svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<circle cx="6" cy="6" r="4.5" transform="rotate(90 6 6)" fill="url(#tarif_cancel_g)"/>
+<g>
+<path d="M7.59229 4.41016L4.4103 7.59214" stroke="white" stroke-linecap="round"/>
+<path d="M7.59229 7.58789L4.4103 4.40591" stroke="white" stroke-linecap="round"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<linearGradient id="tarif_cancel_g" x1="1.5" y1="6" x2="16.5" y2="6.00002" gradientUnits="userSpaceOnUse">
+<stop offset="0.0584109" stop-color="#D23552"/>
+<stop offset="1" stop-color="#E699B5"/>
+</linearGradient>
+</defs>
+</svg>

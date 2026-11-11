@@ -1,4 +1,6 @@
+import { useRef, useState } from "react";
 import * as a from "./assets/index";
+import { DOC_FILES, fileSize, usePdf } from "./pdf";
 import { Icon, Segmented } from "./ui";
 import { DOCUMENTS, useWorkflow } from "./workflow";
 
@@ -37,23 +39,33 @@ export function DocumentRail({ title }: { title: string }) {
   );
 }
 
-function ViewerBar({ fileName }: { fileName: string }) {
+function ViewerBar({
+  fileName,
+  size = "12,22 KB",
+  zoom = 100,
+  onZoom,
+}: {
+  fileName: string;
+  size?: string;
+  zoom?: number;
+  onZoom?: (next: number) => void;
+}) {
   return (
     <header className="pdf-bar">
       <p className="pdf-file">
         {fileName ? (
           <>
             <strong>{fileName}</strong>
-            <small>PDF · 12,22 KB</small>
+            <small>PDF · {size}</small>
           </>
         ) : null}
       </p>
       <div className="pdf-zoom">
-        <button type="button" aria-label="Verkleinern">
+        <button type="button" aria-label="Verkleinern" disabled={zoom <= 50} onClick={() => onZoom?.(Math.max(50, zoom - 10))}>
           <Icon src={a.zoomOut} size={14} />
         </button>
-        <span>100%</span>
-        <button type="button" aria-label="Vergrößern">
+        <span>{zoom}%</span>
+        <button type="button" aria-label="Vergrößern" disabled={zoom >= 200} onClick={() => onZoom?.(Math.min(200, zoom + 10))}>
           <Icon src={a.zoomIn} size={14} />
         </button>
       </div>
@@ -72,6 +84,10 @@ function ViewerBar({ fileName }: { fileName: string }) {
   );
 }
 
+/**
+ * The selected document of the rail, rendered from its PDF (public/docs) with pdf.js: the thumbnails are its
+ * pages and jump to them, zoom scales the pages. Until a PDF is there, the placeholder pages show.
+ */
 export function PdfViewer({
   fileName,
   signature,
@@ -79,21 +95,32 @@ export function PdfViewer({
   fileName?: string;
   signature?: string | null;
 }) {
-  const { activeDoc, setActiveDoc } = useWorkflow();
+  const { activeDoc } = useWorkflow();
   /* The bar names the document that is currently selected in the rail. */
   const title = fileName ?? DOCUMENTS[activeDoc] ?? DOCUMENTS[0];
+  const { pdf, loading } = usePdf(DOC_FILES[activeDoc] ?? DOC_FILES[0]);
+  const pages = pdf?.pages ?? (loading ? [] : PAGES.slice(0, 2));
+  const [zoom, setZoom] = useState(100);
+  const [current, setCurrent] = useState(0);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  function goTo(index: number) {
+    setCurrent(index);
+    pageRefs.current[index]?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
 
   return (
     <div className="pdf-frame">
-      <ViewerBar fileName={title} />
+      <ViewerBar fileName={title} size={pdf ? fileSize(pdf.bytes) : undefined} zoom={zoom} onZoom={setZoom} />
       <div className="pdf-body">
         <div className="pdf-thumbs">
-          {PAGES.map((page, index) => (
+          {pages.map((page, index) => (
             <button
               key={index}
               type="button"
-              className={`pdf-thumb${index === activeDoc ? " active" : ""}`}
-              onClick={() => setActiveDoc(index)}
+              className={`pdf-thumb${index === current ? " active" : ""}`}
+              aria-label={`Seite ${index + 1}`}
+              onClick={() => goTo(index)}
             >
               <img src={page} alt="" />
               <span>{index + 1}</span>
@@ -101,10 +128,18 @@ export function PdfViewer({
           ))}
         </div>
         <div className="pdf-pages">
-          {PAGES.slice(0, 2).map((page, index) => (
-            <div className="pdf-page" key={index}>
+          {loading ? <p className="pdf-loading">Dokument wird geladen …</p> : null}
+          {pages.map((page, index) => (
+            <div
+              className="pdf-page"
+              key={index}
+              ref={(node) => {
+                pageRefs.current[index] = node;
+              }}
+              style={{ width: `${zoom}%` }}
+            >
               <img src={page} alt={`Seite ${index + 1}`} />
-              {signature && index === 1 ? (
+              {signature && index === pages.length - 1 ? (
                 <img className="pdf-page-signature" src={signature} alt="Unterschrift" />
               ) : null}
             </div>

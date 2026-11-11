@@ -27,7 +27,7 @@ const longDate = (day: string, comma = true) => {
 };
 
 /** Closes a popover on a click outside of it or on Escape. */
-function useOutside(open: boolean, close: () => void) {
+export function useOutside(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -46,7 +46,7 @@ function useOutside(open: boolean, close: () => void) {
 }
 
 /** Beginn / Ende: typed freely ("8", "830", "8:30"), shown as 08:30 once the field is left. */
-function TimeInput({ label, value, onChange }: { label: string; value: number | null; onChange: (v: number | null) => void }) {
+export function TimeInput({ label, value, onChange }: { label: string; value: number | null; onChange: (v: number | null) => void }) {
   const [text, setText] = useState(value === null ? "" : hhmm(value));
   useEffect(() => setText(value === null ? "" : hhmm(value)), [value]);
   return (
@@ -84,7 +84,7 @@ function TimeInput({ label, value, onChange }: { label: string; value: number | 
 }
 
 /** The comment of one time block, in a small overlay next to the comment icon. */
-function CommentOverlay({ value, onSave, onClose }: { value: string; onSave: (v: string) => void; onClose: () => void }) {
+export function CommentOverlay({ value, onSave, onClose }: { value: string; onSave: (v: string) => void; onClose: () => void }) {
   const [text, setText] = useState(value);
   const ref = useOutside(true, onClose);
   return (

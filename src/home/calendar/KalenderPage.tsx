@@ -23,6 +23,8 @@ import {
 import { AktivitaetenPanel, BeantragungenPanel, counts } from "./Aktivitaeten";
 import { HomeofficeModal, HomeofficePopover } from "./HomeofficeUI";
 import { MiniMonth } from "./MiniMonth";
+import { ArbeitszeitModal } from "./ArbeitszeitUI";
+import { loadArbeitszeiten, onArbeitszeitenChange, saveArbeitszeiten, type Arbeitszeiten } from "./arbeitszeit";
 import { decide, inCalendar, loadAntraege, onFocus, takeFocus, onAntraegeChange, remove, saveAntraege, saveDay, type HomeofficeAntrag } from "./homeoffice";
 
 /** Home → Planner → Kalender: "Mein Kalender", Ansicht Woche (Figma 16702:185207). Tag/Monat/Jahr follow. */
@@ -326,6 +328,8 @@ function WeekGrid({
   onDeleteAntrag,
   onDecideAntrag,
   onShowRequest,
+  arbeitszeiten,
+  onOpenArbeitszeit,
 }: {
   day: string;
   today: string;
@@ -339,6 +343,9 @@ function WeekGrid({
   onDeleteAntrag: (id: string) => void;
   onDecideAntrag: (id: string, status: "genehmigt" | "zurueckgesetzt") => void;
   onShowRequest: (id: string) => void;
+  /** Saved Arbeitszeit per day; such a day shows these bars instead of the demo ones. */
+  arbeitszeiten: Arbeitszeiten;
+  onOpenArbeitszeit: (day: string) => void;
 }) {
   const days = weekDays(day);
   const seed = useMemo(() => seedWeek(today), [today]);
@@ -366,7 +373,12 @@ function WeekGrid({
 
   const entries = seed.entries.filter((e) => visible.has(e.calendar));
   const allDay = seed.allDay.filter((e) => visible.has(e.calendar));
-  const worked = seed.worked.filter((w) => visible.has(w.calendar));
+  const showOwn = visible.has("lucy");
+  const worked = seed.worked.filter((w) => visible.has(w.calendar) && !(w.calendar === "lucy" && arbeitszeiten[w.day]));
+  const workedOf = (d: string) => [
+    ...worked.filter((w) => w.day === d),
+    ...(showOwn ? (arbeitszeiten[d] ?? []).map((b) => ({ day: d, start: b.start, end: b.end, kommentar: b.kommentar })) : []),
+  ];
 
   return (
     <div className="kal-week" onClick={() => setSelected(null)}>
@@ -439,16 +451,21 @@ function WeekGrid({
                     <i className="kal-off" style={{ top: topOf(WORK_TO, from), height: Math.max(0, height - topOf(WORK_TO, from)) }} />
                   </>
                 )}
-                {worked
-                  .filter((w) => w.day === d)
-                  .map((w) => (
-                    <i
-                      key={`${w.start}`}
-                      className={`kal-worked${d === today ? " today" : ""}`}
-                      style={{ top: topOf(w.start, from), height: topOf(w.end, from) - topOf(w.start, from) }}
-                      title={`Erfasste Arbeitszeit ${hhmm(w.start)}–${hhmm(w.end)}`}
-                    />
-                  ))}
+                {/* Erfasste Arbeitszeit: green strokes; a click opens the Arbeitszeit overlay on this week. */}
+                {workedOf(d).map((w) => (
+                  <button
+                    type="button"
+                    key={`${w.start}`}
+                    className={`kal-worked${d === today ? " today" : ""}`}
+                    style={{ top: topOf(w.start, from), height: topOf(w.end, from) - topOf(w.start, from) }}
+                    title={`Erfasste Arbeitszeit ${hhmm(w.start)}–${hhmm(w.end)}${"kommentar" in w && w.kommentar ? ` · ${w.kommentar}` : ""}`}
+                    aria-label={`Arbeitszeit ${hhmm(w.start)}–${hhmm(w.end)} bearbeiten`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenArbeitszeit(d);
+                    }}
+                  />
+                ))}
                 {/* Homeoffice: a green bar on the left edge for each time block; hatched while the request is open. */}
                 {(showHomeoffice ? inCalendar(homeoffice, d) : []).map((x) => (
                   <div key={x.id} className="kal-ho-slot" style={{ top: topOf(x.start, from), height: topOf(x.end, from) - topOf(x.start, from) }}>
@@ -511,7 +528,7 @@ function WeekGrid({
                   <dt>Sollzeit:</dt>
                   <dd>{duration(t.soll)}</dd>
                   <dt>Istzeit:</dt>
-                  <dd>{duration(t.ist)}</dd>
+                  <dd>{duration(arbeitszeiten[d] ? arbeitszeiten[d].reduce((sum, b) => sum + b.end - b.start, 0) : t.ist)}</dd>
                 </dl>
               ) : null}
             </div>
@@ -601,7 +618,7 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-function ZeiterfassungMenu({ onHomeoffice }: { onHomeoffice: () => void }) {
+function ZeiterfassungMenu({ onHomeoffice, onArbeitszeit }: { onHomeoffice: () => void; onArbeitszeit: () => void }) {
   const [open, setOpen] = useState(false);
   const [art, setArt] = useState("Arbeitszeit");
   const ref = useDismiss(open, () => setOpen(false));
@@ -629,7 +646,11 @@ function ZeiterfassungMenu({ onHomeoffice }: { onHomeoffice: () => void }) {
                 setOpen(false);
                 // Homeoffice needs approval: it opens the request instead of switching what is recorded.
                 if (item.label === "Homeoffice") onHomeoffice();
-                else setArt(item.label);
+                else {
+                  setArt(item.label);
+                  // Arbeitszeit opens the overlay to enter the times of the week (Figma 21495:97817).
+                  if (item.label === "Arbeitszeit") onArbeitszeit();
+                }
               }}
             >
               <img src={item.marker} alt="" width={10} height={10} />
@@ -672,6 +693,10 @@ export function KalenderPage() {
   const [antraege, setAntraegeState] = useState<HomeofficeAntrag[]>(loadAntraege);
   /** The day the Homeoffice modal is open on, or null. */
   const [hoModal, setHoModal] = useState<string | null>(null);
+  /** Arbeitszeit overlay: the day it opens on (its week), or null. Saved days draw the green strokes. */
+  const [azModal, setAzModal] = useState<string | null>(null);
+  const [arbeitszeiten, setArbeitszeitenState] = useState<Arbeitszeiten>(loadArbeitszeiten);
+  useEffect(() => onArbeitszeitenChange(setArbeitszeitenState), []);
   const [hoOpen, setHoOpen] = useState<string | null>(focused && focused.status !== "zurueckgesetzt" ? focused.id : null);
   // A reset request has no bar in the calendar: show its notice in Beantragungen instead.
   const [panel, setPanel] = useState<SidePanel>(focused?.status === "zurueckgesetzt" ? "beantragungen" : "kalender");
@@ -762,7 +787,7 @@ export function KalenderPage() {
             ))}
           </div>
           <div className="kal-actions">
-            <ZeiterfassungMenu onHomeoffice={() => setHoModal(day < today ? today : day)} />
+            <ZeiterfassungMenu onHomeoffice={() => setHoModal(day < today ? today : day)} onArbeitszeit={() => setAzModal(day)} />
             <button type="button" className="kal-action" title="Neuer Termin (folgt)">
               <img src={a.calNeuerTermin} alt="" width={22} height={25} />
               <span>
@@ -827,11 +852,33 @@ export function KalenderPage() {
               setHighlight(id);
               setPanel("beantragungen");
             }}
+            arbeitszeiten={arbeitszeiten}
+            onOpenArbeitszeit={setAzModal}
           />
         ) : (
           <Placeholder view={view} onBack={() => setView("Woche")} />
         )}
       </section>
+      {azModal ? (
+        <ArbeitszeitModal
+          today={today}
+          start={azModal}
+          holidays={holidays}
+          blocksFor={(d) => {
+            if (arbeitszeiten[d]) return arbeitszeiten[d];
+            const demo = seedWeek(today).worked.filter((w) => w.calendar === "lucy" && w.day === d);
+            return demo.length ? demo.map((w) => ({ start: w.start, end: w.end })) : null;
+          }}
+          onClose={() => setAzModal(null)}
+          onSave={(days) => {
+            const next = { ...arbeitszeiten, ...days };
+            setArbeitszeitenState(next);
+            saveArbeitszeiten(next);
+            setAzModal(null);
+            setVisible((prev) => new Set(prev).add("lucy"));
+          }}
+        />
+      ) : null}
       {hoModal ? (
         <HomeofficeModal
           today={today}

@@ -2,6 +2,17 @@ import * as a from "../assets/index";
 import { Summary } from "../Summary";
 import { EditLink, EntityIcon, Icon, InfoBox, RadioRow, TarifLine, WarnBox } from "../ui";
 import { BANKS, PARTNERS, useWorkflow } from "../workflow";
+import { commsOptions } from "../person/stammdaten";
+import { CommsSelect, FIELDS } from "./CommsStep";
+import { GueltigkeitInfo } from "./Gueltigkeit";
+
+/** Erstmalige Verrechnung on an individual date: a 1st of a month after today. */
+function futureMonth(month: string, year: string) {
+  const m = Number(month);
+  const y = Number(year);
+  if (!Number.isInteger(m) || m < 1 || m > 12 || !/^\d{4}$/.test(year)) return false;
+  return new Date(y, m - 1, 1) > new Date();
+}
 
 export function HonorarStep() {
   const {
@@ -21,8 +32,6 @@ export function HonorarStep() {
     amount,
     billing,
     setBilling,
-    day,
-    setDay,
     month,
     setMonth,
     year,
@@ -41,6 +50,10 @@ export function HonorarStep() {
     setInvoiceNote,
     customNote,
     setCustomNote,
+    sections,
+    commsChoice,
+    setCommsChoice,
+    openStammdaten,
   } = useWorkflow();
 
   return (
@@ -72,7 +85,7 @@ export function HonorarStep() {
             <div className="block">
               <div className="label-row">
                 <span className="field-label">Verknüpfte Partner</span>
-                <EditLink />
+                <EditLink onClick={() => openStammdaten("verknuepfung")} />
               </div>
               <div className="dropdown">
                 <button
@@ -81,7 +94,7 @@ export function HonorarStep() {
                   onClick={() => toggleMenu("partner")}
                   aria-expanded={openMenu === "partner"}
                 >
-                  <EntityIcon src={a.personSmall} />
+                  <EntityIcon src={a.partnerAbo} />
                   {selectedPartner ? (
                     <span className="partner-copy">
                       <TarifLine tariff={selectedPartner.tariff} ok={selectedPartner.ok} />
@@ -112,9 +125,12 @@ export function HonorarStep() {
                     </div>
                   ) : (
                     <div className="dropdown-menu">
-                      {partners.map((partner) => (
+                      {partners.map((partner, index) => (
+                        <div key={partner.id}>
+                        {index === 0 || partners[index - 1].group !== partner.group ? (
+                          <p className="menu-group">{partner.group}</p>
+                        ) : null}
                         <button
-                          key={partner.id}
                           type="button"
                           className={`menu-item${partner.id === partnerId ? " selected" : ""}`}
                           onClick={() => {
@@ -123,14 +139,16 @@ export function HonorarStep() {
                           }}
                         >
                           <span className="menu-item-main">
-                            <EntityIcon src={a.personSmall} />
+                            <EntityIcon src={a.partnerAbo} />
                             <span className="partner-copy">
                               <TarifLine tariff={partner.tariff} ok={partner.ok} />
                               <strong>{partner.name}</strong>
+                              <small className="menu-relation">{partner.relation === partner.group ? partner.group : `${partner.group} · ${partner.relation}`}</small>
                             </span>
                           </span>
                           <Icon src={partner.id === partnerId ? a.confirmOn : a.confirmOff} size={18} />
                         </button>
+                        </div>
                       ))}
                     </div>
                   ))}
@@ -154,12 +172,17 @@ export function HonorarStep() {
                 Zwischen den Vertragspartnern wird individuell vereinbart, dass für die Erbringung
                 der unselbständigen Nebenleistungen kein gesondertes Honorar geschuldet wird.
               </InfoBox>
-              <span className="field-label">Notiz</span>
+              {/* Pflichtfeld: why no Honorar is charged has to be documented. */}
+              <span className="field-label">Notiz*</span>
               <textarea
-                className="textarea"
+                className={customNote.trim() ? "textarea" : "textarea invalid"}
+                aria-required="true"
+                aria-invalid={!customNote.trim()}
+                placeholder="Begründung, warum kein gesondertes Honorar verrechnet wird"
                 value={customNote}
                 onChange={(e) => setCustomNote(e.target.value)}
               />
+              {customNote.trim() ? null : <p className="field-error">Bitte eine Notiz angeben – bei Individuell ist sie Pflicht.</p>}
             </div>
           )}
 
@@ -180,6 +203,9 @@ export function HonorarStep() {
             </div>
           )}
 
+          {/* Bei anderem Partner / Individuell: only the content above (Figma 21698:125815–125820). */}
+          {model === "privat" && (
+            <>
           <div className="block">
             <span className="field-label">Erstmalige Verrechnung</span>
             <div className="radio-stack">
@@ -195,18 +221,35 @@ export function HonorarStep() {
           {billing === "custom" && (
             <div className="block">
               <span className="field-label">Individuelles Datum</span>
+              {/* Figma 21232:21127: always the 1st of a month (day locked), month and year open, only future values. */}
               <div className="date-row">
-                <input className="date-box" value={day} onChange={(e) => setDay(e.target.value)} />
-                <input className="date-box" value={month} onChange={(e) => setMonth(e.target.value)} />
+                <span className="date-box locked" title="Verrechnung immer zum Monatsersten">
+                  01
+                </span>
+                <input
+                  className="date-box open"
+                  aria-label="Monat"
+                  inputMode="numeric"
+                  maxLength={2}
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value.replace(/\D/g, ""))}
+                />
                 <input
                   className="date-box year"
+                  aria-label="Jahr"
+                  inputMode="numeric"
+                  maxLength={4}
                   value={year}
-                  onChange={(e) => setYear(e.target.value)}
+                  onChange={(e) => setYear(e.target.value.replace(/\D/g, ""))}
                 />
                 <button type="button" className="cal-btn" aria-label="Kalender">
                   <Icon src={a.calendar} size={16} />
                 </button>
               </div>
+              {futureMonth(month, year) ? null : (
+                <p className="field-error">Nur ein Monatserster in der Zukunft ist möglich.</p>
+              )}
+              <InfoBox>Hier sind nur Werte in der Zukunft zulässig. Alles davor ist gesperrt und nicht auswählbar.</InfoBox>
             </div>
           )}
 
@@ -221,10 +264,8 @@ export function HonorarStep() {
                 onChange={(e) => setDueMonth(e.target.value)}
               />
             </div>
-            <InfoBox>
-              Das zum {day}.{month}.{year} fällige Honorar wird aliquot für den Zeitraum {day}.
-              {month}.{year} bis 31.12.{year} berechnet und beträgt € 500,00.
-            </InfoBox>
+            {/* Gültig ab der letzten Unterschrift; Rumpfjahr aliquot bis zur nächsten Hauptfälligkeit. */}
+            <GueltigkeitInfo />
           </div>
 
           <div className="block">
@@ -344,44 +385,29 @@ export function HonorarStep() {
             </div>
           </div>
 
+          {/* The address or mail picked in Kommunikationsdaten; changing it here changes it there too (Figma 21698:125830). */}
           {delivery === "email" && (
-            <div className="block">
-              <div className="label-row">
-                <span className="field-label">E-Mail für Rechnungsversand</span>
-                <EditLink />
-              </div>
-              <p className="field-help">
-                E-Mail aus Schritt Kommunikationsdaten — Rechnungen werden an diese Adresse
-                versendet.
-              </p>
-              <button type="button" className="entity-card">
-                <EntityIcon src={a.mail} />
-                <span className="copy">julia.atkinson@mail.at</span>
-                <Icon src={a.selectCaret} size={16} />
-              </button>
-            </div>
+            <CommsSelect
+              field={{ ...FIELDS[1], label: "E-Mail für Rechnungsversand" }}
+              help="E-Mail aus Schritt Kommunikationsdaten — Rechnungen werden an diese Adresse versendet."
+              groups={commsOptions(sections, "mail")}
+              value={commsChoice.mail}
+              onPick={(pick) => setCommsChoice({ mail: pick })}
+              onEdit={() => openStammdaten("kontakte", commsChoice.mail?.cardId)}
+            />
           )}
 
           {delivery === "post" && (
-            <div className="block">
-              <div className="label-row">
-                <span className="field-label">Postadresse für Rechnungsversand</span>
-                <EditLink />
-              </div>
-              <p className="field-help">
-                Postadresse aus Schritt Kommunikationsdaten — Rechnungen werden an diese Adresse
-                versendet.
-              </p>
-              <button type="button" className="entity-card">
-                <EntityIcon src={a.house} />
-                <span className="copy">
-                  Mondseestrasse 32
-                  <br />
-                  A-5310 Mondseet
-                </span>
-                <Icon src={a.selectCaret} size={16} />
-              </button>
-            </div>
+            <CommsSelect
+              field={{ ...FIELDS[2], label: "Postadresse für Rechnungsversand" }}
+              help="Postadresse aus Schritt Kommunikationsdaten — Rechnungen werden an diese Adresse versendet."
+              groups={commsOptions(sections, "post")}
+              value={commsChoice.post}
+              onPick={(pick) => setCommsChoice({ post: pick })}
+              onEdit={() => openStammdaten("adressen", commsChoice.post?.cardId)}
+            />
+          )}
+            </>
           )}
         </div>
       </section>

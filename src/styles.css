@@ -1243,7 +1243,8 @@ input.text-field {
   padding: 8px 12px;
   display: flex;
   gap: 12px;
-  align-items: flex-start;
+  /* Figma Notification Blocks: the icon centred next to the text. */
+  align-items: center;
   background: linear-gradient(78deg, rgba(255, 255, 255, 0.4) 8%, rgba(230, 153, 181, 0.4) 102%);
   font-size: 13px;
   line-height: 19px;
@@ -1284,9 +1285,12 @@ input.text-field {
 .textarea {
   width: 100%;
   min-height: 77px;
+  box-sizing: border-box;
+  /* Grows with its text, so the padding stays equal above and below (Figma: 12px). */
+  field-sizing: content;
   border: 1px solid var(--wino-bg-darker);
   border-radius: 8px;
-  padding: 13px 12px;
+  padding: 12px;
   resize: vertical;
   background: white;
   color: var(--wino-black-dark);
@@ -19511,4 +19515,479 @@ button.stat-card.active .stat-copy span {
   border-radius: 9px;
   line-height: 18px;
   font-size: 11px;
+}
+
+/* Offene Aufgaben: everything is in the Stammdaten. */
+.tasks-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--wino-signal-greenlight);
+  font-size: 13px;
+  color: var(--wino-black-dark);
+}
+
+/* Maklervereinbarung → Kommunikationsdaten: picked from the Stammdaten */
+.comms-field {
+  position: relative;
+}
+
+/* Figma 20068:187049: 15px value, 11px owner below, 10px to the icon circle, chevron on the right. */
+.entity-card.comms-select {
+  min-height: 44px;
+  gap: 10px;
+  padding: 6px 16px 6px 10px;
+  border-color: var(--wino-bg-darker);
+  background: transparent;
+}
+
+.comms-select .copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
+}
+
+.comms-owner {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-medium);
+}
+
+.comms-select.empty .copy {
+  color: var(--wino-black-light);
+}
+
+.comms-select .copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.comms-from {
+  flex: none;
+  max-width: 140px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: #ebf1f5;
+  font-size: 11px;
+  color: var(--wino-black-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.comms-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 380px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 12px;
+  background: var(--wino-white);
+  box-shadow: 0 8px 28px rgba(20, 26, 30, 0.16);
+}
+
+.comms-menu-head {
+  margin: 4px 8px 8px;
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+
+.comms-menu-empty {
+  margin: 8px;
+  font-size: 13px;
+}
+
+.comms-group {
+  padding: 8px;
+  border-radius: 10px;
+}
+
+.comms-group + .comms-group {
+  margin-top: 4px;
+  border-top: 1px solid var(--wino-bg-light);
+  border-radius: 0;
+}
+
+.comms-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.comms-group-head > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.comms-group-head strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.comms-group-head small {
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+
+.comms-group-note {
+  margin: 6px 0 0 38px;
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+
+.comms-group ul {
+  margin: 6px 0 0 30px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comms-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.comms-option:hover {
+  background: #ebf1f5;
+}
+
+.comms-option.selected {
+  background: linear-gradient(13deg, var(--wino-white) -13%, var(--wino-bg-darker) 97%);
+  font-weight: 500;
+}
+
+.comms-option-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.comms-option-copy small {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.comms-tag {
+  font-style: normal;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: var(--wino-signal-greenlight);
+  color: var(--wino-green-homeoffice);
+}
+
+.comms-menu-foot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 8px 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.summary-missing {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.summary-choice {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-choice small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--wino-black-medium);
+}
+
+.comms-option.comms-none {
+  margin: 0 0 4px;
+  color: var(--wino-black-light);
+}
+
+/* Verknüpfte Partner (Figma 21698:125815): tariff line 11px above the 15px name, 4px apart. */
+.entity-card .partner-copy,
+.menu-item .partner-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.entity-card .partner-copy strong,
+.menu-item .partner-copy strong {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
+}
+
+.entity-card .partner-copy .tarif,
+.menu-item .partner-copy .tarif {
+  color: var(--wino-black-dark);
+}
+
+/* The tariff inside the line stays inline ("Honorar Privat Individuell"); only the partner name is a block. */
+.partner-copy .tarif strong {
+  display: inline;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.11px;
+}
+
+.form-col .dropdown .entity-card .copy.placeholder {
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
+}
+
+/* Erstmalige Verrechnung: the day is always the 1st (locked), month and year are open fields. */
+.date-box.locked {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+}
+
+.date-box.open {
+  background: white;
+  border-color: var(--wino-bg-darker);
+}
+
+.field-error {
+  margin: 0;
+  font-size: 13px;
+  color: #d23552;
+}
+
+.textarea.invalid {
+  border-color: #d23552;
+}
+
+/* Verknüpfte Partner list: grouped by where the link comes from (Familie, Konzern). */
+.dropdown-menu .menu-group {
+  margin: 10px 12px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-light);
+  text-transform: uppercase;
+}
+
+.menu-item .partner-copy .menu-relation {
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+
+/* Individuelle Vereinbarungen: the switch sits above the card title, with room below it. */
+.panel-card .terms-switch + h2 {
+  margin-top: 28px;
+}
+
+/* Textbausteine (Figma 21698:125831): icon, bold title, the clause clamped to two lines. */
+.textblock-menu {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.menu-item.textblock-item {
+  align-items: center;
+  min-height: 66px;
+  text-align: left;
+}
+
+.textblock-item .menu-item-main {
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.textblock-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+}
+
+.textblock-copy strong {
+  font-weight: 500;
+}
+
+.textblock-copy span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.menu-item.textblock-all {
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--wino-bg-light);
+}
+
+.terms-clause p {
+  white-space: pre-line;
+}
+
+.terms-clause hr {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--wino-bg-darker);
+}
+
+/* Real PDFs (pdf.js): zoom scales the page width; above 100 % the pages scroll sideways inside the viewer. */
+.pdf-pages {
+  overflow: auto;
+}
+
+.pdf-page {
+  flex: none;
+  max-width: none;
+  margin: 0 auto;
+}
+
+.pdf-page img {
+  display: block;
+}
+
+.pdf-loading {
+  margin: 40px auto;
+  font-size: 13px;
+  color: var(--wino-black-medium);
+}
+
+/* Arbeitszeit overlay (Figma 21495:97817): Mo–Fr side by side (136px each), or one day. */
+.kal-hom.kal-az {
+  width: min(982px, 100%);
+}
+
+.kal-az-dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--wino-green-homeoffice);
+}
+
+.kal-az-mode {
+  margin-left: auto;
+}
+
+.kal-az-grid {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.kal-az-col {
+  width: 136px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kal-az-grid.tag .kal-az-col {
+  width: 282px;
+}
+
+.kal-az-day {
+  align-items: flex-start;
+  padding: 6px 12px;
+  text-align: left;
+}
+
+.kal-az-day strong i {
+  position: static;
+  display: inline-block;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+/* Week view: the inputs fill the column; Beginn / Ende only as labels in the day view. */
+.kal-az-grid.woche .kal-hom-block {
+  padding: 10px 10px 12px;
+}
+
+.kal-az-grid.woche .kal-hom-row {
+  grid-template-columns: 1fr;
+}
+
+.kal-az-grid.woche .kal-hom-row > span:first-child {
+  display: none;
+}
+
+.kal-az-grid.woche .kal-hom-input input {
+  padding-right: 24px;
+}
+
+.kal-az-grid.woche .kal-hom-input button {
+  right: 6px;
+}
+
+.kal-az-grid.woche .kal-hom-block-head {
+  justify-content: flex-start;
+}
+
+.kal-az-add {
+  border-style: dashed;
+}
+
+.btn-primary.kal-az-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The green strokes are buttons now (open the Arbeitszeit overlay). */
+button.kal-worked {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+button.kal-worked:hover {
+  box-shadow: 0 0 0 2px rgba(105, 186, 97, 0.35);
 }

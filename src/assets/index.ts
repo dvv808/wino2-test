@@ -279,3 +279,20 @@ export { default as mbBlocked } from "./icons/mb-blocked.svg";
 export { default as mbSickness } from "./icons/mb-sickness.svg";
 export { default as mbUrlaub } from "./icons/mb-urlaub.svg";
 export { default as mbOffline } from "./icons/mb-offline.svg";
+
+/* Kommunikationsdaten (Figma Concepts 20068:11381): square icons that sit centred in the 32 / 36px circles */
+export { default as commsPhone } from "./icons/comms-phone.svg";
+export { default as commsMail } from "./icons/comms-mail.svg";
+export { default as commsHouse } from "./icons/comms-house.svg";
+export { default as commsMainContact } from "./icons/comms-main-contact.svg";
+
+/* Honorar → bei anderem Partner mit umfasst (Figma Concepts 21698:125815…125819) */
+export { default as partnerAbo } from "./icons/partner-abo.svg";
+export { default as tarifConfirm } from "./icons/tarif-confirm.svg";
+export { default as tarifCancelled } from "./icons/tarif-cancelled.svg";
+
+/* Individuelle Vereinbarungen → Textbausteine (Figma Concepts 21698:125831) */
+export { default as textbaustein } from "./icons/textbaustein.svg";
+
+/* Zeiterfassung → Arbeitszeit (Figma 21495:97817): Speichern button icon (white) */
+export { default as save } from "./icons/save.svg";
