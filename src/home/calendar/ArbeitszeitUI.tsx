@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import * as a from "../../assets/index";
 import { Icon, Segmented } from "../../ui";
-import { MONTHS, addDays, duration, parseIso, weekDays } from "./calendarData";
+import { MONTHS, addDays, duration, hhmm, parseIso, weekDays } from "./calendarData";
 import { MiniMonth } from "./MiniMonth";
 import { CommentOverlay, TimeInput, useOutside } from "./HomeofficeUI";
-import { nextBlock, sollzeit, total, validate, type HomeofficeBlock } from "./homeoffice";
+import { nextBlock, sollzeit, total, validate, type HomeofficeAntrag, type HomeofficeBlock } from "./homeoffice";
 import { defaultBlocks, type ArbeitszeitBlock } from "./arbeitszeit";
+import { homeofficeHit } from "./overlap";
 
 const WEEKDAYS = ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"];
 
@@ -134,6 +135,7 @@ export function ArbeitszeitModal({
   start,
   holidays,
   blocksFor,
+  homeoffice = [],
   onClose,
   onSave,
 }: {
@@ -142,8 +144,11 @@ export function ArbeitszeitModal({
   holidays: Set<string>;
   /** Saved or demo blocks of a day (default for a day without any: the Figma times). */
   blocksFor: (day: string) => ArbeitszeitBlock[] | null;
+  /** Active Homeoffice on the same minutes is called out in the overlay. */
+  homeoffice?: HomeofficeAntrag[];
   onClose: () => void;
-  onSave: (days: Record<string, ArbeitszeitBlock[]>) => void;
+  /** `edited`: the days the user changed in the modal. */
+  onSave: (days: Record<string, ArbeitszeitBlock[]>, edited: string[]) => void;
 }) {
   const [mode, setMode] = useState<Mode>("woche");
   const [day, setDay] = useState(start);
@@ -160,7 +165,21 @@ export function ArbeitszeitModal({
       : `${day === today ? "Heute: " : ""}${WEEKDAYS[parseIso(day).getDay()]}, ${parseIso(day).getDate()}. ${MONTHS[parseIso(day).getMonth()]} ${parseIso(day).getFullYear()}`;
   const step = (n: number) => setDay((d) => addDays(d, mode === "woche" ? 7 * n : n));
 
+  // Homeoffice already on these minutes. Speichern stays off until every time sits outside it.
+  const covered = days
+    .filter((d) => !holidays.has(d))
+    .flatMap((d) =>
+      homeofficeHit(
+        homeoffice,
+        d,
+        blocksOf(d)
+          .filter((b) => b.start !== null && b.end !== null && b.end > b.start)
+          .map((b) => ({ start: b.start!, end: b.end! })),
+      ),
+    );
+
   function save() {
+    if (covered.length) return;
     // Every day that was shown is saved as it is now; days not touched keep what they had.
     const out: Record<string, ArbeitszeitBlock[]> = {};
     for (const [d, blocks] of Object.entries(edits)) {
@@ -169,7 +188,7 @@ export function ArbeitszeitModal({
         .map((b) => ({ start: b.start!, end: b.end!, kommentar: b.kommentar || undefined }));
     }
     for (const d of days) if (!(d in out) && !holidays.has(d)) out[d] = blocksOf(d).map((b) => ({ start: b.start!, end: b.end!, kommentar: b.kommentar || undefined }));
-    onSave(out);
+    onSave(out, Object.keys(edits));
   }
 
   return (
@@ -236,11 +255,22 @@ export function ArbeitszeitModal({
           </div>
         </div>
 
+        {covered.length ? (
+          <p className="kal-replace">
+            {`Bereits Homeoffice: ${covered
+              .map((x) => {
+                const d = parseIso(x.day);
+                const status = x.status === "genehmigt" ? "Genehmigt" : "Beantragt, Genehmigung ausstehend";
+                return `${WEEKDAYS[d.getDay()].slice(0, 2)} ${d.getDate()}.${d.getMonth() + 1}. ${hhmm(x.start)}–${hhmm(x.end)} (${status})`;
+              })
+              .join(", ")}. Speichern ist erst möglich, wenn die Arbeitszeit außerhalb ${covered.length > 1 ? "dieser Zeiten" : "dieser Zeit"} liegt.`}
+          </p>
+        ) : null}
         <footer className="kal-hom-foot">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Abbrechen
           </button>
-          <button type="button" className="btn-primary kal-az-save" disabled={allErrors} onClick={save}>
+          <button type="button" className="btn-primary kal-az-save" disabled={allErrors || covered.length > 0} onClick={save}>
             <img src={a.save} alt="" width={24} height={24} />
             Speichern
           </button>

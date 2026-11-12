@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group">
+<circle id="Ellipse 239" cx="18" cy="18" r="18" fill="url(#paint0_linear_0_21)"/>
+<g id="Cross Icon">
+<path id="Vector 478" d="M24.9525 11.0048L11 24.9573" stroke-linecap="round" stroke="white"/>
+<path id="Vector 479" d="M24.9525 24.9525L11 11" stroke-linecap="round" stroke="white"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_21" x1="-5.52778e-09" y1="20.6231" x2="36.0107" y2="20.4611" gradientUnits="userSpaceOnUse">
+<stop stop-color="#D23552"/>
+<stop offset="1" stop-color="#E699B5"/>
+</linearGradient>
+</defs>
+</svg>

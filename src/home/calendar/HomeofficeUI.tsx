@@ -3,6 +3,8 @@ import * as a from "../../assets/index";
 import { Icon } from "../../ui";
 import { MONTHS, addDays, duration, hhmm, parseIso } from "./calendarData";
 import { MiniMonth } from "./MiniMonth";
+import type { Arbeitszeiten } from "./arbeitszeit";
+import { arbeitszeitHit, openHomeofficeBlocks } from "./overlap";
 import {
   GENEHMIGER,
   STATUS_TEXT,
@@ -10,7 +12,6 @@ import {
   nextBlock,
   parseTime,
   sollzeit,
-  startBlocks,
   total,
   validate,
   type HomeofficeAntrag,
@@ -134,6 +135,7 @@ export function HomeofficeModal({
   start,
   antraege,
   holidays,
+  arbeitszeiten = {},
   onClose,
   onSave,
 }: {
@@ -141,6 +143,8 @@ export function HomeofficeModal({
   start: string;
   antraege: HomeofficeAntrag[];
   holidays: Set<string>;
+  /** Erfasste Arbeitszeit: new Homeoffice times replace it where they overlap (shown before saving). */
+  arbeitszeiten?: Arbeitszeiten;
   onClose: () => void;
   onSave: (day: string, blocks: HomeofficeBlock[]) => void;
 }) {
@@ -150,7 +154,7 @@ export function HomeofficeModal({
     return start;
   })[0];
   const [day, setDayState] = useState(first);
-  const [blocks, setBlocks] = useState<HomeofficeBlock[]>(() => startBlocks(first, antraege));
+  const [blocks, setBlocks] = useState<HomeofficeBlock[]>(() => openHomeofficeBlocks(first, antraege, arbeitszeiten[first] ?? []));
   const [comment, setComment] = useState<string | null>(null);
   const [pick, setPick] = useState(false);
   const [tried, setTried] = useState(false);
@@ -159,7 +163,7 @@ export function HomeofficeModal({
 
   const setDay = (d: string) => {
     setDayState(d);
-    setBlocks(startBlocks(d, antraege));
+    setBlocks(openHomeofficeBlocks(d, antraege, arbeitszeiten[d] ?? []));
     setComment(null);
     setTried(false);
   };
@@ -171,6 +175,14 @@ export function HomeofficeModal({
   // An already beantragt or genehmigt time stays as it is (locked). Speichern & Beantragen only once a new time was added.
   const canApply = blocks.some((b) => !status(b));
   const weekday = WEEKDAYS[parseIso(day).getDay()];
+  // Erfasste Arbeitszeit the new (not yet beantragt) times would shorten or remove.
+  const replacedAz = arbeitszeitHit(
+    arbeitszeiten,
+    day,
+    blocks
+      .filter((b) => !status(b) && b.start !== null && b.end !== null && b.end > b.start)
+      .map((b) => ({ start: b.start!, end: b.end! })),
+  );
 
   return (
     <div className="prompt-modal" role="dialog" aria-label="Homeoffice">
@@ -319,6 +331,12 @@ export function HomeofficeModal({
           </div>
         </div>
 
+        {replacedAz.length ? (
+          <p className="kal-replace">
+            {replacedAz.map((b) => `${hhmm(b.start)}–${hhmm(b.end)}`).join(", ")} {replacedAz.length > 1 ? "bleiben" : "bleibt"} erfasst
+            und {replacedAz.length > 1 ? "werden" : "wird"} als Homeoffice beantragt.
+          </p>
+        ) : null}
         <footer className="kal-hom-foot">
           <button type="button" className="btn-secondary" onClick={onClose}>
             Abbrechen

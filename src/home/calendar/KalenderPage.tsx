@@ -24,8 +24,9 @@ import { AktivitaetenPanel, BeantragungenPanel, counts } from "./Aktivitaeten";
 import { HomeofficeModal, HomeofficePopover } from "./HomeofficeUI";
 import { MiniMonth } from "./MiniMonth";
 import { ArbeitszeitModal } from "./ArbeitszeitUI";
-import { loadArbeitszeiten, onArbeitszeitenChange, saveArbeitszeiten, type Arbeitszeiten } from "./arbeitszeit";
-import { decide, inCalendar, loadAntraege, onFocus, takeFocus, onAntraegeChange, remove, saveAntraege, saveDay, type HomeofficeAntrag } from "./homeoffice";
+import { defaultBlocks, loadArbeitszeiten, onArbeitszeitenChange, saveArbeitszeiten, type Arbeitszeiten } from "./arbeitszeit";
+import { withoutHomeoffice, workMinutes } from "./overlap";
+import { decide, inCalendar, loadAntraege, sollzeit, onFocus, takeFocus, onAntraegeChange, remove, saveAntraege, saveDay, type HomeofficeAntrag } from "./homeoffice";
 
 /** Home → Planner → Kalender: "Mein Kalender", Ansicht Woche (Figma 16702:185207). Tag/Monat/Jahr follow. */
 
@@ -377,7 +378,9 @@ function WeekGrid({
   const worked = seed.worked.filter((w) => visible.has(w.calendar) && !(w.calendar === "lucy" && arbeitszeiten[w.day]));
   const workedOf = (d: string) => [
     ...worked.filter((w) => w.day === d),
-    ...(showOwn ? (arbeitszeiten[d] ?? []).map((b) => ({ day: d, start: b.start, end: b.end, kommentar: b.kommentar })) : []),
+    ...(showOwn
+      ? withoutHomeoffice(arbeitszeiten[d] ?? [], homeoffice, d).map((b) => ({ day: d, start: b.start, end: b.end, kommentar: b.kommentar }))
+      : []),
   ];
 
   return (
@@ -519,18 +522,19 @@ function WeekGrid({
       </div>
       <div className="kal-foot">
         <span />
+        {/* Every week, every day: Sollzeit from the work schedule (0:00 on weekends and holidays). Istzeit counts
+            erfasste Arbeitszeit and Homeoffice, each minute once. Homeoffice is labeled on the calendar. */}
         {days.map((d) => {
-          const t = seed.times[d];
+          const soll = seed.holidays.has(d) ? 0 : sollzeit(d);
+          const ist = workMinutes([...(arbeitszeiten[d] ?? []), ...inCalendar(homeoffice, d)]);
           return (
             <div key={d} className={`kal-foot-cell${d === today ? " today" : ""}`}>
-              {t ? (
-                <dl>
-                  <dt>Sollzeit:</dt>
-                  <dd>{duration(t.soll)}</dd>
-                  <dt>Istzeit:</dt>
-                  <dd>{duration(arbeitszeiten[d] ? arbeitszeiten[d].reduce((sum, b) => sum + b.end - b.start, 0) : t.ist)}</dd>
-                </dl>
-              ) : null}
+              <dl>
+                <dt>Sollzeit:</dt>
+                <dd>{duration(soll)}</dd>
+                <dt>Istzeit:</dt>
+                <dd>{duration(ist)}</dd>
+              </dl>
             </div>
           );
         })}
@@ -867,8 +871,10 @@ export function KalenderPage() {
           blocksFor={(d) => {
             if (arbeitszeiten[d]) return arbeitszeiten[d];
             const demo = seedWeek(today).worked.filter((w) => w.calendar === "lucy" && w.day === d);
-            return demo.length ? demo.map((w) => ({ start: w.start, end: w.end })) : null;
+            if (demo.length) return demo.map((w) => ({ start: w.start, end: w.end }));
+            return defaultBlocks(d);
           }}
+          homeoffice={antraege}
           onClose={() => setAzModal(null)}
           onSave={(days) => {
             const next = { ...arbeitszeiten, ...days };
@@ -885,6 +891,7 @@ export function KalenderPage() {
           start={hoModal}
           antraege={antraege}
           holidays={holidays}
+          arbeitszeiten={arbeitszeiten}
           onClose={() => setHoModal(null)}
           onSave={(d, blocks) => {
             const next = saveDay(antraege, d, blocks, new Date().toISOString());

@@ -219,19 +219,59 @@ export function seedAntraege(today: string): HomeofficeAntrag[] {
   ];
 }
 
+/**
+ * Demo: one Homeoffice request that is already genehmigt – the last working day before today (no weekend, no
+ * holiday), 08:00–12:30, decided by the Genehmiger the day after it was asked for.
+ */
+export function seedApproved(today: string): HomeofficeAntrag {
+  const holidays = seedWeek(today).holidays;
+  let day = addDays(today, -1);
+  while ([0, 6].includes(parseIso(day).getDay()) || holidays.has(day)) day = addDays(day, -1);
+  const at = (offset: number, hours: number, minutes: number) => {
+    const d = parseIso(addDays(day, offset));
+    d.setHours(hours, minutes);
+    return d.toISOString();
+  };
+  return {
+    id: "ho-demo-approved",
+    day,
+    start: 8 * 60,
+    end: 12 * 60 + 30,
+    kommentar: "Steuerberater-Termin am Nachmittag in Salzburg.",
+    status: "genehmigt",
+    beantragt: at(-3, 10, 20),
+    entschieden: at(-2, 8, 45),
+    entschiedenVon: GENEHMIGER.name,
+    gelesen: true,
+  };
+}
+
+/** Added once to data saved before the approved demo request existed (deleting it later sticks). */
+const APPROVED_SEEDED = "wino.kalender.homeoffice.approvedSeeded";
+
 export function loadAntraege(): HomeofficeAntrag[] {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw === null) {
-      const seeded = seedAntraege(iso(new Date()));
+      const seeded = [...seedAntraege(iso(new Date())), seedApproved(iso(new Date()))];
       localStorage.setItem(KEY, JSON.stringify(seeded));
+      localStorage.setItem(APPROVED_SEEDED, "1");
       return seeded;
     }
     const parsed = JSON.parse(raw);
     // "abgelehnt" was the earlier name of zurückgesetzt.
-    return Array.isArray(parsed)
+    const list: HomeofficeAntrag[] = Array.isArray(parsed)
       ? parsed.filter((x) => typeof x?.start === "number").map((x) => (x.status === "abgelehnt" ? { ...x, status: "zurueckgesetzt" } : x))
       : [];
+    if (!localStorage.getItem(APPROVED_SEEDED)) {
+      localStorage.setItem(APPROVED_SEEDED, "1");
+      if (!list.some((x) => x.id === "ho-demo-approved")) {
+        const next = [...list, seedApproved(iso(new Date()))];
+        localStorage.setItem(KEY, JSON.stringify(next));
+        return next;
+      }
+    }
+    return list;
   } catch {
     return [];
   }

@@ -45,7 +45,56 @@ type Card = {
   read: boolean;
   icon: string;
   open: () => void;
+  /** Homeoffice decision: drawn as the Figma notice (22729:226663 / 226700 / 226729). */
+  homeoffice?: HoNoticeStatus;
 };
+
+type HoNoticeStatus = "genehmigt" | "abgelehnt" | "zurueckgesetzt";
+
+const HO_NOTICE: Record<HoNoticeStatus, { title: string; icon: string; word: string }> = {
+  genehmigt: { title: "Wurde genehmigt", icon: a.hoStatusGenehmigt, word: "genehmigt" },
+  abgelehnt: { title: "Wurde abgelehnt", icon: a.hoStatusAbgelehnt, word: "abgelehnt" },
+  zurueckgesetzt: { title: "Wurde zurückgesetzt", icon: a.hoStatusZurueck, word: "zurückgesetzt" },
+};
+
+/** The Homeoffice glyph of the Figma notice: green circle with two white stripes. */
+function HomeofficeGlyph() {
+  return (
+    <span className="wg-ho-glyph" aria-hidden="true">
+      <img className="dot" src={a.hoNoticeEllipse} alt="" />
+      <img className="stripe one" src={a.hoNoticeStripe} alt="" />
+      <img className="stripe two" src={a.hoNoticeStripe} alt="" />
+    </span>
+  );
+}
+
+/** Homeoffice decision notice: "Homeoffice / Wurde …", status icon in front of the text, "Anzeigen". */
+function HomeofficeNotice({ notice, status, onOpen }: { notice: Card; status: HoNoticeStatus; onOpen: () => void }) {
+  const look = HO_NOTICE[status];
+  return (
+    <article className={notice.read ? "wg-ho" : "wg-ho unread"}>
+      <div className="wg-ho-head">
+        <span className="wg-ho-ico">
+          <HomeofficeGlyph />
+          {notice.read ? null : <span className="wg-ho-dot" />}
+        </span>
+        <span className="wg-ho-title">
+          <span>Homeoffice</span>
+          <strong>{look.title}</strong>
+        </span>
+      </div>
+      <p className="wg-ho-text">
+        <span className={`wg-ho-status ${status}`}>
+          <img src={look.icon} alt="" />
+        </span>
+        {notice.text}
+      </p>
+      <button type="button" className="wg-ho-action" onClick={onOpen}>
+        Anzeigen
+      </button>
+    </article>
+  );
+}
 
 const WEEKDAY = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -54,13 +103,17 @@ const localStamp = (isoTime: string) => {
   return `${iso(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+/** A request's decision as the notice shows it ("abgelehnt" once the request knows that outcome). */
+function hoNoticeStatus(status: string): HoNoticeStatus {
+  return status === "genehmigt" ? "genehmigt" : status === "abgelehnt" ? "abgelehnt" : "zurueckgesetzt";
+}
+
 function homeofficeText(x: HomeofficeAntrag) {
   const d = parseIso(x.day);
   const when = `${WEEKDAY[d.getDay()]}, ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} · ${hhmm(x.start)} - ${hhmm(x.end)}`;
   const reason = x.entscheidNotiz ? ` „${x.entscheidNotiz}“` : "";
-  return x.status === "genehmigt"
-    ? `Dein Homeoffice am ${when} wurde genehmigt.${reason}`
-    : `Dein Homeoffice am ${when} wurde zurückgesetzt. Bitte neu beantragen.${reason}`;
+  const word = HO_NOTICE[hoNoticeStatus(x.status)].word;
+  return `Dein Homeoffice am ${when} wurde ${word}.${reason}`;
 }
 
 function dayLabel(day: string, today: string) {
@@ -137,6 +190,7 @@ export function WidgetBar() {
         createdAt: onDemoDay(localStamp(x.entschieden!)),
         read: !!x.gelesen,
         icon: x.status === "genehmigt" ? a.calHomeofficeApproved : a.calUrlaubRejected,
+        homeoffice: hoNoticeStatus(x.status),
         open: () => {
           saveAntraege(markGelesen(loadAntraege(), x.id));
           focusAntrag(x.id);
@@ -296,7 +350,11 @@ export function WidgetBar() {
               </div>
               <div className="wg-list">
                 {notices.map((notice) => (
-                  <NoticeCard key={notice.id} notice={notice} onOpen={notice.open} />
+                  notice.homeoffice ? (
+                    <HomeofficeNotice key={notice.id} notice={notice} status={notice.homeoffice} onOpen={notice.open} />
+                  ) : (
+                    <NoticeCard key={notice.id} notice={notice} onOpen={notice.open} />
+                  )
                 ))}
               </div>
             </section>

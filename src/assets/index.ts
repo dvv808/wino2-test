@@ -309,3 +309,10 @@ export { default as subBusiness } from "./icons/sub-business.svg";
 
 /* Kommunikationsdaten Unternehmen (Figma 21023:48116): Versand-Mail block in the Zusammenfassung */
 export { default as commsMailSent } from "./icons/comms-mail-sent.svg";
+
+/* Widget: Homeoffice decision notices (Figma 22729:226663 / 226700 / 226729) */
+export { default as hoNoticeEllipse } from "./icons/ho-notice-icon-ellipse.png";
+export { default as hoNoticeStripe } from "./icons/ho-notice-stripe.svg";
+export { default as hoStatusGenehmigt } from "./icons/ho-status-genehmigt.svg";
+export { default as hoStatusAbgelehnt } from "./icons/ho-status-abgelehnt.svg";
+export { default as hoStatusZurueck } from "./icons/ho-status-zurueck.svg";
