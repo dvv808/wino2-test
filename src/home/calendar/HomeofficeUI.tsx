@@ -46,15 +46,28 @@ export function useOutside(open: boolean, close: () => void) {
 }
 
 /** Beginn / Ende: typed freely ("8", "830", "8:30"), shown as 08:30 once the field is left. */
-export function TimeInput({ label, value, onChange }: { label: string; value: number | null; onChange: (v: number | null) => void }) {
+export function TimeInput({
+  label,
+  value,
+  onChange,
+  locked = false,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (v: number | null) => void;
+  /** Already beantragt: shown, but not editable. */
+  locked?: boolean;
+}) {
   const [text, setText] = useState(value === null ? "" : hhmm(value));
   useEffect(() => setText(value === null ? "" : hhmm(value)), [value]);
   return (
     <label className="kal-hom-row">
       <span>{label}</span>
-      <span className="kal-hom-input">
+      <span className={locked ? "kal-hom-input locked" : "kal-hom-input"}>
         <input
           value={text}
+          readOnly={locked}
+          tabIndex={locked ? -1 : undefined}
           inputMode="numeric"
           placeholder="--:--"
           aria-label={label}
@@ -66,7 +79,7 @@ export function TimeInput({ label, value, onChange }: { label: string; value: nu
           }}
           onKeyDown={(event) => event.key === "Enter" && (event.target as HTMLInputElement).blur()}
         />
-        {text ? (
+        {text && !locked ? (
           <button
             type="button"
             aria-label={`${label} leeren`}
@@ -155,8 +168,8 @@ export function HomeofficeModal({
   const errors = validate(blocks);
   const valid = !blocked && blocks.length > 0 && Object.keys(errors).length === 0;
   const status = (b: HomeofficeBlock) => antraege.find((x) => x.id === b.id);
-  // An already beantragt time stays as it is. Speichern & Beantragen only once a new time was added.
-  const canApply = blocks.some((b) => status(b)?.status !== "offen");
+  // An already beantragt or genehmigt time stays as it is (locked). Speichern & Beantragen only once a new time was added.
+  const canApply = blocks.some((b) => !status(b));
   const weekday = WEEKDAYS[parseIso(day).getDay()];
 
   return (
@@ -224,6 +237,8 @@ export function HomeofficeModal({
               <>
                 {blocks.map((b) => {
                   const existing = status(b);
+                  // Once beantragt, a time is locked: no editing, clearing, commenting or removing.
+                  const locked = Boolean(existing);
                   const error = tried || (b.start !== null && b.end !== null) ? errors[b.key] : undefined;
                   return (
                     <div key={b.key} className={`kal-hom-block${error ? " invalid" : ""}`}>
@@ -233,6 +248,7 @@ export function HomeofficeModal({
                           <button
                             type="button"
                             className={`kal-hom-comment-btn${b.kommentar ? " has" : ""}`}
+                            disabled={locked}
                             aria-label={b.kommentar ? "Kommentar bearbeiten" : "Kommentar hinzufügen"}
                             title={b.kommentar ? "Kommentar bearbeiten" : "Kommentar hinzufügen"}
                             onClick={() => setComment(comment === b.key ? null : b.key)}
@@ -250,9 +266,11 @@ export function HomeofficeModal({
                             />
                           ) : null}
                         </span>
-                        {existing && existing.status !== "offen" ? (
+                        {/* Beantragt and Genehmigt show their status block below instead of a tag. */}
+                        {existing && existing.status === "zurueckgesetzt" ? (
                           <em className={`kal-hom-tag ${existing.status}`}>{STATUS_SHORT[existing.status]}</em>
                         ) : null}
+                        {locked ? null : (
                         <button
                           type="button"
                           className="kal-hom-remove"
@@ -261,9 +279,10 @@ export function HomeofficeModal({
                         >
                           <img src={a.iconCloseDark} alt="" width={10} height={10} />
                         </button>
+                        )}
                       </div>
-                      <TimeInput label="Beginn" value={b.start} onChange={(v) => update(b.key, { start: v })} />
-                      <TimeInput label="Ende" value={b.end} onChange={(v) => update(b.key, { end: v })} />
+                      <TimeInput label="Beginn" value={b.start} locked={locked} onChange={(v) => update(b.key, { start: v })} />
+                      <TimeInput label="Ende" value={b.end} locked={locked} onChange={(v) => update(b.key, { end: v })} />
                       {existing?.status === "offen" ? (
                         <div className="kal-hom-status">
                           <img src={a.calUrlaubPending} alt="" width={25} height={19} />
@@ -272,6 +291,12 @@ export function HomeofficeModal({
                             <br />
                             Genehmigung ausstehend
                           </p>
+                        </div>
+                      ) : existing?.status === "genehmigt" ? (
+                        // Genehmigt (Figma 22723:175729): green block, icon with the tick.
+                        <div className="kal-hom-status genehmigt">
+                          <img src={a.calHomeofficeApproved} alt="" width={25} height={19} />
+                          <p>Status: Genehmigt</p>
                         </div>
                       ) : null}
                       {error ? <p className="kal-hom-error">{error}</p> : null}

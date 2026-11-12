@@ -6,15 +6,17 @@ export type PartnerId =
   | "ash"
   | "marcus"
   | "sophie"
+  | "udo"
   | "lunixo"
   | "lunixo-holding"
-  | "lunixo-immobilien";
+  | "lunixo-immobilien"
+  | "thomas";
 export type PartnerKind = "interessent" | "kunde" | "einfach";
 /** Privatperson files are "person"; business partners (not linkable into a family yet) are "company". */
 export type FileKind = "person" | "company";
 
 export type FileContact = {
-  kind: "phone" | "mail";
+  kind: "phone" | "mail" | "web";
   caption: string;
   value: string;
 };
@@ -106,6 +108,12 @@ export const SOPHIE = familyPartner("sophie", "sophie-lang", "Sophie Lang", "15.
   "A-5020 Salzburg",
 ]);
 
+/** Julia's husband: a Kontakt in her file and an Einfache Person with his own file. */
+export const UDO = familyPartner("udo", "udo-ladraida", "Udo Ladraida", "12.09.1988", "3117", "einfach", [
+  "Mondseestrasse 32",
+  "A-5310 Mondsee",
+]);
+
 export const LUNIXO: FilePartner = {
   id: "lunixo",
   slug: "lunixo-ag",
@@ -145,6 +153,25 @@ export const LUNIXO_IMMOBILIEN: FilePartner = {
   moreContacts: 0,
 };
 
+/** Kunde with a signed Maklervereinbarung and complete Stammdaten – the demo for the Prüfmodus (beim Kunden prüfen). */
+export const THOMAS: FilePartner = {
+  id: "thomas",
+  slug: "thomas-debrezina",
+  name: "Thomas Debrezina",
+  born: "07.04.1979",
+  address: ["Linzer Gasse 21", "A-5020 Salzburg"],
+  fileId: "2950",
+  phone: "+43 664 31 07 479",
+  email: "thomas.debrezina@gmx.at",
+  info: "Langjähriger Kunde, bevorzugt Termine am Vormittag.",
+  contacts: [
+    { kind: "phone", caption: "Mobil Privat", value: "+43 664 31 07 479" },
+    { kind: "mail", caption: "Mail Privat", value: "thomas.debrezina@gmx.at" },
+  ],
+  moreContacts: 2,
+  kind: "kunde",
+};
+
 export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
   julia: JULIA,
   ashley: ASHLEY,
@@ -153,9 +180,11 @@ export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
   ash: ASH,
   marcus: MARCUS,
   sophie: SOPHIE,
+  udo: UDO,
   lunixo: LUNIXO,
   "lunixo-holding": LUNIXO_HOLDING,
   "lunixo-immobilien": LUNIXO_IMMOBILIEN,
+  thomas: THOMAS,
 };
 
 export const PARTNER_BY_SLUG = new Map<string, PartnerId>(
@@ -180,6 +209,7 @@ export function extraPartnerList(): FilePartner[] {
 export function listedPartners(): FilePartner[] {
   return [
     FILE_PARTNERS.julia,
+    FILE_PARTNERS.thomas,
     FILE_PARTNERS.ashley,
     FILE_PARTNERS.lunixo,
     FILE_PARTNERS["lunixo-holding"],

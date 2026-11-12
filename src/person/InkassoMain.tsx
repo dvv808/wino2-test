@@ -3,7 +3,6 @@ import * as a from "../assets/index";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { useHonorar } from "../honorar/store";
-import { VerlaufCaption } from "../chrome";
 import { ShelfTitle } from "./ProfileShelf";
 import { useInkassoPartnerId } from "./InkassoForderungen";
 import { StatusTable } from "../honorar/StatusStep";
@@ -13,7 +12,7 @@ import { StatCards, StepEmpty, type StatFilter } from "../honorar/ui";
  * Inkasso in the profile: the client's own invoices in the same table as Status zu Rechnungen.
  */
 export function InkassoMain() {
-  const { goTo, openMakler, openVersionHistory } = useWorkflow();
+  const { goTo, openMakler } = useWorkflow();
   const { state } = useHonorar();
   const inkassoPartner = useInkassoPartnerId();
   // The client's own invoices, newest first: the same table as Status zu Rechnungen.
@@ -35,12 +34,6 @@ export function InkassoMain() {
     <main className="pp-main">
       <header className="fg-head pp-main-head">
         <ShelfTitle icon={a.tickList}>Inkasso</ShelfTitle>
-        <span className="fg-head-actions">
-          <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openVersionHistory}>
-            <Icon src={a.history} size={18} />
-            <VerlaufCaption />
-          </button>
-        </span>
       </header>
 
       <section className="pp-section" id="inkasso-honorar">

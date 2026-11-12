@@ -15,6 +15,7 @@ import { hhmm, parseIso } from "../home/calendar/calendarData";
 import type { HomeofficeAntrag } from "../home/calendar/homeoffice";
 import type { Approval, ApprovalStep, PostedComment, RequestStamp } from "../workflow";
 import { JULIA_STAMMDATEN_DIFF, LUNIXO_WICO_DIFF, type StammdatenDiff } from "./stammdatenDiff";
+import { stampOf as pruefStamp, type Pruefung } from "../person/pruefung";
 
 export type RequestStatus = "offen" | "abgelehnt" | "abgeschlossen";
 export type PartnerType = "Mitarbeiter" | "Interessent" | "Kunde";
@@ -69,6 +70,8 @@ export type RequestRow = {
   kind?: "makler" | "stammdaten" | "rechnung" | "homeoffice";
   /** Homeoffice: the request (one time block) the Bestandsmanager decides. */
   homeofficeId?: string;
+  /** Prüfmodus: the Stammdaten-Prüfung (Änderungswünsche from the client meeting) to work off. */
+  pruefungId?: string;
   /** Rechnungskorrektur: the invoice whose Antrag the Bestandsmanager decides. */
   feeId?: string;
   /** Who authored the change — an employee, or WICO as an outside source. */
@@ -554,6 +557,50 @@ const stamp = (isoTime: string) => {
   const d = new Date(isoTime);
   return { date: `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`, time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}` };
 };
+
+/**
+ * Stammdaten-Prüfungen sent from the Prüfmodus: one row per request, on the Stammdaten tab. Open until every
+ * Änderungswunsch is übernommen or abgelehnt and the Bestandsmanager closes it.
+ */
+export function livePruefungRows(list: Pruefung[]): RequestRow[] {
+  return list
+    .filter((entry) => entry.status !== "entwurf")
+    .map((entry) => {
+      const sent = pruefStamp(entry.sent);
+      const closed = entry.closed ? pruefStamp(entry.closed) : undefined;
+      const open = entry.changes.filter((change) => change.status === "offen").length;
+      const file = FILE_PARTNERS[entry.partnerId];
+      return {
+        id: `pruefung-${entry.id}`,
+        group: `pruefung-${entry.id}`,
+        partner: {
+          name: entry.partnerName,
+          meta: file?.born,
+          kind: file?.fileKind === "company" ? "company" : "person",
+          winter: true,
+        },
+        partnerId: entry.partnerId,
+        types: [file?.kind === "kunde" ? "Kunde" : "Interessent"],
+        art: "Stammdaten-Prüfung",
+        schritt: "Beim Kunden geprüft",
+        stepLabel: entry.changes.length
+          ? `${entry.changes.length} ${entry.changes.length === 1 ? "Änderungswunsch" : "Änderungswünsche"}${open && entry.status === "offen" ? ` · ${open} offen` : ""}`
+          : "Alles korrekt",
+        stepPosition: `${entry.files.length} ${entry.files.length === 1 ? "Anhang" : "Anhänge"}`,
+        requester: ADVISOR,
+        reviewer: MANAGER,
+        date: sent.date,
+        time: sent.time,
+        status: entry.status === "abgeschlossen" ? "abgeschlossen" : "offen",
+        decided: closed ? `${closed.date}, ${entry.closedBy ?? ""}`.trim() : undefined,
+        note: entry.note || undefined,
+        commentCount: entry.note ? 1 : 0,
+        kind: "stammdaten",
+        source: "person",
+        pruefungId: entry.id,
+      } satisfies RequestRow;
+    });
+}
 
 export const HOMEOFFICE_REQUESTER = { name: "Lucy Dallon", role: "Innendienst", photo: a.empLucy };
 

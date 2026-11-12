@@ -17,6 +17,7 @@ import {
   saveAntraege,
   type HomeofficeAntrag,
 } from "../home/calendar/homeoffice";
+import { markNoticeRead as markPruefNoticeRead, pruefNotices, showPruefungNext, usePruefungen } from "../person/pruefung";
 
 /** Only the notifications tab is built; the other tabs are shown as in Figma but stay inactive. */
 const TABS = [
@@ -93,7 +94,9 @@ function NoticeCard({ notice, onOpen }: { notice: Card; onOpen: () => void }) {
 
 /** Right-hand widget bar, shown while "Widget einschalten" is on in the profile menu. */
 export function WidgetBar() {
-  const { widgetOn, openMeinBereich, setMeinBereichNav, openHome } = useWorkflow();
+  const { widgetOn, openMeinBereich, setMeinBereichNav, openHome, openPruefung } = useWorkflow();
+  // Stammdaten-Prüfungen: rejected Änderungswünsche and the closed Prüfung reach the advisor here.
+  const pruefList = usePruefungen();
   // Homeoffice decisions (HRM / Freigaben) reach the employee here.
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
   useEffect(() => onAntraegeChange(setHomeoffice), []);
@@ -141,14 +144,30 @@ export function WidgetBar() {
         },
       }),
     );
-    return [...honorar, ...ho];
+    const pr = pruefNotices(pruefList).map(
+      (notice): Card => ({
+        id: notice.id,
+        title: notice.title,
+        subject: notice.subject,
+        text: notice.text,
+        createdAt: onDemoDay(localStamp(notice.at)),
+        read: notice.read,
+        icon: notice.title.startsWith("Änderung") ? a.calUrlaubRejected : a.calHomeofficeApproved,
+        open: () => {
+          markPruefNoticeRead(notice.pruefungId, notice.id);
+          showPruefungNext(notice.pruefungId);
+          openPruefung(notice.partnerId);
+        },
+      }),
+    );
+    return [...honorar, ...ho, ...pr];
 
     /** The Honorar notices live on the demo date: a decision from today is filed under that same "Heute". */
     function onDemoDay(stamp: string) {
       return stamp.slice(0, 10) === iso(new Date()) ? `${state.today}${stamp.slice(10)}` : stamp;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, homeoffice]);
+  }, [state, homeoffice, pruefList]);
   const unread = mine.filter((notice) => !notice.read).length;
 
   const groups = useMemo(() => {

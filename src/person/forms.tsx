@@ -504,10 +504,6 @@ export function PartnerFields({
       <Field label="Allgemeine Notiz zum Partner">
         <Area value={form.notiz} onChange={(value) => set("notiz", value)} />
       </Field>
-      <InfoBox>
-        Vertretung erstellen Wird die Person vertreten? Erstelle Bevollmächtigte Person oder
-        Erwachsenenvertreter mit eigenen Kontaktdaten.
-      </InfoBox>
       <div className="sw-group">
         <h3>Anhänge</h3>
         <Drop files={form.files} onFiles={(files) => set("files", files)} context={partnerUpload("partner.stammdaten.anhang", partnerId, "anhang")} />
@@ -953,14 +949,39 @@ export function CreateContactFields({
   );
 }
 
+/** A Privatperson contact that is itself a partner: its Kontaktdaten belong to (and are edited in) that file. */
+export type ContactOrigin = { name: string; form: ContactForm | null; onOpen?: () => void };
+
+function OriginChannels({ origin }: { origin: ContactOrigin }) {
+  // Only the notice (Figma 22712:142039): the data itself shows in the card on the right.
+  return (
+    <div className="sw-origin">
+      <InfoBox>
+        Kontaktdaten aus dem Partnerprofil übernommen. Telefon, E-Mail und Links sind nur dort änderbar.
+        {origin.onOpen ? (
+          <>
+            {" "}
+            <button type="button" className="sw-origin-link" onClick={origin.onOpen}>
+              Partnerprofil öffnen
+            </button>
+          </>
+        ) : null}
+      </InfoBox>
+    </div>
+  );
+}
+
 export function ContactFields({
   form,
   onChange,
   onRemoved,
+  origin,
 }: {
   form: ContactForm;
   onChange: (form: ContactForm) => void;
   onRemoved?: (message: string, undo: () => void) => void;
+  /** Set when the picked partner has its own file (Privatperson only): channels are read-only from there. */
+  origin?: ContactOrigin | null;
 }) {
   const set = <K extends keyof ContactForm>(key: K, value: ContactForm[K]) =>
     onChange({ ...form, [key]: value });
@@ -999,6 +1020,10 @@ export function ContactFields({
         <Area value={form.notiz} onChange={(value) => set("notiz", value)} />
       </Field>
 
+      {origin && form.kind === "person" ? (
+        <OriginChannels origin={origin} />
+      ) : (
+      <>
       <ChannelSection
         label="Telefonnummer"
         removedLabel="Telefonnummer"
@@ -1069,6 +1094,8 @@ export function ContactFields({
           </>
         )}
       </ChannelSection>
+      </>
+      )}
     </>
   );
 }

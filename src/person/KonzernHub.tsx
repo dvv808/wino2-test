@@ -3,6 +3,7 @@ import { FileTabs, LogoButton, MeinBereichTab, ProfileMenu } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { partyMeta, partyName } from "./konzernLinks";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 /** Placeholder page for the special Konzern tab. Content will follow. */
 export function KonzernHubPage() {
@@ -20,9 +21,7 @@ export function KonzernHubPage() {
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>

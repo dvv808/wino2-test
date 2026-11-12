@@ -27,8 +27,9 @@ import {
 } from "./konzernLinks";
 import { FILE_PARTNERS } from "./partners";
 import { useCompanyGroups } from "./companyGroups";
+import { isComplete, linksFor, otherSide, useSonstigeLinks } from "./sonstigeLinks";
 
-type Tab = "familie" | "konzern";
+type Tab = "familie" | "konzern" | "sonstiges";
 type Toast = { message: string; tone?: "ok" | "warn"; undo?: () => void };
 
 function Avatar({ glyph }: { glyph: string }) {
@@ -56,6 +57,7 @@ function MemberCard({
   name,
   meta,
   honorar,
+  note,
   glyph,
   selected,
   draft,
@@ -71,6 +73,8 @@ function MemberCard({
   name: string;
   meta?: string;
   honorar?: string;
+  /** Sonstiges: the Notiz under the card (Figma 22715:142985). */
+  note?: { label: string; text: string };
   glyph: string;
   selected?: boolean;
   draft?: boolean;
@@ -121,6 +125,12 @@ function MemberCard({
           </span>
         )}
       </div>
+      {note ? (
+        <div className="vk-card-note">
+          <small>{note.label}</small>
+          <p>{note.text}</p>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -377,6 +387,137 @@ function FamilyTab({
                 if (result.mode === "removed" && result.link) restoreLink(result.link);
                 else if (result.mode === "unaccepted" && wasAccepted) acceptLink(doomed.id, memberId);
                 setSelectedId(doomed.id);
+                setToast(null);
+              },
+            });
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
+const SONSTIGES_NOTE = "Notiz zur sonstigen Verknüpfung";
+
+/**
+ * Verknüpfung: Sonstiges (Figma 22715:142102) – Privatperson and Unternehmen alike. Only companies can be picked;
+ * the Notiz is mandatory. Links show on both files (bidirectional) and either side can edit or dissolve them.
+ */
+function SonstigesTab({ partyId }: { partyId: string }) {
+  const { openPartnerBeside } = useWorkflow();
+  const store = useSonstigeLinks();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+
+  const mine = linksFor(store.links, partyId);
+  const complete = mine.filter(isComplete);
+  const open = mine.filter((link) => !isComplete(link) && link.ownerId === partyId);
+  const editing = mine.find((link) => link.id === selectedId) ?? open[0] ?? complete[0] ?? null;
+  const partnerId = editing ? otherSide(editing, partyId) : null;
+  const linked = new Set(mine.map((link) => otherSide(link, partyId)).filter((id): id is string => Boolean(id)));
+  // Nur Firmen: the directory minus this file and companies already linked here.
+  const options = COMPANY_DIRECTORY.filter(
+    (company) => company.id !== partyId && (!linked.has(company.id) || company.id === partnerId),
+  ).map((company) => ({ name: company.name, detail: companyAddressLine(company), icon: a.companyBlank }));
+  // Notiz is Pflicht: flagged once a company is picked.
+  const noteMissing = Boolean(editing && partnerId && !editing.note.trim());
+  const deleting = pendingDelete ? mine.find((link) => link.id === pendingDelete) ?? null : null;
+  const deletingName = deleting ? partyName(otherSide(deleting, partyId) ?? "") : "";
+
+  useEffect(() => {
+    if (mine.length === 0) setSelectedId(store.startDraft(partyId));
+  }, [mine.length, partyId, store]);
+
+  function pick(name: string) {
+    const id = editing?.id ?? store.startDraft(partyId);
+    if (!editing) setSelectedId(id);
+    const company = COMPANY_DIRECTORY.find((entry) => entry.name === name);
+    // A typed name that is not in Wino yet becomes a new company.
+    store.setPartner(id, company?.id ?? rememberParty(name, "company"));
+  }
+
+  return (
+    <>
+      <section className="vk-form-card">
+        <div className="block">
+          <span className="field-label">Partner</span>
+          <PartnerSearch
+            key={editing?.id ?? "none"}
+            value={partnerId ? partyName(partnerId) : ""}
+            options={options}
+            placeholder="Firma suchen"
+            icon={a.companyBlank}
+            onChange={pick}
+          />
+        </div>
+        <Field label={SONSTIGES_NOTE} required>
+          <textarea
+            className={noteMissing ? "textarea invalid" : "textarea"}
+            aria-required="true"
+            aria-invalid={noteMissing}
+            placeholder="z.B. Hausverwaltung der Liegenschaft"
+            value={editing?.note ?? ""}
+            onChange={(event) => {
+              const id = editing?.id ?? store.startDraft(partyId);
+              if (!editing) setSelectedId(id);
+              store.setNote(id, event.target.value);
+            }}
+          />
+        </Field>
+        {noteMissing ? <p className="field-error">Bitte eine Notiz angeben – bei Sonstiges ist sie Pflicht.</p> : null}
+      </section>
+
+      <ListPanel title="Verknüpfung: Sonstiges" onAdd={() => setSelectedId(store.startDraft(partyId))}>
+        {mine.map((link) => {
+          const other = otherSide(link, partyId);
+          const done = isComplete(link);
+          const saved = done && Boolean(link.published);
+          return (
+            <MemberCard
+              key={link.id}
+              caption={other ? partyName(other) : "Nicht definiert"}
+              chip={other ? partyChip(other) : undefined}
+              chipClass={other ? partyChipClass(other) : undefined}
+              name={other ? partyName(other) : "-"}
+              meta={other ? partyMeta(other) : undefined}
+              note={link.note.trim() ? { label: SONSTIGES_NOTE, text: link.note } : undefined}
+              glyph={other && partyKindOf(other) === "person" ? a.clientBlank : a.companyBlank}
+              draft={!saved}
+              selected={editing?.id === link.id}
+              onSelect={() => setSelectedId(link.id)}
+              onOpen={other && isFilePartner(other) ? () => openPartnerBeside(other as FamilyMemberId) : undefined}
+              menuItems={
+                done
+                  ? [
+                      { label: "Editieren", icon: a.menuEdit, onSelect: () => setSelectedId(link.id) },
+                      { label: "Verknüpfung auflösen", icon: a.menuUnlink, danger: true, onSelect: () => setPendingDelete(link.id) },
+                    ]
+                  : undefined
+              }
+            />
+          );
+        })}
+      </ListPanel>
+
+      {toast ? (
+        <Snackbar message={toast.message} tone={toast.tone} onUndo={toast.undo} onClose={() => setToast(null)} />
+      ) : null}
+      {deleting ? (
+        <DeleteCard
+          title="Verknüpfung"
+          action="auflösen"
+          name={deletingName}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            const removed = store.remove(deleting.id);
+            setPendingDelete(null);
+            setSelectedId(null);
+            setToast({
+              message: deletingName ? `Verknüpfung mit ${deletingName} aufgelöst.` : "Verknüpfung aufgelöst.",
+              undo: () => {
+                if (removed) store.restore(removed);
+                setSelectedId(deleting.id);
                 setToast(null);
               },
             });
@@ -860,8 +1001,8 @@ function ListPanel({
 }
 
 /**
- * Stammdaten-workflow Verknüpfung: Familie + Konzern for Privatpersonen, Konzern only
- * for companies. Cross-file links always land as Vorschläge on the other side.
+ * Stammdaten-workflow Verknüpfung: Familie + Konzern + Sonstiges for Privatpersonen, Konzern + Sonstiges for
+ * companies. Familie/Konzern cross-file links land as Vorschläge on the other side; Sonstiges shows on both directly.
  */
 export function VerknuepfungPanel({
   memberId,
@@ -875,24 +1016,32 @@ export function VerknuepfungPanel({
   const { links } = useFamilyLinks();
   const familyCount = confirmedLinksFor(links, memberId).length;
   const konzernCount = konzernTabCount(konzernLinks, memberId, isCompany ? "company" : "person", konzernGroups);
-  const [tab, setTab] = useState<Tab>("familie");
+  const { links: sonstige } = useSonstigeLinks();
+  const sonstigesCount = linksFor(sonstige, memberId).filter(isComplete).length;
+  // Unternehmen: Konzern + Sonstiges (no Familie); Privatperson: Familie, Konzern, Sonstiges.
+  const [tab, setTab] = useState<Tab>(isCompany ? "konzern" : "familie");
 
   return (
     <div className="vk-grid">
-      {isCompany ? (
-        <KonzernTab partyId={memberId} kind="company" />
+      <div className="vk-tabs">
+        {isCompany ? null : (
+          <button type="button" className={tab === "familie" ? "active" : undefined} onClick={() => setTab("familie")}>
+            Familie ({familyCount})
+          </button>
+        )}
+        <button type="button" className={tab === "konzern" ? "active" : undefined} onClick={() => setTab("konzern")}>
+          Konzern{konzernCount ? ` (${konzernCount})` : ""}
+        </button>
+        <button type="button" className={tab === "sonstiges" ? "active" : undefined} onClick={() => setTab("sonstiges")}>
+          Sonstiges ({sonstigesCount})
+        </button>
+      </div>
+      {tab === "sonstiges" ? (
+        <SonstigesTab partyId={memberId} />
+      ) : tab === "konzern" || isCompany ? (
+        <KonzernTab partyId={memberId} kind={isCompany ? "company" : "person"} />
       ) : (
-        <>
-          <div className="vk-tabs">
-            <button type="button" className={tab === "familie" ? "active" : undefined} onClick={() => setTab("familie")}>
-              Familie ({familyCount})
-            </button>
-            <button type="button" className={tab === "konzern" ? "active" : undefined} onClick={() => setTab("konzern")}>
-              Konzern{konzernCount ? ` (${konzernCount})` : ""}
-            </button>
-          </div>
-          {tab === "familie" ? <FamilyTab memberId={memberId} initialId={initialId} /> : <KonzernTab partyId={memberId} kind="person" />}
-        </>
+        <FamilyTab memberId={memberId} initialId={initialId} />
       )}
     </div>
   );

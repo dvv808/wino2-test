@@ -15,6 +15,7 @@ import {
 import { DocumentRail, PdfViewer } from "../documents";
 import { Notice, PersonSelect } from "../ui";
 import { useWorkflow } from "../workflow";
+import { useFilePerson } from "../chrome";
 
 export function DocsStep() {
   const {
@@ -30,6 +31,8 @@ export function DocsStep() {
     editComment,
     removeComment,
   } = useWorkflow();
+  const filePerson = useFilePerson();
+  const signerBorn = docSigner === filePerson.personName ? filePerson.born : undefined;
   const [tab, setTab] = useState<ApprovalTab>("aufgaben");
   const tasks = ADVISOR_TASKS.docs;
   const comments = buildComments({
@@ -107,7 +110,7 @@ export function DocsStep() {
               {docsApproval === "granted" && (
                 <div className="block">
                   <span className="field-label">Unterzeichnende Person definieren</span>
-                  <PersonSelect name={docSigner} meta="12.09.1988" />
+                  <PersonSelect name={docSigner} meta={signerBorn} />
                 </div>
               )}
             </>

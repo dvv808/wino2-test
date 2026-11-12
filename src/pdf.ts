@@ -7,6 +7,19 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 /** The Maklervereinbarung documents (public/docs), in the order of the document rail. */
 export const DOC_FILES = ["maklervereinbarung.pdf", "sepa.pdf", "vollmacht-versicherung.pdf", "vollmacht-verhandlung.pdf"];
 
+/**
+ * Unternehmen files: the company versions (public/docs/unternehmen, from "Maklermandat/Unternehmen"); the SEPA
+ * mandate is the same for both.
+ */
+export const COMPANY_DOC_FILES = [
+  "unternehmen/maklervereinbarung.pdf",
+  "sepa.pdf",
+  "unternehmen/vollmacht-versicherung.pdf",
+  "unternehmen/vollmacht-verhandlung.pdf",
+];
+
+export const docFilesFor = (isCompany: boolean) => (isCompany ? COMPANY_DOC_FILES : DOC_FILES);
+
 export const docUrl = (file: string) => `${import.meta.env.BASE_URL}docs/${file}`;
 
 export type RenderedPdf = { pages: string[]; bytes: number };

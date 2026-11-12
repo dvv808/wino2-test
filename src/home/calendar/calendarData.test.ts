@@ -54,10 +54,11 @@ describe("Kalender layout", () => {
     expect(topOf(7 * 60 + 30, 6 * 60)).toBe(69);
   });
 
-  it("seeds a full demo week around today", () => {
+  it("starts with a clean week: only the Nationalfeiertag", () => {
     const week = seedWeek("2026-11-11");
-    expect(new Set(week.entries.map((e) => e.day)).size).toBeGreaterThanOrEqual(4);
+    expect(week.entries).toEqual([]);
+    expect(week.worked).toEqual([]);
+    expect(week.allDay.map((x) => x.title)).toEqual(["Nationalfeiertag"]);
     expect(week.holidays.has("2026-11-10")).toBe(true);
-    expect(week.entries.filter((e) => e.kind === "urlaub").map((e) => e.status)).toEqual(["offen", "abgelehnt"]);
   });
 });

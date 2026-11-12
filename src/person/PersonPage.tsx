@@ -7,6 +7,9 @@ import { useWorkflow } from "../workflow";
 import { LogoButton, FileIdentity, FileTabs, ProfileMenu, VerlaufCaption, WorkflowDock, MeinBereichTab } from "../chrome";
 import { ManagementAreaIcon } from "../manager/BestandChrome";
 import { DataCard } from "./cards";
+import { areaChangesIn, areaStand, type PersonVersion } from "./versions";
+import { draftFor, pendingFor, usePruefungen } from "./pruefung";
+import type { StammdatenAreaId } from "./stammdaten";
 import { DeleteCard } from "./DeleteCard";
 import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
@@ -36,6 +39,7 @@ import {
   navLabel,
   type Card,
 } from "./stammdaten";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 function emptyVerknuepfungCard(id: string, title: string): Card {
   return {
@@ -140,7 +144,7 @@ function PersonAreaNav() {
 }
 
 function PersonModuleNav() {
-  const { personModule, openPersonModule } = useWorkflow();
+  const { personModule, openPersonModule, openVersionHistory } = useWorkflow();
   const active = personModule === "workflows" || personModule === "dashboard" ? personModule : "profil";
 
   return (
@@ -156,6 +160,11 @@ function PersonModuleNav() {
           {module.label}
         </button>
       ))}
+      {/* Verlauf always sits at the very right of this nav, on every person page. */}
+      <button type="button" className="btn-secondary fg-verlauf-btn module-verlauf" onClick={openVersionHistory}>
+        <Icon src={a.history} size={18} />
+        <VerlaufCaption />
+      </button>
     </div>
   );
 }
@@ -193,8 +202,8 @@ function TreeNavItem({
           </span>
         </span>
       )}
+      {/* Second level: no arrow; the ⋮ Editieren menu shows on hover. */}
       <span className="pp-tree-trail">
-        <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
         {area ? (
           <span className="pp-tree-menu">
             <ContextMenu
@@ -216,7 +225,8 @@ function TreeNavItem({
 
 /** The areas of the file. Stammdaten expands; the rest are placeholders. */
 function Sidebar() {
-  const { sections, personName, personArea, openPersonArea } = useWorkflow();
+  // Counts follow the Stand on screen (an older Stand can have fewer cards).
+  const { displaySections: sections, personName, personArea, openPersonArea } = useWorkflow();
   const [stammdatenOpen, setStammdatenOpen] = useState(true);
   return (
     <aside className="pp-side">
@@ -346,6 +356,22 @@ function IdentityStrip() {
   );
 }
 
+/** Per area on an older Stand: "geändert am" (highlighted) or "unverändert seit" (grey). */
+function AreaStandLine({ area, date, versions }: { area: StammdatenAreaId; date: string; versions: PersonVersion[] }) {
+  const stand = areaStand(versions, area, date);
+  if (stand.state === "changed") return <span className="pp-stand changed">geändert am {stand.date}</span>;
+  if (stand.state === "unchanged") return <span className="pp-stand">unverändert seit {stand.date}</span>;
+  // No change recorded for this area at all: its data is not tracked in the Verlauf yet.
+  return <span className="pp-stand">keine Änderungen erfasst</span>;
+}
+
+/** Zeitraum view: how many changes this area got within the range. */
+function AreaRangeLine({ area, range, versions }: { area: StammdatenAreaId; range: { from: string; to: string }; versions: PersonVersion[] }) {
+  const count = areaChangesIn(versions, area, range.from, range.to);
+  if (count) return <span className="pp-stand changed">{count} {count === 1 ? "Änderung" : "Änderungen"} im Zeitraum</span>;
+  return <span className="pp-stand">unverändert im Zeitraum</span>;
+}
+
 export function PersonPage() {
   const {
     leaveManager,
@@ -353,14 +379,19 @@ export function PersonPage() {
     openStammdaten,
     deleteStammdatenCard,
     isHistorical,
-    openVersionHistory,
+    versions,
+    viewingVersion,
+    standRange,
     personModule,
     filePartnerId,
     personArea,
+    openPruefung,
     finanzenProfileOpen,
     backToFinanzen,
   } = useWorkflow();
   const { links, unlinkLink } = useFamilyLinks();
+  const pruefList = usePruefungen();
+  const pruefStatus = (pendingFor(pruefList, filePartnerId) ?? draftFor(pruefList, filePartnerId))?.status;
   const konzern = useKonzernLinks();
   const isCompanyFile = getPartner(filePartnerId).fileKind === "company";
   const partyKind: PartyKind = isCompanyFile ? "company" : "person";
@@ -426,9 +457,7 @@ export function PersonPage() {
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>
@@ -455,10 +484,14 @@ export function PersonPage() {
             <header className="fg-head pp-main-head">
               <ShelfTitle icon={a.stammdaten}>Stammdaten</ShelfTitle>
               <span className="fg-head-actions">
-                <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openVersionHistory}>
-                  <Icon src={a.history} size={18} />
-                  <VerlaufCaption />
-                </button>
+                {/* Prüfmodus: go through the Stammdaten with the client, collect Änderungswünsche, send for Freigabe.
+                    For now only on Thomas Debrezina (the demo Kunde). */}
+                {filePartnerId === "thomas" ? (
+                  <button type="button" className="btn-primary pm-start" onClick={() => openPruefung()}>
+                    <Icon src={a.tickList} size={16} />
+                    {pruefStatus === "offen" ? "Prüfung bei Bestandsmanager" : pruefStatus === "entwurf" ? "Prüfung fortsetzen" : "Beim Kunden prüfen"}
+                  </button>
+                ) : null}
                 <button type="button" className="fg-head-search" aria-label="Suche">
                   <Icon src={a.searchDark} size={18} />
                 </button>
@@ -482,6 +515,12 @@ export function PersonPage() {
                     <span className="pp-section-title">
                       <Icon src={section.icon} size={32} />
                       {countedTitle(section)}
+                      {/* Older Stand open: did this area change on that date, or since when is it unchanged? */}
+                      {standRange ? (
+                        <AreaRangeLine area={area} range={standRange} versions={versions} />
+                      ) : isHistorical && viewingVersion ? (
+                        <AreaStandLine area={area} date={viewingVersion.date} versions={versions} />
+                      ) : null}
                     </span>
                     <button
                       type="button"

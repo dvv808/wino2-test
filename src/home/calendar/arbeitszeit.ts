@@ -7,7 +7,8 @@ import { parseIso } from "./calendarData";
 export type ArbeitszeitBlock = { start: number; end: number; kommentar?: string };
 export type Arbeitszeiten = Record<string, ArbeitszeitBlock[]>;
 
-const KEY = "wino.kalender.arbeitszeit.v1";
+// v2: starts empty (clean Kalender); Arbeitszeit erfasst before is not read.
+const KEY = "wino.kalender.arbeitszeit.v2";
 const EVENT = "wino:arbeitszeit";
 
 export function loadArbeitszeiten(): Arbeitszeiten {

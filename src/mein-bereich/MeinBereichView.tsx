@@ -6,6 +6,7 @@ import { useHonorar } from "../honorar/store";
 import { MyForderungen, ownActionCount } from "./MyForderungen";
 import { DmsBrowser } from "../dms/DmsBrowser";
 import { MeineListen } from "./MeineAntraege";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 type Area = "Mein Bereich" | "Bestand";
 const AREAS: Area[] = ["Mein Bereich", "Bestand"];
@@ -100,9 +101,7 @@ export function MeinBereichView() {
             <AdminTab />
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>

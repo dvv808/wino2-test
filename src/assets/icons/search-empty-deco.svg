@@ -1,0 +1,35 @@
+<svg width="422" height="234" viewBox="0 0 422 234" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g>
+<g>
+<g>
+<g>
+<g>
+<g>
+<mask id="mask0_7655_131915" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="422" height="234">
+<rect width="422" height="234" fill="black"/>
+</mask>
+<g mask="url(#mask0_7655_131915)">
+<g>
+<rect x="148.835" y="83.2627" width="103.626" height="99.6529" rx="5.5" transform="rotate(-15 148.835 83.2627)" stroke="#6C7A84"/>
+<rect x="115.116" y="64.877" width="157.926" height="152.628" rx="5.5" transform="rotate(-15 115.116 64.877)" stroke="#6C7A84"/>
+<rect x="79.7735" y="45.5528" width="214.874" height="208.252" rx="5.5" transform="rotate(-15 79.7735 45.5528)" stroke="#6C7A84"/>
+<rect x="44.4315" y="26.2295" width="273.147" height="263.876" rx="5.5" transform="rotate(-15 44.4315 26.2295)" stroke="#6C7A84"/>
+<rect x="7.46784" y="5.96976" width="334.068" height="322.149" rx="5.5" transform="rotate(-15 7.46784 5.96976)" stroke="#6C7A84"/>
+</g>
+<g style="mix-blend-mode:darken">
+<ellipse cx="210.5" cy="117" rx="324.5" ry="286.54" fill="url(#paint0_radial_7655_131915)"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<radialGradient id="paint0_radial_7655_131915" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(210.5 117) rotate(90) scale(222.738 252.246)">
+<stop stop-color="#454C51" stop-opacity="0"/>
+<stop offset="0.629808" stop-color="#454C51"/>
+</radialGradient>
+</defs>
+</svg>

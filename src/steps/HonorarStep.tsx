@@ -1,10 +1,24 @@
 import * as a from "../assets/index";
 import { Summary } from "../Summary";
 import { EditLink, EntityIcon, Icon, InfoBox, RadioRow, TarifLine, WarnBox } from "../ui";
-import { BANKS, PARTNERS, useWorkflow } from "../workflow";
+import { PARTNERS, useWorkflow } from "../workflow";
 import { commsOptions } from "../person/stammdaten";
 import { CommsSelect, FIELDS } from "./CommsStep";
-import { GueltigkeitInfo } from "./Gueltigkeit";
+import { GueltigkeitInfo, useGueltigkeit } from "./Gueltigkeit";
+import { useFilePerson } from "../chrome";
+import { amountOf, ddmmyyyy, euro } from "../lib/maklervereinbarung/gueltigkeit";
+import {
+  FREQUENCY_ADJ,
+  FREQUENCY_LABEL,
+  MINDESTBETRAG,
+  ZAHLWEISE_AB,
+  companyErsteVerrechnung,
+  zahlweise,
+} from "../lib/maklervereinbarung/zahlweise";
+import type { Frequency } from "../workflow";
+
+/** Julia's fixed Bankverbindungen (workflow BANKS) → their Stammdaten cards. */
+const BANK_CARD: Record<string, string> = { julia: "bank-neon" };
 
 /** Erstmalige Verrechnung on an individual date: a 1st of a month after today. */
 function futureMonth(month: string, year: string) {
@@ -29,6 +43,7 @@ export function HonorarStep() {
     bankId,
     setBankId,
     selectedBank,
+    banks,
     amount,
     billing,
     setBilling,
@@ -54,7 +69,22 @@ export function HonorarStep() {
     commsChoice,
     setCommsChoice,
     openStammdaten,
+    businessAmount,
+    setBusinessAmount,
+    frequency,
+    setFrequency,
   } = useWorkflow();
+  // Unternehmen get the Business Honorar (Figma 21095:72749): own amount, Zahlweise, Abbuchung / Rechnung.
+  const { isCompany } = useFilePerson();
+  const jahresbetrag = amountOf(businessAmount);
+  const tooLow = jahresbetrag < MINDESTBETRAG;
+  const withZahlweise = jahresbetrag >= ZAHLWEISE_AB;
+  const freq: Frequency = withZahlweise ? frequency : "yearly";
+  // Unternehmen: the infos under Hauptfälligkeit follow the Erstmalige Verrechnung directly (Figma 21165:30293,
+  // 21232:21124): Individuelles Datum, or the next 1st after Abschluss.
+  const g = useGueltigkeit();
+  const ab = companyErsteVerrechnung(billing, month, year, g.gueltig);
+  const zw = ab ? zahlweise(ab, jahresbetrag, Number(dueMonth), freq) : null;
 
   return (
     <>
@@ -71,7 +101,7 @@ export function HonorarStep() {
         <div className="form-col">
           <div className="radio-stack">
             <RadioRow selected={model === "privat"} onSelect={() => chooseModel("privat")}>
-              Honorartarif: Privat
+              Honorartarif: {isCompany ? "Business" : "Privat"}
             </RadioRow>
             <RadioRow selected={model === "partner"} onSelect={() => chooseModel("partner")}>
               bei anderem Partner mit umfasst
@@ -169,8 +199,25 @@ export function HonorarStep() {
           {model === "custom" && (
             <div className="block">
               <InfoBox>
-                Zwischen den Vertragspartnern wird individuell vereinbart, dass für die Erbringung
-                der unselbständigen Nebenleistungen kein gesondertes Honorar geschuldet wird.
+                <span className={isCompany ? "info-lead" : undefined}>
+                  Zwischen den Vertragspartnern wird individuell vereinbart, dass für die Erbringung
+                  der unselbständigen Nebenleistungen kein gesondertes Honorar geschuldet wird.
+                </span>
+                {/* Unternehmen only; Privatkunden keep the first paragraph (Figma 21107:76134). */}
+                {isCompany && (
+                  <>
+                    <br />
+                    <br />
+                    <span>
+                      Für die Dauer dieser Honorarvereinbarung wird zu weiteren Personen oder Unternehmen innerhalb
+                      der Sphäre des Kunden kein gesondertes Honorar verrechnet, sofern deren Einbeziehung bei
+                      Abschluss dieser Maklervereinbarung individuell vereinbart wurde. Nachträgliche Änderungen des
+                      einbezogenen Personen- oder Unternehmenskreises sowie sonstige wesentliche Änderungen der
+                      Verhältnisse des Kunden, die den Betreuungsaufwand beeinflussen, können eine Anpassung des
+                      vereinbarten Honorars erforderlich machen.
+                    </span>
+                  </>
+                )}
               </InfoBox>
               {/* Pflichtfeld: why no Honorar is charged has to be documented. */}
               <span className="field-label">Notiz*</span>
@@ -186,7 +233,41 @@ export function HonorarStep() {
             </div>
           )}
 
-          {model === "privat" && (
+          {model === "privat" && isCompany && (
+            <>
+              <div className="block">
+                <h3>Zahlungsinformationen</h3>
+                <div className="label-row">
+                  <span className="field-label">Honorarbetrag jährlich</span>
+                </div>
+                <input
+                  className={tooLow ? "text-field invalid" : "text-field"}
+                  aria-label="Honorarbetrag jährlich"
+                  aria-invalid={tooLow}
+                  value={businessAmount}
+                  onChange={(e) => setBusinessAmount(e.target.value)}
+                  onBlur={() => setBusinessAmount(euro(jahresbetrag).replace("€", "EUR"))}
+                />
+                {tooLow && <p className="field-error">Der Honorarbetrag muss mindestens EUR 300,00 betragen.</p>}
+                <InfoBox>Mindestbetrag EUR 300,00</InfoBox>
+              </div>
+              {/* Zahlweise only from EUR 1.000,00 a year; below that the Honorar is billed yearly (Figma 21107:75550). */}
+              {withZahlweise && (
+                <div className="block">
+                  <span className="field-label">Zahlweise</span>
+                  <div className="radio-stack">
+                    {(Object.keys(FREQUENCY_LABEL) as Frequency[]).map((f) => (
+                      <RadioRow key={f} selected={frequency === f} onSelect={() => setFrequency(f)}>
+                        {FREQUENCY_LABEL[f]}
+                      </RadioRow>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {model === "privat" && !isCompany && (
             <div className="block">
               <h3>Zahlungsinformationen</h3>
               <div className="label-row">
@@ -217,6 +298,7 @@ export function HonorarStep() {
               </RadioRow>
             </div>
           </div>
+
 
           {billing === "custom" && (
             <div className="block">
@@ -249,7 +331,14 @@ export function HonorarStep() {
               {futureMonth(month, year) ? null : (
                 <p className="field-error">Nur ein Monatserster in der Zukunft ist möglich.</p>
               )}
-              <InfoBox>Hier sind nur Werte in der Zukunft zulässig. Alles davor ist gesperrt und nicht auswählbar.</InfoBox>
+              {isCompany ? (
+                <InfoBox>
+                  Individuelles Datum festgelegt. Bitte beachte, dass die Maklervereinbarung vor diesem Datum
+                  unterzeichnet werden muss.
+                </InfoBox>
+              ) : (
+                <InfoBox>Hier sind nur Werte in der Zukunft zulässig. Alles davor ist gesperrt und nicht auswählbar.</InfoBox>
+              )}
             </div>
           )}
 
@@ -257,15 +346,29 @@ export function HonorarStep() {
             <span className="field-label">Hauptfälligkeit</span>
             <div className="date-row">
               <span className="am-label">Am</span>
-              <input className="date-box" value={dueDay} onChange={(e) => setDueDay(e.target.value)} />
+              {isCompany ? (
+                // Unternehmen: the day is always the 1st, only the month can change (Figma 21165:30087).
+                <span className="date-box locked" title="Hauptfälligkeit immer zum Monatsersten">
+                  01
+                </span>
+              ) : (
+                <input className="date-box" value={dueDay} onChange={(e) => setDueDay(e.target.value)} />
+              )}
               <input
-                className="date-box"
+                className={isCompany ? "date-box open" : "date-box"}
+                aria-label="Monat der Hauptfälligkeit"
+                inputMode="numeric"
+                maxLength={2}
                 value={dueMonth}
-                onChange={(e) => setDueMonth(e.target.value)}
+                onChange={(e) => setDueMonth(e.target.value.replace(/\D/g, ""))}
               />
             </div>
-            {/* Gültig ab der letzten Unterschrift; Rumpfjahr aliquot bis zur nächsten Hauptfälligkeit. */}
-            <GueltigkeitInfo />
+            {isCompany ? (
+              <ZahlweiseInfo zw={zw} freq={freq} />
+            ) : (
+              /* Gültig ab der letzten Unterschrift; Rumpfjahr aliquot bis zur nächsten Hauptfälligkeit. */
+              <GueltigkeitInfo />
+            )}
           </div>
 
           <div className="block">
@@ -278,7 +381,7 @@ export function HonorarStep() {
                   setOpenMenu(null);
                 }}
               >
-                SEPA-Lastschrift
+                {isCompany ? "Abbuchung" : "SEPA-Lastschrift"}
               </RadioRow>
               <RadioRow
                 selected={payment === "invoice"}
@@ -287,7 +390,7 @@ export function HonorarStep() {
                   setOpenMenu(null);
                 }}
               >
-                Überweisung
+                {isCompany ? "Rechnung" : "Überweisung"}
               </RadioRow>
             </div>
           </div>
@@ -296,7 +399,15 @@ export function HonorarStep() {
             <div className="block">
               <div className="label-row">
                 <span className="field-label">Bankverbindung für Abbuchung</span>
-                <EditLink />
+                {/* Stammdaten workflow on Bankverbindung, on the picked account's card (Julia's seed bank = bank-neon). */}
+                <EditLink
+                  onClick={() =>
+                    openStammdaten(
+                      "bankverbindungen",
+                      selectedBank ? (BANK_CARD[selectedBank.id] ?? (selectedBank.id.startsWith("bank-") ? selectedBank.id : undefined)) : undefined,
+                    )
+                  }
+                />
               </div>
               <div className="dropdown">
                 <button
@@ -306,16 +417,42 @@ export function HonorarStep() {
                   aria-expanded={openMenu === "bank"}
                 >
                   <EntityIcon src={a.bank} />
-                  <span className="copy">
-                    {selectedBank.name}
-                    <br />
-                    {selectedBank.bank} {selectedBank.iban}
-                  </span>
+                  {selectedBank ? (
+                    <span className="copy">
+                      {selectedBank.name}
+                      <br />
+                      {selectedBank.bank} {selectedBank.iban}
+                    </span>
+                  ) : (
+                    <span className="copy placeholder">Auswahl</span>
+                  )}
                   <Icon src={a.selectCaret} size={16} />
                 </button>
-                {openMenu === "bank" && (
+                {/* No Bankverbindung in the Stammdaten: empty state with a link there (Figma 21165:30468). */}
+                {openMenu === "bank" && banks.length === 0 && (
+                  <div className="dropdown-menu empty">
+                    <div className="empty-menu">
+                      <Icon src={a.noResults} size={32} />
+                      <p>
+                        <strong>Keine Treffer gefunden.</strong>
+                        Bitte ergänze die fehlenden Daten in den Stammdaten.
+                      </p>
+                      <button
+                        type="button"
+                        className="empty-link"
+                        onClick={() => {
+                          setOpenMenu(null);
+                          openStammdaten("bankverbindungen");
+                        }}
+                      >
+                        + Daten ergänzen
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {openMenu === "bank" && banks.length > 0 && (
                   <div className="dropdown-menu">
-                    {BANKS.map((bank) => (
+                    {banks.map((bank) => (
                       <button
                         key={bank.id}
                         type="button"
@@ -353,14 +490,23 @@ export function HonorarStep() {
 
           {payment === "invoice" && (
             <>
-              <div className="block">
-                <span className="field-label">Zahlungsziel (Tage nach Rechnungserhalt)</span>
-                <input
-                  className="text-field"
-                  value={paymentTerm}
-                  onChange={(e) => setPaymentTerm(e.target.value)}
-                />
-              </div>
+              {/* Zahlungsziel only exists for Unternehmen; 14 days is the standard (Figma 21107:75156). */}
+              {isCompany && (
+                <div className="block">
+                  <span className="field-label">Zahlungsziel (Tage nach Rechnungserhalt)</span>
+                  <input
+                    className="text-field"
+                    inputMode="numeric"
+                    value={paymentTerm}
+                    onChange={(e) => setPaymentTerm(e.target.value.replace(/\D/g, ""))}
+                  />
+                  {paymentTerm !== "14" && (
+                    <InfoBox>
+                      Standard sind 14 Tage. Ein abweichendes Zahlungsziel muss je nach Rolle freigegeben werden.
+                    </InfoBox>
+                  )}
+                </div>
+              )}
               <div className="block">
                 <span className="field-label">Notiz</span>
                 <textarea
@@ -391,9 +537,10 @@ export function HonorarStep() {
               field={{ ...FIELDS[1], label: "E-Mail für Rechnungsversand" }}
               help="E-Mail aus Schritt Kommunikationsdaten — Rechnungen werden an diese Adresse versendet."
               groups={commsOptions(sections, "mail")}
-              value={commsChoice.mail}
-              onPick={(pick) => setCommsChoice({ mail: pick })}
-              onEdit={() => openStammdaten("kontakte", commsChoice.mail?.cardId)}
+              // Unternehmen: the Versand mail from Kommunikationsdaten (e.g. office@…), Privat: the central mail.
+              value={isCompany ? commsChoice.versandMail : commsChoice.mail}
+              onPick={(pick) => setCommsChoice(isCompany ? { versandMail: pick } : { mail: pick })}
+              onEdit={() => openStammdaten("kontakte", (isCompany ? commsChoice.versandMail : commsChoice.mail)?.cardId)}
             />
           )}
 
@@ -413,6 +560,46 @@ export function HonorarStep() {
       </section>
 
       <Summary cards={["contact", "honorar"]} />
+    </>
+  );
+}
+
+/** Under Hauptfälligkeit for Unternehmen: the cycle and the first (aliquot) billing (Figma 21232:21124). */
+function ZahlweiseInfo({ zw, freq }: { zw: ReturnType<typeof zahlweise> | null; freq: Frequency }) {
+  if (!zw) {
+    return <InfoBox>Sobald die erstmalige Verrechnung feststeht, siehst du hier die Fälligkeiten und den Betrag.</InfoBox>;
+  }
+  const termine = zw.termine;
+  const list =
+    termine.length > 2 ? (
+      <>
+        <strong>{termine.slice(0, -1).join(", ")}</strong> und zum <strong>{termine.at(-1)}</strong>
+      </>
+    ) : (
+      <strong>{termine.join(", ")}</strong>
+    );
+  return (
+    <>
+      {freq !== "yearly" && (
+        <InfoBox>
+          Das Honorar wird ab dem <strong>{ddmmyyyy(zw.ab)}</strong> verrechnet. In der Folge wird das Honorar
+          jeweils zum {list} eines jeden Jahres fällig. Das {FREQUENCY_ADJ[freq]} Honorar beträgt{" "}
+          {euro(zw.rate).replace("€", "EUR")}.
+        </InfoBox>
+      )}
+      <InfoBox>
+        {zw.monate > 0 ? (
+          <>
+            Das zum <strong>{ddmmyyyy(zw.ab)}</strong> fällige Honorar wird aliquot für den Zeitraum{" "}
+            <strong>{ddmmyyyy(zw.ab)}</strong> bis <strong>{ddmmyyyy(zw.bis)}</strong> berechnet und beträgt{" "}
+            <strong>{euro(zw.betrag)}</strong>.
+          </>
+        ) : (
+          <>
+            Das zum <strong>{ddmmyyyy(zw.ab)}</strong> fällige Honorar beträgt <strong>{euro(zw.betrag)}</strong>.
+          </>
+        )}
+      </InfoBox>
     </>
   );
 }

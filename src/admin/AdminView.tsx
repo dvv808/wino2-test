@@ -12,6 +12,7 @@ import { Zuordnung } from "../dms/admin/Zuordnung";
 import type { Ansicht } from "../types/dms";
 import { useDms } from "../dms/store";
 import { eingang } from "../lib/dms/views";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 /** Ordner Zuordnung (build and link) and Spaces (the outcome) belong together, like a pill group in HRM. */
 const PAIR = [
@@ -76,9 +77,7 @@ export function AdminView() {
             </div>
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>

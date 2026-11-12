@@ -196,7 +196,7 @@ function SideNav({
               <i className="kal-key office" /> Anderes Büro (z. B. Kapfenberg)
             </li>
             <li>
-              <i className="kal-key homeoffice" /> Homeoffice (schraffiert = Antrag offen)
+              <i className="kal-key homeoffice" /> Homeoffice
             </li>
           </ul>
         ) : null}

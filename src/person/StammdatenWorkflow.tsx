@@ -6,11 +6,14 @@ import { WicoDeviationBox } from "../Summary";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
-import { getPartner } from "./partners";
+import { getPartner, type PartnerId } from "./partners";
 import { useFamilyLinks } from "./familyLinks";
 import { useKonzernLinks } from "./konzernLinks";
 import { SaveConfirm } from "./SaveConfirm";
 import { bindVerknuepfungSave } from "./verknuepfungSave";
+import { sonstigeSave, useSonstigeLinks } from "./sonstigeLinks";
+import { standDate } from "./versions";
+import { PruefDock } from "./PruefDock";
 import { VerknuepfungPanel } from "./Verknuepfung";
 import {
   AddressFields,
@@ -86,17 +89,40 @@ import {
   type VereinEntry,
   type WirtschaftForm,
 } from "./stammdaten";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 function Identity() {
   return <FileIdentity className="sw-id" />;
 }
 
+/**
+ * The wave tabs all share one width. A label wraps onto a second line; only when it would need a third line it is
+ * cut after two and fades out ("clipped", measured after layout and on resize).
+ */
+function useClippedLabels() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const bar = ref.current;
+    if (!bar) return;
+    const check = () =>
+      bar.querySelectorAll<HTMLElement>(".step-label").forEach((label) => {
+        label.classList.toggle("clipped", label.scrollHeight > label.clientHeight + 1);
+      });
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
+  return ref;
+}
+
 function Stepper() {
   const { stammdatenArea, goStammdatenArea } = useWorkflow();
+  const barRef = useClippedLabels();
 
   return (
     <div className="stepper-wrap">
-      <div className="stepper sw-stepper">
+      <div className="stepper sw-stepper" ref={barRef}>
         {STAMMDATEN_AREAS.map((area) => (
           <button
             key={area.id}
@@ -110,7 +136,7 @@ function Stepper() {
                 <Icon src={area.icon} size={16} />
               </span>
             </span>
-            <span className="step-label">
+            <span className="step-label" title={area.label.replace("\n", " ")}>
               {area.label.split("\n").map((line) => (
                 <span key={line} style={{ display: "block" }}>
                   {line}
@@ -139,6 +165,7 @@ export function StammdatenWorkflow() {
     stammdatenDirty,
     stammdatenCanPublish,
     isHistorical,
+    versions,
     viewingVersion,
     viewingVersionId,
     openVersionHistory,
@@ -149,6 +176,9 @@ export function StammdatenWorkflow() {
     wicoDeviationNote,
     setWicoDeviationNote,
     commitWicoDeviationNote,
+    originContact,
+    personName,
+    openPartner,
   } = useWorkflow();
   const family = useFamilyLinks();
   const konzern = useKonzernLinks();
@@ -159,23 +189,28 @@ export function StammdatenWorkflow() {
       snapshot: () => {
         family.snapshot();
         konzern.snapshot();
+        sonstigeSave.snapshot();
       },
       commit: () => {
         family.commitSnapshot();
         konzern.commitSnapshot();
+        sonstigeSave.snapshot();
       },
       revert: () => {
         family.revert();
         konzern.revert();
+        sonstigeSave.revert();
       },
       publish: () => {
         family.publish(filePartnerId);
         konzern.publish(filePartnerId, isCompanyFile ? "company" : "person");
+        sonstigeSave.publish(filePartnerId);
       },
-      dirty: () => family.isDirty() || konzern.isDirty(),
+      dirty: () => family.isDirty() || konzern.isDirty() || sonstigeSave.dirty(),
       publishable: () =>
         family.hasPublishable(filePartnerId) ||
-        konzern.hasPublishable(filePartnerId, isCompanyFile ? "company" : "person"),
+        konzern.hasPublishable(filePartnerId, isCompanyFile ? "company" : "person") ||
+        sonstigeSave.publishable(filePartnerId),
     });
   }, [family, konzern, filePartnerId, isCompanyFile]);
 
@@ -187,12 +222,16 @@ export function StammdatenWorkflow() {
   const selected = cards.find((card) => card.id === stammdatenCardId) ?? cards[0] ?? null;
   const blank = BLANK_AREAS.includes(stammdatenArea);
   const isCompany = getPartner(filePartnerId).fileKind === "company";
-  const vkDirty = family.isDirty() || konzern.isDirty();
+  // Re-render when a Sonstiges link changes (its store lives outside React context).
+  useSonstigeLinks();
+  const vkDirty = family.isDirty() || konzern.isDirty() || sonstigeSave.dirty();
   const vkPublishable =
     family.hasPublishable(filePartnerId) ||
-    konzern.hasPublishable(filePartnerId, isCompany ? "company" : "person");
+    konzern.hasPublishable(filePartnerId, isCompany ? "company" : "person") ||
+    sonstigeSave.publishable(filePartnerId);
   const canSaveDraft = stammdatenDirty || vkDirty;
-  const canPublish = stammdatenCanPublish || vkPublishable;
+  // Speichern: new links and changes to existing ones (Familie, Konzern, Sonstiges) alike.
+  const canPublish = (stammdatenCanPublish || vkPublishable || vkDirty) && !sonstigeSave.incomplete(filePartnerId);
   const canAdd = MULTI_CARD_AREAS.includes(stammdatenArea) && !(isCompany && stammdatenArea === "wirtschaftsdaten");
 
   const [partner, setPartner] = useState<PartnerForm>(EMPTY_PARTNER);
@@ -271,8 +310,28 @@ export function StammdatenWorkflow() {
     if (selected) patchStammdatenCard(stammdatenArea, applyPartner(selected, form, true));
   }
 
-  function updateContact(form: ContactForm) {
+  // Privatperson: every person contact is a partner of its own (e.g. Udo Ladraida, Ehemann). Its Telefon,
+  // E-Mail and Links come from that partner's profile and are locked here (Figma 22712:142039). With an own
+  // file the data is taken from there; without one, the stored data stays as it is.
+  // Unternehmen are the exception – e.g. the Geschäftsführung keeps its own company numbers.
+  const sameName = (left: string, right: string) => left.trim().toLowerCase() === right.trim().toLowerCase();
+  function lockedOrigin(form: ContactForm) {
+    if (isCompanyFile || form.kind !== "person" || !form.partner.trim() || sameName(form.partner, personName)) return null;
+    const origin = originContact(form.partner);
+    return origin ?? { partnerId: null, name: form.partner, form: null };
+  }
+  const contactOrigin = stammdatenArea === "kontakte" ? lockedOrigin(contact) : null;
+
+  function updateContact(next: ContactForm) {
     if (isHistorical) return;
+    const origin = lockedOrigin(next);
+    const form = !origin
+      ? next
+      : origin.partnerId
+        ? { ...next, phones: origin.form?.phones ?? [], mails: origin.form?.mails ?? [], websites: origin.form?.websites ?? [] }
+        : sameName(next.partner, contact.partner)
+          ? { ...next, phones: contact.phones, mails: contact.mails, websites: contact.websites }
+          : { ...next, phones: [], mails: [], websites: [] };
     setContact(form);
     if (selected) {
       patchStammdatenCard(stammdatenArea, applyContact(selected, form, true));
@@ -467,9 +526,7 @@ export function StammdatenWorkflow() {
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>
@@ -488,8 +545,8 @@ export function StammdatenWorkflow() {
               onClick={openVersionHistory}
             >
               <Icon src={a.history} size={16} />
-              Version {viewingVersion?.number ?? 1}
-              {isHistorical ? " · veraltet" : " · aktuell"}
+              {/* No version numbers: a Stand is named by its date; the latest date is aktuell. */}
+              {isHistorical ? `Stand ${viewingVersion?.date ?? ""} · veraltet` : `Stand ${standDate(versions)} · aktuell`}
             </button>
             </div>
 
@@ -533,8 +590,8 @@ export function StammdatenWorkflow() {
                     <>
                       {isHistorical ? (
                         <Notice tone="pending" title="Nur Ansicht">
-                          Das ist Version {viewingVersion?.number} · veraltet ({viewingVersion?.date}). Änderungen
-                          machst du in der aktuellen Version.
+                          Das ist der Stand vom {viewingVersion?.date} · veraltet. Änderungen machst du im aktuellen
+                          Stand ({standDate(versions)}).
                         </Notice>
                       ) : null}
                       {versionSaveError ? (
@@ -619,7 +676,23 @@ export function StammdatenWorkflow() {
                       />
                     )}
                   {stammdatenArea === "kontakte" && (
-                    <ContactFields form={contact} onChange={updateContact} onRemoved={notifyRemoved} />
+                    <ContactFields
+                      form={contact}
+                      onChange={updateContact}
+                      onRemoved={notifyRemoved}
+                      origin={
+                        contactOrigin
+                          ? {
+                              name: contactOrigin.name,
+                              // Without an own file the profile data is what this card already holds.
+                              form: contactOrigin.partnerId ? contactOrigin.form : contact,
+                              onOpen: contactOrigin.partnerId
+                                ? () => openPartner(contactOrigin.partnerId as PartnerId)
+                                : undefined,
+                            }
+                          : null
+                      }
+                    />
                   )}
                   {stammdatenArea === "adressen" && (
                     <AddressFields form={address} onChange={updateAddress} />
@@ -663,6 +736,7 @@ export function StammdatenWorkflow() {
                         onDelete={() => setPendingDelete(card)}
                       />
                     ))}
+                    {stammdatenArea === "personendaten" ? <VertretungBox /> : null}
                   </div>
                 </aside>
               </>
@@ -670,18 +744,11 @@ export function StammdatenWorkflow() {
           </main>
           </div>
 
-          <footer className="footer">
-            <button type="button" className="btn-secondary" onClick={() => closeStammdaten(true)}>
-              Abbrechen
-            </button>
-            <div className="footer-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={isHistorical || !canSaveDraft}
-                onClick={() => saveStammdaten(false)}
-              >
-                Entwurf speichern
+          <footer className="footer sw-footer">
+            {/* Only Abbrechen and Speichern for now, spanning the form column (Entwurf speichern is parked). */}
+            <div className="sw-footer-actions">
+              <button type="button" className="btn-secondary" onClick={() => closeStammdaten(true)}>
+                Abbrechen
               </button>
               <button
                 type="button"
@@ -712,6 +779,9 @@ export function StammdatenWorkflow() {
         />
       ) : null}
 
+      {/* A Stammdaten-Prüfung of this partner is open: its Änderungswünsche dock beside the form. */}
+      <PruefDock />
+
       {confirmSave ? (
         <SaveConfirm
           onCancel={() => setConfirmSave(false)}
@@ -734,6 +804,28 @@ export function StammdatenWorkflow() {
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** Vertretung erstellen: sits under the Partnerdaten card (Figma 20521:223451). */
+function VertretungBox() {
+  const [on, setOn] = useState(false);
+  return (
+    <div className="sw-vertretung">
+      <p>
+        <strong>Vertretung erstellen</strong>
+        Wird die Person vertreten? Erstelle Bevollmächtigte Person oder Erwachsenenvertreter mit eigenen Kontaktdaten.
+      </p>
+      <button
+        type="button"
+        className={on ? "sw-switch on" : "sw-switch"}
+        aria-pressed={on}
+        aria-label="Vertretung erstellen"
+        onClick={() => setOn(!on)}
+      >
+        <span className="sw-switch-knob" />
+      </button>
     </div>
   );
 }

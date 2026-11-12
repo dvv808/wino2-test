@@ -13,6 +13,7 @@ export type SourceItem = {
 
 export const SOURCE_ITEMS: SourceItem[] = [
   { source: "partner.stammdaten.anhang", slot: "anhang", module: "Stammdaten", label: "Allgemeine Partnerdaten → Anhänge", entityType: "Partner", dokumenttyp: "anhang" },
+  { source: "partner.stammdaten.anhang", slot: "pruefung", module: "Stammdaten", label: "Stammdaten prüfen → Anhänge", entityType: "Partner", dokumenttyp: "anhang" },
   { source: "partner.stammdaten.anhang", slot: "wirtschaft", module: "Stammdaten", label: "Wirtschaftsdaten → Anhänge", entityType: "Partner", dokumenttyp: "anhang" },
   { source: "partner.bank", slot: "bank", module: "Stammdaten", label: "Bankverbindung → Dokumente", entityType: "Partner", dokumenttyp: "bankdokument" },
   { source: "maklervereinbarung.vertrag", slot: "vertrag", module: "Maklervereinbarung", label: "Vertrag hochladen", entityType: "Partner", dokumenttyp: "maklervereinbarung" },

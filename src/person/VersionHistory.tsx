@@ -4,7 +4,8 @@ import * as a from "../assets/index";
 import { PersonAvatar, codeFor } from "../approvalTabs";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { latestLegalNumber, personNameFromVersion, type HistoryKind, type PersonVersion } from "./versions";
+import { latestEntry, personNameFromVersion, standDate, type HistoryKind, type PersonVersion } from "./versions";
+import { areaTitle } from "./stammdaten";
 
 const KIND: Record<HistoryKind, { label: string; icon: string }> = {
   added: { label: "Hinzugefügt", icon: a.badgeAdd },
@@ -24,13 +25,24 @@ type SourceKey = "" | "stammdaten" | "makler" | "person";
 
 type Filters = {
   source: SourceKey;
+  /** A Stammdaten area within the source (Kontakte, Adressen …); "" = all. */
+  area: string;
   date: string;
   kind: "" | HistoryKind;
   field: string;
   person: string;
+  /** Free text: Inhalt, alter/neuer Wert, Ort, Person, Datum. */
+  query: string;
+  /** Zeitraum (yyyy-mm-dd from the date inputs); either end may be open. */
+  from: string;
+  to: string;
 };
 
-const EMPTY_FILTERS: Filters = { source: "", date: "", kind: "", field: "", person: "" };
+const EMPTY_FILTERS: Filters = { source: "", area: "", date: "", kind: "", field: "", person: "", query: "", from: "", to: "" };
+
+const isoKey = (iso: string) => Number(iso.replace(/-/g, ""));
+/** yyyy-mm-dd → dd.mm.yyyy */
+const isoToDmy = (iso: string) => iso.split("-").reverse().join(".");
 
 const SOURCE_LABEL: Record<Exclude<SourceKey, "">, string> = {
   stammdaten: "Stammdaten",
@@ -53,12 +65,11 @@ function defaultSource(view: string): SourceKey {
   return "";
 }
 
-function groupedNewestFirst(versions: PersonVersion[]) {
-  const numbers = [...new Set(versions.map((version) => version.number))].sort((left, right) => right - left);
-  return numbers.map((number) => ({
-    number,
-    items: versions.filter((version) => version.number === number).slice().reverse(),
-  }));
+/** Year groups, newest first; inside a year the newest change first. */
+function groupedByYear(versions: PersonVersion[]) {
+  const sorted = versions.slice().sort((left, right) => dateSortKey(right.date) - dateSortKey(left.date));
+  const years = [...new Set(sorted.map((version) => version.date.slice(-4)))];
+  return years.map((year) => ({ year, items: sorted.filter((version) => version.date.endsWith(year)) }));
 }
 
 function dateSortKey(date: string) {
@@ -72,36 +83,69 @@ function uniqueSorted(values: string[], compare: (left: string, right: string) =
 
 function matchesFilters(version: PersonVersion, filters: Filters) {
   if (filters.source && sourceOf(version) !== filters.source) return false;
+  if (filters.area && !(version.place.app === "stammdaten" && version.place.area === filters.area)) return false;
+  const needle = filters.query.trim().toLowerCase();
+  if (
+    needle &&
+    ![version.field, version.from, version.to, version.placeLabel, version.editor.name, version.date, version.attachment?.name]
+      .filter(Boolean)
+      .some((text) => String(text).toLowerCase().includes(needle))
+  ) {
+    return false;
+  }
   if (filters.date && version.date !== filters.date) return false;
+  if (filters.from && dateSortKey(version.date) < isoKey(filters.from)) return false;
+  if (filters.to && dateSortKey(version.date) > isoKey(filters.to)) return false;
   if (filters.kind && version.kind !== filters.kind) return false;
   if (filters.field && version.field !== filters.field) return false;
   if (filters.person && version.editor.name !== filters.person) return false;
   return true;
 }
 
+/** Only the year of the current Stand starts open. */
 function defaultCollapsed(versions: PersonVersion[]) {
-  const current = latestLegalNumber(versions);
-  return new Set([...new Set(versions.map((version) => version.number))].filter((number) => number !== current));
+  const current = standDate(versions).slice(-4);
+  return new Set([...new Set(versions.map((version) => version.date.slice(-4)))].filter((year) => year !== current));
 }
 
 /** Yellow bar across the whole product while an older published stand is open. */
 export function HistoricalBanner() {
-  const { isHistorical, viewingVersion, versions, viewCurrentVersion } = useWorkflow();
+  const { isHistorical, viewingVersion, versions, viewCurrentVersion, standRange } = useWorkflow();
+  if (standRange && viewingVersion) {
+    return createPortal(
+      <div className="hist-banner range" role="status">
+        <Icon src={a.history} size={22} />
+        <p>
+          <strong>
+            Zeitraum {standRange.from} – {standRange.to}
+          </strong>
+          <span>
+            Stand am Ende des Zeitraums ({viewingVersion.date}); bei jedem Bereich steht, wie oft er im Zeitraum geändert
+            wurde.
+          </span>
+        </p>
+        <button type="button" className="hist-banner-back" onClick={viewCurrentVersion}>
+          Zum aktuellen Stand ({standDate(versions)})
+        </button>
+      </div>,
+      document.body,
+    );
+  }
   if (!isHistorical || !viewingVersion) return null;
-  const currentNumber = latestLegalNumber(versions);
+  const currentDate = standDate(versions);
 
   return createPortal(
     <div className="hist-banner" role="status">
       <Icon src={a.attention} size={22} />
       <p>
-        <strong>Version {viewingVersion.number} · veraltet</strong>
+        <strong>Stand {viewingVersion.date} · veraltet</strong>
         <span>
-          {personNameFromVersion(viewingVersion)} · {viewingVersion.date}. Du siehst einen früheren Stand. Aktuell ist
-          Version {currentNumber}.
+          {personNameFromVersion(viewingVersion)}. Du siehst einen früheren Stand. Aktuell ist der Stand vom{" "}
+          {currentDate}.
         </span>
       </p>
       <button type="button" className="hist-banner-back" onClick={viewCurrentVersion}>
-        Zur aktuellen Version {currentNumber}
+        Zum aktuellen Stand ({currentDate})
       </button>
     </div>,
     document.body,
@@ -128,10 +172,12 @@ function HistoryValue({ version }: { version: PersonVersion }) {
 
 function HistoryRow({
   version,
+  current,
   active,
   onOpen,
 }: {
   version: PersonVersion;
+  current: boolean;
   active: boolean;
   onOpen: () => void;
 }) {
@@ -144,10 +190,11 @@ function HistoryRow({
         className={`ver-win-item${active ? " active" : ""}${version.legal ? " legal" : ""}`}
         onClick={onOpen}
       >
-        <span className="ver-win-when">
+        <span className="ver-win-when" title="Stand von diesem Datum öffnen">
           {version.date}
           <br />
           {version.time}
+          {current ? <em className="ver-win-now">aktuell</em> : null}
         </span>
         <span className="ver-win-typ">
           <span className={`vl-badge ${version.kind}`}>
@@ -234,7 +281,7 @@ function ColumnFilter({
 
 /** Floating versions list. Not a modal: the person file stays usable behind it. */
 export function VersionWindow() {
-  const { view, versions, viewingVersionId, versionHistoryOpen, closeVersionHistory, openHistoryChange } =
+  const { view, versions, viewingVersionId, versionHistoryOpen, closeVersionHistory, openHistoryChange, openStandRange } =
     useWorkflow();
   const [pos, setPos] = useState(() => ({
     x: typeof window === "undefined" ? 24 : Math.max(24, window.innerWidth - 620),
@@ -276,12 +323,19 @@ export function VersionWindow() {
     };
   }, [openCol]);
 
+  // Area filter: the app, and within Stammdaten each area that has changes (value "stammdaten:<area>").
   const areaOptions = useMemo(() => {
     const options = [
       { value: "", label: "Alle" },
       { value: "stammdaten", label: "Stammdaten" },
-      { value: "makler", label: "Maklervereinbarung" },
     ];
+    const areas = [
+      ...new Set(
+        versions.flatMap((version) => (version.place.app === "stammdaten" ? [version.place.area] : [])),
+      ),
+    ];
+    for (const area of areas) options.push({ value: `stammdaten:${area}`, label: `Stammdaten · ${areaTitle(area)}` });
+    options.push({ value: "makler", label: "Maklervereinbarung" });
     if (versions.some((version) => sourceOf(version) === "person")) {
       options.push({ value: "person", label: "Person" });
     }
@@ -328,13 +382,36 @@ export function VersionWindow() {
   }, [scoped]);
 
   const groups = useMemo(
-    () => groupedNewestFirst(versions.filter((version) => matchesFilters(version, filters))),
+    () => groupedByYear(versions.filter((version) => matchesFilters(version, filters))),
     [versions, filters],
   );
+  const filtering = Object.values(filters).some(Boolean);
 
   if (!versionHistoryOpen) return null;
 
-  const latest = latestLegalNumber(versions);
+  const latestId = latestEntry(versions)?.id;
+  const areaValue = filters.area ? `stammdaten:${filters.area}` : filters.source;
+  const chips = [
+    filters.query.trim() ? { key: "query", label: `„${filters.query.trim()}“` } : null,
+    areaValue ? { key: "area", label: areaOptions.find((option) => option.value === areaValue)?.label ?? areaValue } : null,
+    filters.date ? { key: "date", label: filters.date } : null,
+    filters.from || filters.to
+      ? { key: "range", label: `${filters.from ? isoToDmy(filters.from) : "Anfang"} – ${filters.to ? isoToDmy(filters.to) : "heute"}` }
+      : null,
+    filters.kind ? { key: "kind", label: KIND[filters.kind].label } : null,
+    filters.field ? { key: "field", label: filters.field } : null,
+    filters.person ? { key: "person", label: codeFor(filters.person) } : null,
+  ].filter((chip): chip is { key: string; label: string } => Boolean(chip));
+
+  function clearFilter(key: string) {
+    setFilters((current) =>
+      key === "area"
+        ? { ...current, source: "", area: "" }
+        : key === "range"
+          ? { ...current, from: "", to: "" }
+          : { ...current, [key]: "" },
+    );
+  }
 
   function onPointerDown(event: ReactPointerEvent<HTMLElement>) {
     if ((event.target as HTMLElement).closest("button")) return;
@@ -358,11 +435,11 @@ export function VersionWindow() {
     setOpenCol((current) => (current === col ? null : col));
   }
 
-  function toggleGroup(number: number) {
+  function toggleGroup(year: string) {
     setCollapsed((current) => {
       const next = new Set(current);
-      if (next.has(number)) next.delete(number);
-      else next.add(number);
+      if (next.has(year)) next.delete(year);
+      else next.add(year);
       return next;
     });
   }
@@ -384,6 +461,64 @@ export function VersionWindow() {
         </button>
       </header>
       <div className="ver-win-list" ref={listRef}>
+        <div className="ver-win-tools">
+          <label className="ver-win-search">
+            <Icon src={a.searchDark} size={16} />
+            <input
+              type="search"
+              placeholder="Im Verlauf suchen (Inhalt, Wert, Person, Datum)"
+              value={filters.query}
+              onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))}
+            />
+          </label>
+          {/* Zeitraum: filters the list; "Als Ansicht öffnen" shows the file as of its end, areas marked by
+              how many changes fell inside it. */}
+          <div className="ver-win-range">
+            <span>Zeitraum</span>
+            <input
+              type="date"
+              aria-label="Von"
+              value={filters.from}
+              max={filters.to || undefined}
+              onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
+            />
+            <span>–</span>
+            <input
+              type="date"
+              aria-label="Bis"
+              value={filters.to}
+              min={filters.from || undefined}
+              onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
+            />
+            <button
+              type="button"
+              className="ver-win-range-open"
+              disabled={!filters.from && !filters.to}
+              onClick={() => {
+                const dates = versions.map((version) => version.date).sort((x, y) => dateSortKey(x) - dateSortKey(y));
+                openStandRange(
+                  filters.from ? isoToDmy(filters.from) : dates[0] ?? "",
+                  filters.to ? isoToDmy(filters.to) : standDate(versions),
+                );
+              }}
+            >
+              Als Ansicht öffnen
+            </button>
+          </div>
+          {chips.length ? (
+            <div className="ver-win-chips">
+              {chips.map((chip) => (
+                <button key={chip.key} type="button" className="ver-win-chip" onClick={() => clearFilter(chip.key)}>
+                  {chip.label}
+                  <img src={a.iconCloseDark} alt="Filter entfernen" width={8} height={8} />
+                </button>
+              ))}
+              <button type="button" className="ver-win-reset" onClick={() => setFilters(EMPTY_FILTERS)}>
+                Alle zurücksetzen
+              </button>
+            </div>
+          ) : null}
+        </div>
         <div className="ver-win-cols">
           <ColumnFilter
             col="date"
@@ -417,10 +552,11 @@ export function VersionWindow() {
             open={openCol === "area"}
             filtered={Boolean(filters.source)}
             options={areaOptions}
-            value={filters.source}
+            value={areaValue}
             onToggle={toggleCol}
-            onPick={(source) => {
-              setFilters((current) => ({ ...current, source: source as SourceKey }));
+            onPick={(value) => {
+              const [source, area = ""] = value.split(":");
+              setFilters((current) => ({ ...current, source: source as SourceKey, area }));
               setOpenCol(null);
             }}
           />
@@ -457,11 +593,12 @@ export function VersionWindow() {
             <p className="ver-win-empty">Keine Einträge</p>
           ) : (
             groups.map((group) => {
-              const current = group.number === latest;
-              const open = !collapsed.has(group.number);
+              const current = group.items.some((version) => version.id === latestId);
+              // Searching or filtering shows every hit; otherwise only the current year starts open.
+              const open = filtering || !collapsed.has(group.year);
               return (
                 <section
-                  key={group.number}
+                  key={group.year}
                   className={`ver-win-group${current ? " current" : " outdated"}${open ? " open" : ""}`}
                 >
                   <header className="ver-win-group-head">
@@ -469,15 +606,16 @@ export function VersionWindow() {
                       type="button"
                       className="ver-win-group-toggle"
                       aria-expanded={open}
-                      onClick={() => toggleGroup(group.number)}
+                      onClick={() => toggleGroup(group.year)}
                     >
                       <span className="ver-win-group-title">
                         <Icon src={a.chevronDown} size={14} className="ver-win-group-caret" />
-                        <strong>Version {group.number}</strong>
+                        <strong>{group.year}</strong>
+                        <small>
+                          {group.items.length} {group.items.length === 1 ? "Änderung" : "Änderungen"}
+                        </small>
                       </span>
-                      <span className={`ver-state ${current ? "current" : "outdated"}`}>
-                        {current ? "aktuell" : "veraltet"}
-                      </span>
+                      {current ? <span className="ver-state current">aktueller Stand</span> : null}
                     </button>
                   </header>
                   <ul hidden={!open}>
@@ -485,6 +623,7 @@ export function VersionWindow() {
                       <HistoryRow
                         key={version.id}
                         version={version}
+                        current={version.id === latestId}
                         active={version.id === viewingVersionId}
                         onOpen={() => openHistoryChange(version.id)}
                       />

@@ -48,6 +48,8 @@ export const COMPANY_DIRECTORY: CompanyRecord[] = [
   { id: "alpine-cover", name: "Alpine Cover AG", city: "Innsbruck", zip: "6020", street: "Maria-Theresien-Straße 18", fn: "441208" },
   { id: "sommer", name: "Sommer GmbH", city: "Wels", zip: "4600", street: "Kaiser-Josef-Platz 3", fn: "318902" },
   { id: "winter-holding", name: "Winter Holding GmbH", city: "Wien", zip: "1010", street: "Kärntner Straße 21", fn: "120447" },
+  // Sonstige Verknüpfung (Figma 22715:142102): Hausverwaltung of the Liegenschaft.
+  { id: "oo-haus-services", name: "O&O Haus-Services", city: "Salzburg", zip: "5020", street: "Getreidegasse 12" },
 ];
 
 const LEGAL_FORM = /\s+(AG|GmbH|KG|OG|SE)\.?$/i;

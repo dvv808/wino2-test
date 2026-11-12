@@ -155,48 +155,20 @@ export const KALENDER: KalenderDef[] = [
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
 
 /**
- * One demo week around `today`, laid out like the Figma frame: Mo office day + meetings, Di holiday,
- * Mi (today in Figma) two overlapping meetings, Do Urlaub (open / rejected), Fr trip with Abfahrt/Ankunft.
+ * The week around `today`, clean: no Termine, Urlaub, Reisen or erfasste Arbeitszeit – only the Nationalfeiertag
+ * (Di) stays. Sollzeit per day stays, Istzeit starts at 0:00 until Arbeitszeit is erfasst.
  */
 export function seedWeek(today: string) {
   const [mo, di, mi, doo, fr] = weekDays(today);
-  const entries: CalendarEntry[] = [
-    { id: "e1", calendar: "lucy", day: mo, start: h(7), end: h(7, 45), kind: "privat", title: "Meeting Zahnarzt" },
-    { id: "e2", calendar: "lucy", day: mo, start: h(8), end: h(10, 30), kind: "termin", title: "Meeting Innendienst", teams: true, ort: "Besprechungsraum 2" },
-    { id: "e3", calendar: "lucy", day: mo, start: h(11), end: h(13), kind: "termin", title: "Mittagessen mit Susanne Innendienst" },
-    { id: "e4", calendar: "lucy", day: mo, start: h(15), end: h(17), kind: "termin", title: "Meeting Kunde M Stoviak", ort: "Schladming" },
-    { id: "e5", calendar: "lucy", day: mi, start: h(7), end: h(11), kind: "termin", title: "Vorbereiten Präsentation" },
-    { id: "e6", calendar: "lucy", day: mi, start: h(9), end: h(12), kind: "termin", title: "Innendienst Weekly Meeting", teams: true },
-    { id: "e7", calendar: "lucy", day: mi, start: h(17), end: h(17, 45), kind: "termin", title: "Meeting Team" },
-    { id: "e8", calendar: "lucy", day: doo, start: h(7), end: h(11), kind: "urlaub", title: "Urlaub", status: "offen" },
-    { id: "e9", calendar: "lucy", day: doo, start: h(13), end: h(17, 30), kind: "urlaub", title: "Urlaub", status: "abgelehnt" },
-    { id: "e10", calendar: "lucy", day: fr, start: h(8), end: h(9), kind: "termin", title: "Donau Hr. Mattstedt", status: "abgelehnt" },
-    { id: "e11", calendar: "lucy", day: fr, start: h(10), end: h(12, 45), kind: "reise", title: "Reise Linz", abfahrt: "Abfahrt (2)", ankunft: "Ankunft" },
-    { id: "e12", calendar: "lucy", day: fr, start: h(11), end: h(12), kind: "termin", title: "Allianz Fr. Donnel", status: "genehmigt" },
-    { id: "e13", calendar: "icloud", day: di, start: h(18), end: h(19, 30), kind: "privat", title: "Tennis" },
-    { id: "s1", calendar: "caleb", day: mo, start: h(9), end: h(10), kind: "termin", title: "Caleb: Kundentermin Graz", ort: "Graz" },
-    { id: "s2", calendar: "caleb", day: doo, start: h(14), end: h(15, 30), kind: "termin", title: "Caleb: Schulung", teams: true },
-    { id: "s3", calendar: "lucymaria", day: mi, start: h(13), end: h(14), kind: "termin", title: "Lucy Maria: Abstimmung" },
-    { id: "s4", calendar: "andrea", day: fr, start: h(13), end: h(15), kind: "termin", title: "Andrea: Partnertermin Wien", ort: "Wien" },
-  ];
-  const allDay: AllDayItem[] = [
-    { id: "a1", calendar: "lucy", day: mo, title: "Büro Kapfenberg", office: true },
-    { id: "a2", calendar: "lucy", day: mo, title: "Bauarbeiten Parkplatz" },
-    { id: "a3", calendar: "lucy", day: mo, title: "Geburtstag Mike" },
-    { id: "a4", calendar: "lucy", day: di, title: "Nationalfeiertag" },
-  ];
-  const worked: WorkedBlock[] = [
-    { calendar: "lucy", day: mo, start: h(10, 30), end: h(11) },
-    { calendar: "lucy", day: mo, start: h(13), end: h(15) },
-    { calendar: "lucy", day: mi, start: h(13), end: h(17, 30) },
-    { calendar: "lucy", day: fr, start: h(9), end: h(10) },
-  ];
+  const entries: CalendarEntry[] = [];
+  const allDay: AllDayItem[] = [{ id: "a4", calendar: "lucy", day: di, title: "Nationalfeiertag" }];
+  const worked: WorkedBlock[] = [];
   const times: Record<string, DayTimes> = {
-    [mo]: { soll: h(8, 30), ist: h(8, 30), from: h(7), to: h(17) },
+    [mo]: { soll: h(8, 30), ist: 0, from: h(7), to: h(17) },
     [di]: { soll: 0, ist: 0, from: 0, to: 0 },
-    [mi]: { soll: h(8, 30), ist: h(8, 30), from: h(8), to: h(17, 30) },
-    [doo]: { soll: h(8, 30), ist: h(8, 30), from: h(8), to: h(17) },
-    [fr]: { soll: h(4, 30), ist: h(4, 30), from: h(8), to: h(12, 30) },
+    [mi]: { soll: h(8, 30), ist: 0, from: h(8), to: h(17, 30) },
+    [doo]: { soll: h(8, 30), ist: 0, from: h(8), to: h(17) },
+    [fr]: { soll: h(4, 30), ist: 0, from: h(8), to: h(12, 30) },
   };
   return { entries, allDay, worked, times, holidays: new Set([di]) };
 }

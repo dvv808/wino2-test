@@ -10,7 +10,7 @@ import {
 import { hashToRoute, routeToHash, type ManagerNav, type PersonArea, type PersonModule } from "./routing";
 import type { FinanzenPage, HonorarStepKey, Partner as HonorarPartner } from "./types/honorar";
 import { buildHonorarPartner } from "./person/createDraft";
-import { getPartner, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
+import { FILE_PARTNERS, getPartner, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
 import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
   MULTI_CARD_AREAS,
@@ -20,6 +20,8 @@ import {
   cloneAshleySections,
   cloneCompanySections,
   cloneLunixoSections,
+  cloneThomasSections,
+  cloneUdoSections,
   cloneSections,
   publishedSnapshot,
   sectionData,
@@ -32,6 +34,9 @@ import {
   type Card,
   type Section,
   type StammdatenAreaId,
+  bankForm,
+  contactForm,
+  type ContactForm,
 } from "./person/stammdaten";
 import {
   INITIAL_VERSIONS,
@@ -41,21 +46,31 @@ import {
   currentVersion,
   historyFromStammdatenSave,
   lunixoVersions,
+  thomasVersions,
   wicoDeviationHistoryEntry,
   isMarriageCertificate,
   latestLegalNumber,
   namesDiffer,
-  overlayPersonVersion,
+  isOlderStand,
+  dateKey,
+  latestEntry,
   personNameFromVersion,
+  standSections,
   type PersonVersion,
 } from "./person/versions";
 
 
 export type Model = "privat" | "partner" | "custom";
+/** Zahlweise of the Honorar for Unternehmen (Figma 21232:21124); only below EUR 1.000,00 it stays Jährlich. */
+export type Frequency = "yearly" | "half" | "quarter";
 export type OpenMenu = "partner" | "bank" | "textblock" | "docSigner" | "signer" | null;
 /** The picked Telefon, Mail and Postadresse; the value plus the Stammdaten card it comes from. */
 export type CommsPick = { value: string; second?: string; cardId: string; cardTitle: string; tags: string[]; owner?: string };
-export type CommsChoice = Partial<Record<"phone" | "mail" | "post", CommsPick>>;
+/**
+ * Unternehmen (Figma 20978:54563) also pick the Vertretungsbefugte Person ("rep": value = name) whose phone and
+ * mail form the Zentraler Kontakt der Firma, and a separate Versand mail ("versandMail", e.g. Office).
+ */
+export type CommsChoice = Partial<Record<"phone" | "mail" | "post" | "rep" | "versandMail", CommsPick>>;
 
 export type StepId = "tasks" | "comms" | "fee" | "terms" | "scope" | "docs" | "sign";
 export type Approval = "idle" | "requested" | "granted" | "rejected";
@@ -65,7 +80,8 @@ export type SignMode = "upload" | "digital";
  * Bestandsmanager's list, a single request opens as its own page: "freigabe".
  */
 /** "rechnung" is the workflow of one invoice (Gutschrift, Zahlungsziel, ...), opened from Info zur Rechnung. */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home" | "admin";
+/** "pruefung": Prüfmodus – the advisor checks the Stammdaten with the client and sends Änderungswünsche. */
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "pruefung" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home" | "admin";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
 /** Views that belong to the Management tab. */
 export const MANAGEMENT_VIEWS: View[] = ["manager", "freigabe", "finanzen", "rechnung"];
@@ -224,6 +240,7 @@ const FAMILY_FILES: [PartnerId, string, string][] = [
   ["ash", "Ash", "Atkinson"],
   ["marcus", "Marcus", "Atkinson-Sullivan"],
   ["sophie", "Sophie", "Lang"],
+  ["udo", "Udo", "Ladraida"],
 ];
 
 function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
@@ -260,6 +277,15 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
       stammdatenBaseline: null,
       stammdatenPublished: null,
     },
+    // Kunde with a signed Maklervereinbarung and complete Stammdaten (Prüfmodus demo).
+    thomas: {
+      sections: cloneThomasSections(),
+      versions: thomasVersions(),
+      viewingVersionId: "t08",
+      stammdatenBaseline: null,
+      stammdatenPublished: null,
+      maklerCreated: true,
+    },
     "lunixo-immobilien": {
       sections: cloneCompanySections("Lunixo Immobilien", "GmbH", "partner-lunixo-immobilien", {
         name: "Lunixo Immobilien GmbH",
@@ -274,7 +300,7 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
       FAMILY_FILES.map(([id, vorname, nachname]) => [
         id,
         {
-          sections: cloneAshleySections(vorname, nachname, `partner-${id}`),
+          sections: id === "udo" ? cloneUdoSections() : cloneAshleySections(vorname, nachname, `partner-${id}`),
           versions: blankFileVersions(vorname, nachname, `partner-${id}`, `${id}-v1`),
           viewingVersionId: `${id}-v1`,
           stammdatenBaseline: null,
@@ -295,6 +321,9 @@ function useWorkflowState() {
   const [payment, setPayment] = useState<"debit" | "invoice">("debit");
   const [delivery, setDelivery] = useState<"email" | "post">("email");
   const [amount] = useState("EUR 120,00");
+  // Unternehmen: own Honorarbetrag (Business, min. EUR 300,00) and Zahlweise (Figma 21095:72749, 21232:21124).
+  const [businessAmount, setBusinessAmount] = useState("EUR 1.200,00");
+  const [frequency, setFrequency] = useState<Frequency>("yearly");
   const [day, setDay] = useState("01");
   // Erstmalige Verrechnung: next 1st of a month by default (only future dates are allowed).
   const [month, setMonth] = useState(() => String(((new Date().getMonth() + 1) % 12) + 1).padStart(2, "0"));
@@ -317,7 +346,13 @@ function useWorkflowState() {
     };
   }, [openMenu]);
   // Julia has Verknüpfungen (Familie, Konzern); other files start without and show the empty state.
-  const [partners, setPartners] = useState<Partner[]>(() => (initialRoute.partnerId ?? "julia") === "julia" ? PARTNERS : []);
+  // A Lunixo company file sees its Konzern links (without itself).
+  const [partners, setPartners] = useState<Partner[]>(() => {
+    const id = initialRoute.partnerId ?? "julia";
+    if (id === "julia") return PARTNERS;
+    if (id.startsWith("lunixo")) return PARTNERS.filter((partner) => partner.group === "Konzern" && partner.fileId !== id);
+    return [];
+  });
   const [partnerId, setPartnerId] = useState<string | null>(null);
   const [bankId, setBankId] = useState("julia");
   const [paymentTerm, setPaymentTerm] = useState("14");
@@ -338,7 +373,8 @@ function useWorkflowState() {
 
   const [activeDoc, setActiveDoc] = useState(0);
   const [docsApproval, setDocsApproval] = useState<Approval>("idle");
-  const [docSigner, setDocSigner] = useState("Julia Atkinson");
+  /** Who signs the documents: the open partner unless someone else was picked. */
+  const [docSignerPick, setDocSigner] = useState<string | null>(null);
 
   const [signMode, setSignMode] = useState<SignMode>("upload");
   const [signFile, setSignFile] = useState<string | null>(null);
@@ -423,6 +459,8 @@ function useWorkflowState() {
   const [leavePrompt, setLeavePrompt] = useState(false);
   const [leaveDest, setLeaveDest] = useState<"person" | "workflow" | "stay">("person");
   const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  /** Verlauf → Zeitraum "Als Ansicht öffnen": the file as of the range end, areas marked by changes inside it. */
+  const [standRange, setStandRange] = useState<{ from: string; to: string } | null>(null);
   const [versionSaveError, setVersionSaveError] = useState<string | null>(null);
   /** Who granted a step: yourself via the shortcut, or the Bestandsmanager. */
   const [grantedBy, setGrantedBy] = useState<Partial<Record<ApprovalStep, "self" | "manager">>>({});
@@ -630,13 +668,23 @@ function useWorkflowState() {
   }, [view, filePartnerId]);
 
   const selectedPartner = partners.find((partner) => partner.id === partnerId) ?? null;
-  const selectedBank = BANKS.find((bank) => bank.id === bankId) ?? BANKS[0];
+  // Julia keeps the Figma test banks; every other partner offers its own Stammdaten Bankverbindungen.
+  const banks: Bank[] =
+    filePartnerId === "julia"
+      ? BANKS
+      : (sections.find((section) => section.id === "bankverbindungen")?.cards ?? [])
+          .filter((card) => !card.empty)
+          .map((card) => {
+            const form = bankForm(card);
+            return { id: card.id, name: form.person || card.title || "Bankverbindung", bank: form.institut, iban: form.iban };
+          });
+  const selectedBank: Bank | null = banks.find((bank) => bank.id === bankId) ?? banks[0] ?? null;
 
   const modelLabel = useMemo(() => {
     if (model === "partner") return "bei anderem Partner mit umfasst";
     if (model === "custom") return "Individuell";
-    return "Privat";
-  }, [model]);
+    return getPartner(filePartnerId).fileKind === "company" ? "Business" : "Privat";
+  }, [model, filePartnerId]);
 
   function markDone(step: StepId) {
     setDone((current) => ({ ...current, [step]: true }));
@@ -797,6 +845,26 @@ function useWorkflowState() {
   }
 
   /** Opens a partner as a tab. A freshly opened partner starts on its Dashboard. */
+  /**
+   * Privatperson Kontakte: a contact that is itself a partner with a file takes its Kontaktdaten from that
+   * origin file. Returns the origin partner and its own contact card (null when it has none yet).
+   */
+  function originContact(name: string): { partnerId: PartnerId; name: string; form: ContactForm | null } | null {
+    const key = name.trim().toLowerCase();
+    if (!key) return null;
+    const origin = [...Object.values(FILE_PARTNERS), ...extraPartners].find((entry) => entry.name.toLowerCase() === key);
+    if (!origin || origin.id === filePartnerId) return null;
+    const source = partnerFiles[origin.id]?.sections;
+    if (!source) return null;
+    const cards = source.find((section) => section.id === "kontakte")?.cards.filter((card) => !card.empty) ?? [];
+    const own =
+      cards.find((card) => {
+        const person = card.blocks?.find((block) => block.kind === "person");
+        return person?.kind === "person" && person.name.trim().toLowerCase() === key;
+      }) ?? null;
+    return { partnerId: origin.id, name: origin.name, form: own ? contactForm(own) : null };
+  }
+
   function openPartner(id: PartnerId) {
     ensureFileTab(id);
     setFilePartnerId(id);
@@ -1035,6 +1103,18 @@ function useWorkflowState() {
     commitWicoDeviation(wicoDeviationOn, wicoNoteRef.current);
   }
 
+  /** Prüfmodus: check the Stammdaten with the client on one page (no editing, Freigabe only). */
+  function openPruefung(partnerId?: PartnerId) {
+    if (partnerId) setFilePartnerId(partnerId);
+    setPersonModule("profil");
+    setPersonArea("stammdaten");
+    setView("pruefung");
+  }
+
+  function closePruefung() {
+    setView("person");
+  }
+
   /** Profil vs Workflows & To-Dos, still inside the person file. */
   function openPersonModule(module: PersonModule) {
     setPersonModule(module);
@@ -1209,12 +1289,13 @@ function useWorkflowState() {
     setStammdatenCardId((current) => (current === cardId ? leftover : current));
   }
 
-  const viewingVersion = versions.find((version) => version.id === viewingVersionId) ?? currentVersion(versions);
+  const viewingVersion = versions.find((version) => version.id === viewingVersionId) ?? latestEntry(versions);
   const liveVersion = currentVersion(versions);
-  const isHistorical = Boolean(viewingVersion && viewingVersion.number < latestLegalNumber(versions));
+  // A Stand is a date: older than the latest date → the whole file as it stood then (every area at once).
+  const isHistorical = isOlderStand(versions, viewingVersion);
   const displaySections = useMemo(
-    () => overlayPersonVersion(sections, isHistorical ? viewingVersion : undefined),
-    [sections, isHistorical, viewingVersion],
+    () => (isHistorical && viewingVersion ? standSections(sections, versions, viewingVersion) : sections),
+    [sections, versions, isHistorical, viewingVersion],
   );
 
   function partnerCardOf(source: Section[]) {
@@ -1238,13 +1319,28 @@ function useWorkflowState() {
   }
 
   function viewCurrentVersion() {
-    const latest = currentVersion(versions);
+    const latest = latestEntry(versions);
     if (latest) setViewingVersionId(latest.id);
+    setStandRange(null);
+  }
+
+  /** Opens a time range (dd.mm.yyyy) as the file view: Stand at its end, changes inside it per area. */
+  function openStandRange(from: string, to: string) {
+    const toKey = dateKey(to);
+    const atEnd = versions
+      .filter((version) => dateKey(version.date) <= toKey)
+      .reduce<PersonVersion | undefined>((latest, version) => (!latest || dateKey(version.date) >= dateKey(latest.date) ? version : latest), undefined);
+    if (atEnd) setViewingVersionId(atEnd.id);
+    setStandRange({ from, to });
+    setPersonModule("profil");
+    setPersonArea("stammdaten");
+    setView("person");
   }
 
   function openHistoryChange(id: string) {
     const entry = versions.find((version) => version.id === id);
     if (!entry) return;
+    setStandRange(null);
     setViewingVersionId(id);
     setVersionHistoryOpen(true);
     const { place } = entry;
@@ -1549,6 +1645,10 @@ function useWorkflowState() {
     delivery,
     setDelivery,
     amount,
+    businessAmount,
+    setBusinessAmount,
+    frequency,
+    setFrequency,
     day,
     setDay,
     month,
@@ -1570,6 +1670,7 @@ function useWorkflowState() {
     bankId,
     setBankId,
     selectedBank,
+    banks,
     paymentTerm,
     setPaymentTerm,
     invoiceNote,
@@ -1591,7 +1692,7 @@ function useWorkflowState() {
     setActiveDoc,
     docsApproval,
     setDocsApproval,
-    docSigner,
+    docSigner: docSignerPick ?? shownName,
     setDocSigner,
     signMode,
     setSignMode,
@@ -1688,6 +1789,7 @@ function useWorkflowState() {
     filePartnerId,
     openFileIds,
     openPartner,
+    originContact,
     openHonorarPartner,
     partnerCreateOpen,
     extraPartners,
@@ -1711,6 +1813,8 @@ function useWorkflowState() {
     convertAshley,
     personModule,
     openPersonModule,
+    openPruefung,
+    closePruefung,
     personArea,
     openPersonArea,
     maklerOpen,
@@ -1733,6 +1837,8 @@ function useWorkflowState() {
     viewPersonVersion,
     openHistoryChange,
     viewCurrentVersion,
+    standRange,
+    openStandRange,
     versionSaveError,
     publishedNachname: liveVersion?.nachname ?? getPartner(filePartnerId).name.split(" ").at(-1) ?? "Atkinson",
     stammdatenArea,

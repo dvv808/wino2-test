@@ -2,7 +2,7 @@ import { ShelfBody, ShelfTitle } from "./ProfileShelf";
 import { useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { Icon } from "../ui";
-import { FileIdentity, VerlaufCaption } from "../chrome";
+import { FileIdentity } from "../chrome";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { getPartner, type FileContact, type FilePartner, type PartnerKind } from "./partners";
@@ -144,7 +144,7 @@ function maklerAgreementCard(
       rows: contacts.map((contact) => ({
         label: contact.caption,
         value: contact.value,
-        icon: contact.kind === "phone" ? a.phone : a.mail,
+        icon: contact.kind === "phone" ? a.phone : contact.kind === "web" ? a.globe : a.mail,
       })),
     });
   }
@@ -558,7 +558,6 @@ export function MaklermandatPage() {
     ashleyConverted,
     convertAshley,
     filePartnerId,
-    openVersionHistory,
     goTo,
     openMakler,
     markMaklerCreated,
@@ -600,10 +599,6 @@ export function MaklermandatPage() {
           <header className="fg-head pp-main-head">
             <ShelfTitle icon={a.iconBrokerContract}>Maklermandat</ShelfTitle>
             <span className="fg-head-actions">
-              <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openVersionHistory}>
-                <Icon src={a.history} size={18} />
-                <VerlaufCaption />
-              </button>
               <button type="button" className="fg-head-search" aria-label="Suche">
                 <Icon src={a.searchDark} size={18} />
               </button>

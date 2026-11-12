@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import * as a from "./assets/index";
-import { DOC_FILES, fileSize, usePdf } from "./pdf";
+import { docFilesFor, fileSize, usePdf } from "./pdf";
+import { useFilePerson } from "./chrome";
 import { Icon, Segmented } from "./ui";
 import { DOCUMENTS, useWorkflow } from "./workflow";
 
@@ -98,7 +99,9 @@ export function PdfViewer({
   const { activeDoc } = useWorkflow();
   /* The bar names the document that is currently selected in the rail. */
   const title = fileName ?? DOCUMENTS[activeDoc] ?? DOCUMENTS[0];
-  const { pdf, loading } = usePdf(DOC_FILES[activeDoc] ?? DOC_FILES[0]);
+  // Unternehmen get the company Maklervereinbarung and Vollmachten; SEPA is the same.
+  const files = docFilesFor(useFilePerson().isCompany);
+  const { pdf, loading } = usePdf(files[activeDoc] ?? files[0]);
   const pages = pdf?.pages ?? (loading ? [] : PAGES.slice(0, 2));
   const [zoom, setZoom] = useState(100);
   const [current, setCurrent] = useState(0);

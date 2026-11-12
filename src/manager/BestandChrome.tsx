@@ -3,6 +3,7 @@ import { LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { getPartner } from "../person/partners";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 const AREAS = ["Dashboard", "HRM", "Bestand", "Finanzen", "Berichte", "Marketing", "Honorare"];
 
@@ -153,9 +154,7 @@ export function BestandMainNav({
         <MeinBereichTab />
       </div>
       <div className="main-nav-right">
-        <button type="button" className="search-btn" aria-label="Suche">
-          <Icon src={a.search} size={42} />
-        </button>
+        <GlobalSearch />
         <ProfileMenu />
       </div>
     </header>

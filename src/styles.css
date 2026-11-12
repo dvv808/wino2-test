@@ -1237,6 +1237,29 @@ input.text-field {
   position: absolute;
 }
 
+/* Graphic_PDF 18×18: page at 12.69% from the left, band at 41.96% from the top (Figma 20978:54833). */
+.pdf-graphic {
+  position: relative;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.pdf-graphic img {
+  position: absolute;
+  display: block;
+}
+
+.pdf-graphic img:first-child {
+  left: 2.28px;
+  top: 0;
+}
+
+.pdf-graphic img:last-child {
+  left: 0.07px;
+  top: 7.55px;
+}
+
 .warn-box {
   border: 1px solid #ffe2e1;
   border-radius: 6px;
@@ -1484,6 +1507,11 @@ input.text-field {
   padding: 32px 40px 40px;
   background: var(--wino-white);
   max-width: 560px;
+}
+
+/* Kommunikationsdaten Unternehmen: two cards stacked (Figma 20978:54782, 21316:163628). */
+.panel-card + .panel-card {
+  margin-top: 27px;
 }
 
 .panel-card h2 {
@@ -2493,6 +2521,12 @@ input.text-field {
   align-items: center;
   gap: 18px;
   padding: 0 23px;
+}
+
+/* Verlauf: always at the very right of the person module nav. */
+.module-nav .module-verlauf {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .module-pill {
@@ -5656,6 +5690,24 @@ span.pp-tree-main {
   border-top: 1px solid var(--wino-bg-light);
 }
 
+/* Older Stand open: per area "geändert am" (highlighted) or "unverändert seit" (grey). */
+.pp-stand {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-light);
+  background: var(--wino-bg-lighter);
+}
+
+.pp-stand.changed {
+  color: var(--wino-black-dark);
+  background: var(--wino-signal-yellowlight);
+  border: 1px solid #e8c55a;
+}
+
 .pp-section-title {
   display: flex;
   align-items: center;
@@ -6267,6 +6319,111 @@ span.pp-tree-main {
   height: 16px;
 }
 
+/* Stammdaten workflow tabs (Figma 22715:142102): wave tabs. The bar itself is the lighter blue; every second
+   tab is a darker parallelogram whose sides are the Figma S-curves, and the active tab is white and widens to its
+   feet so it flows into the page. The curved sides are fixed-size masked pieces in the 48px gaps between tabs,
+   so the curve keeps its Figma shape however long a label is. */
+.sw-stepper {
+  --sw-tab-h: 59px;
+  /* 48px at the Figma width (1920), narrower on smaller screens so all eight tabs fit. */
+  --sw-slope: clamp(24px, calc(5.5vw - 48px), 48px);
+  --sw-light: #d6e0e6;
+  --sw-dark: #baccd5;
+  --sw-rise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54 59' preserveAspectRatio='none'%3E%3Cpath d='M54 0H53.69C43.41 0 34.28 6.55 30.97 16.28L21.81 43.26C18.63 52.61 9.88 58.93 0 59H54Z' fill='black'/%3E%3C/svg%3E");
+  --sw-turned: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54 59' preserveAspectRatio='none'%3E%3Cpath d='M0 59H0.31C10.59 59 19.72 52.45 23.03 42.72L32.19 15.74C35.37 6.39 44.12 0.07 54 0H0Z' fill='black'/%3E%3C/svg%3E");
+  --sw-fall: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 54 59' preserveAspectRatio='none'%3E%3Cpath d='M0 0H0.31C10.59 0 19.72 6.55 23.03 16.28L32.19 43.26C35.37 52.61 44.12 58.93 54 59H0Z' fill='black'/%3E%3C/svg%3E");
+  gap: var(--sw-slope);
+  align-items: stretch;
+  padding: 0 var(--sw-slope) 0 0;
+  background: var(--sw-light);
+  border-radius: 24px 24px 0 0;
+}
+
+.sw-stepper .step {
+  --sw-tab: transparent;
+  /* Every wave tab has the same width; the bar's width is shared equally. */
+  flex: 1 1 0;
+  /* Below this the bar scrolls sideways instead of chopping the labels. */
+  min-width: 120px;
+  height: var(--sw-tab-h);
+  padding: 0 clamp(4px, calc(1.6vw - 16px), 14px);
+  gap: 6px;
+  background: var(--sw-tab);
+  border-radius: 0;
+  isolation: auto;
+}
+
+.sw-stepper .step:nth-child(odd) {
+  --sw-tab: var(--sw-dark);
+  z-index: 1;
+}
+
+.sw-stepper .step.active {
+  --sw-tab: var(--wino-white);
+  z-index: 2;
+}
+
+.sw-stepper .step:first-child {
+  border-top-left-radius: 24px;
+}
+
+.sw-stepper .step:nth-child(odd)::before,
+.sw-stepper .step:nth-child(odd)::after,
+.sw-stepper .step.active::before,
+.sw-stepper .step.active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: var(--sw-slope);
+  height: 100%;
+  background: var(--sw-tab);
+  -webkit-mask: var(--sw-rise) 0 0 / 100% 100% no-repeat;
+  mask: var(--sw-rise) 0 0 / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+/* Left side: rises from its foot (darker and active tabs alike). */
+.sw-stepper .step:nth-child(odd)::before,
+.sw-stepper .step.active::before {
+  right: 100%;
+}
+
+/* Right side of a darker tab: the same curve turned, so the tab leans like the Figma parallelograms. */
+.sw-stepper .step:nth-child(odd)::after {
+  left: 100%;
+  -webkit-mask-image: var(--sw-turned);
+  mask-image: var(--sw-turned);
+}
+
+/* Right side of the active tab: falls to its foot. */
+.sw-stepper .step.active::after {
+  left: 100%;
+  -webkit-mask-image: var(--sw-fall);
+  mask-image: var(--sw-fall);
+}
+
+/* Labels: up to two lines (long words break with a hyphen); a third line is cut and fades out. */
+.sw-stepper .step-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: 34px;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.sw-stepper .step-label.clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
+}
+
+/* The first tab starts at the rounded corner of the bar: no left curve. */
+.sw-stepper .step:first-child::before {
+  content: none;
+}
+
+
 .sw-body {
   flex: 1;
   min-height: 0;
@@ -6329,6 +6486,30 @@ span.pp-tree-main {
   grid-column: 1 / -1;
   margin: 80px auto;
   color: var(--wino-black-medium);
+}
+
+/* Stammdaten footer: the two buttons line up with the form column. */
+.footer.sw-footer {
+  justify-content: flex-start;
+  /* The white panel bottom stays; the bar (top line + buttons) is only as wide as the form column. */
+  padding: 0 32px 24px;
+  border-top: 0;
+}
+
+.sw-footer-actions {
+  display: flex;
+  justify-content: space-between;
+  width: min(528px, 100%);
+  padding-top: 16px;
+  border-top: 1px solid var(--wino-bg-light);
+}
+
+.sw-footer-actions .btn-secondary,
+.sw-footer-actions .btn-primary {
+  min-width: 120px;
+  height: 38px;
+  padding: 0 24px;
+  font-size: 14px;
 }
 
 .sw-forms {
@@ -6489,6 +6670,31 @@ span.pp-tree-main {
 
 .sw-history-toggle[aria-expanded="true"] .icon {
   transform: rotate(180deg);
+}
+
+/* Vertretung erstellen box under the Partnerdaten card (Figma 20521:223451). */
+.sw-vertretung {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px 11px 15px;
+  border: 1px solid var(--wino-bg-darker, #baccd5);
+  border-radius: 6px;
+  background: linear-gradient(4.6deg, #fff 37.772%, #d3e7f1 110.16%);
+}
+
+.sw-vertretung p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+}
+
+.sw-vertretung strong {
+  display: block;
+  font-weight: 500;
 }
 
 .sw-switch-row {
@@ -7034,6 +7240,30 @@ span.pp-tree-main {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* Sonstiges: the Notiz under the card (Figma 22715:142985). */
+.vk-card-note {
+  margin-top: 16px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: rgba(235, 241, 245, 0.4);
+}
+
+.vk-card-note small {
+  display: block;
+  font-size: 11px;
+  line-height: 20px;
+  color: var(--wino-black-medium);
+}
+
+.vk-card-note p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  overflow-wrap: anywhere;
 }
 
 .vk-avatar {
@@ -7968,6 +8198,87 @@ body.historical-version .shell {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Verlauf: search and the active filters (removable chips). */
+.ver-win-tools {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+
+.ver-win-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 8px;
+  background: var(--wino-white);
+}
+
+.ver-win-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+}
+
+.ver-win-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ver-win-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 12px;
+  background: var(--wino-bg-lighter);
+  font: inherit;
+  font-size: 11px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.ver-win-reset {
+  border: 0;
+  background: none;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--wino-black-light);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ver-win-group-title small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.ver-win-now {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-style: normal;
+  font-size: 10px;
+  color: #2b6b25;
+  background: var(--wino-signal-greenlight);
 }
 
 .ver-win-cols,
@@ -18072,12 +18383,17 @@ button.hn-kpi.active strong {
 
 
 /* Homeoffice in the week: a 5px bar on the left edge of the day per time block (Figma 22647:285979).
-   Hatched = Antrag offen, solid = genehmigt, red hatched = abgelehnt. */
+   Green hatched = genehmigt, faded green hatched = beantragt (offen), red hatched = abgelehnt. */
 .kal-ho-slot {
   position: absolute;
   left: 0;
   width: 5px;
   z-index: 3;
+}
+
+/* With its popover open the slot sits above the now line (.kal-now, z-index 3) and the other columns. */
+.kal-ho-slot:has(.kal-hop) {
+  z-index: 25;
 }
 
 .kal-ho-bar {
@@ -18091,8 +18407,14 @@ button.hn-kpi.active strong {
   cursor: pointer;
 }
 
-.kal-ho-bar.genehmigt {
-  background: var(--wino-green-homeoffice);
+/* Not yet genehmigt: the same hatch, faded; full strength on hover or while its popover is open. */
+.kal-ho-bar.offen {
+  opacity: 0.45;
+}
+
+.kal-ho-bar.offen:hover,
+.kal-ho-bar.offen.active {
+  opacity: 1;
 }
 
 .kal-ho-bar.zurueckgesetzt {
@@ -18515,6 +18837,11 @@ button.hn-kpi.active strong {
   border-radius: 8px;
   background: var(--wino-signal-yellowlight);
   box-sizing: border-box;
+}
+
+.kal-hom-status.genehmigt {
+  height: 35px;
+  background: var(--wino-signal-greenlight);
 }
 
 .kal-hom-status img {
@@ -19813,8 +20140,14 @@ button.stat-card.active .stat-copy span {
   color: #d23552;
 }
 
-.textarea.invalid {
+.textarea.invalid,
+.text-field.invalid {
   border-color: #d23552;
+}
+
+/* Honorar Individuell (Unternehmen): the agreement sentence in Medium above the regular paragraph (Figma 21107:75746). */
+.info-box .info-lead {
+  font-weight: 500;
 }
 
 /* Verknüpfte Partner list: grouped by where the link comes from (Familie, Konzern). */
@@ -20008,4 +20341,1688 @@ button.kal-worked {
 
 button.kal-worked:hover {
   box-shadow: 0 0 0 2px rgba(105, 186, 97, 0.35);
+}
+
+/* Not enough room below (end of the panel or window): the list opens above the field. */
+.comms-menu.up {
+  top: auto;
+}
+
+/* ── Header Schnellsuche (Figma 22715:174993, empty state 22715:174994) ── */
+.gs {
+  position: relative;
+  display: flex;
+}
+
+.gs-panel {
+  position: fixed;
+  z-index: 300;
+  width: 424px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #313537;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(49, 53, 55, 0.85) 0%, rgba(68, 79, 86, 0.85) 100%);
+  backdrop-filter: blur(9.5px);
+  -webkit-backdrop-filter: blur(9.5px);
+  box-shadow: 0 7px 24px 0 #afc0cc;
+  color: var(--wino-white);
+  overflow: hidden;
+}
+
+/* The double divider: dark line over a lighter one. */
+.gs-head,
+.gs-filters,
+.gs-results {
+  border-bottom: 1px solid #313537;
+  box-shadow: 0 1px 0 #444f56;
+}
+
+.gs-head {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 83px;
+  padding: 0 24px 0 21px;
+}
+
+.gs-head input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--wino-white);
+  font: inherit;
+  font-size: 17px;
+  line-height: 22px;
+  letter-spacing: 0.17px;
+}
+
+.gs-head input::placeholder {
+  color: var(--wino-black-lighter, #afc0cc);
+}
+
+.gs-close {
+  flex: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+}
+
+.gs-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 24px;
+}
+
+.gs-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.gs-chip {
+  border: 0;
+  border-radius: 4px;
+  padding: 4px 12px;
+  background: var(--wino-blue-light);
+  color: var(--wino-black-dark);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  cursor: pointer;
+}
+
+.gs-chip.on {
+  background: linear-gradient(180deg, #313537 0%, #444f56 100%);
+  color: var(--wino-white);
+}
+
+.gs-results {
+  padding: 11px 0 0;
+}
+
+.gs-count {
+  margin: 0 0 12px 24px;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+}
+
+.gs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(441px, calc(100vh - 400px));
+  min-height: 160px;
+  overflow-y: auto;
+  padding: 0 19px 12px;
+}
+
+.gs-card {
+  position: relative;
+  flex: none;
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(120deg, #e7edf0 0%, #f4f7f9 40%, #dde6ea 100%);
+  color: var(--wino-black-dark);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.gs-card:hover {
+  box-shadow: inset 0 0 0 1px var(--wino-bg-darker);
+}
+
+.gs-card-deco {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 190px;
+  height: 118px;
+  overflow: hidden;
+  opacity: 0.5;
+  transform: scaleY(-1);
+  pointer-events: none;
+}
+
+.gs-card-deco img {
+  display: block;
+  max-width: none;
+}
+
+.gs-avatar {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+
+.gs-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gs-avatar .glyph {
+  inset: 8px;
+  width: 32px;
+  height: 32px;
+}
+
+.gs-avatar .gs-winter {
+  inset: auto;
+  top: 36px;
+  left: 14px;
+  width: 20px;
+  height: 20px;
+}
+
+.gs-copy {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+
+.gs-tag {
+  gap: 2px;
+  color: #313537;
+}
+
+.gs-name {
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.gs-line {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+.gs-cols {
+  display: grid;
+  grid-template-columns: 167px minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.gs-cols .gs-line {
+  margin-top: 0;
+}
+
+.gs-relation small {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-light);
+}
+
+.gs-relation span {
+  display: block;
+}
+
+.gs-people {
+  margin-top: 18px;
+  font-weight: 500;
+}
+
+.gs-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.gs-contacts .mm-contact strong {
+  overflow-wrap: anywhere;
+}
+
+.gs-id {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--wino-black-light);
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+
+.gs-hit {
+  padding: 0 1px;
+  border-radius: 4px;
+  background: var(--wino-purple-light, #c8a1d6);
+  color: #313537;
+}
+
+.gs-empty {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 234px;
+  padding: 54px 28px 0;
+  border-bottom: 1px solid #313537;
+  box-shadow: 0 1px 0 #444f56;
+  overflow: hidden;
+  text-align: center;
+}
+
+.gs-empty-deco {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.gs-empty-icons,
+.gs-empty strong,
+.gs-empty p {
+  position: relative;
+}
+
+.gs-empty strong {
+  margin-top: 8px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 22px;
+  letter-spacing: 0.17px;
+}
+
+.gs-empty p {
+  max-width: 367px;
+  margin: 12px 0 0;
+  font-size: 15px;
+  line-height: 24px;
+  letter-spacing: 0.15px;
+}
+
+.gs-foot {
+  display: flex;
+  justify-content: center;
+  padding: 22px 0 25px;
+}
+
+.gs-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--wino-white);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Letzte Suchen: shown while the search field is empty. */
+.gs-history {
+  padding: 11px 24px 14px;
+  border-bottom: 1px solid #313537;
+  box-shadow: 0 1px 0 #444f56;
+}
+
+.gs-history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.gs-history-head .gs-count {
+  margin: 0;
+}
+
+.gs-history ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gs-history li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.gs-history li:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.gs-history-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--wino-white);
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gs-history-remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 4px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.gs-history-remove:hover {
+  opacity: 1;
+}
+
+/* Search button: hover and open show the light Figma state. */
+.gs-btn {
+  position: relative;
+  cursor: pointer;
+}
+
+.gs-btn .gs-btn-idle,
+.gs-btn .gs-btn-active {
+  display: block;
+  transition: opacity 0.15s ease;
+}
+
+.gs-btn .gs-btn-active {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+.gs-btn:hover .gs-btn-active,
+.gs-btn:focus-visible .gs-btn-active,
+.gs-btn.open .gs-btn-active {
+  opacity: 1;
+}
+
+/* Homeoffice: a beantragte time is shown but locked. */
+.kal-hom-input.locked,
+.kal-hom-input.locked:focus-within {
+  border-color: var(--wino-bg-light, #e2e7ec);
+  background: var(--wino-bg-lighter, #ebf1f5);
+}
+
+.kal-hom-input.locked input {
+  color: var(--wino-black-light, #6c7a84);
+  cursor: not-allowed;
+}
+
+.kal-hom-comment-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Zuletzt geöffnet rows in the Schnellsuche. */
+.gs-recent-avatar {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.gs-recent-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gs-recent-avatar .glyph {
+  inset: 5px;
+  width: 22px;
+  height: 22px;
+}
+
+.gs-recent-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gs-recent-copy strong {
+  font-weight: 500;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+
+.gs-recent-copy small {
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-bg-darker, #baccd5);
+}
+
+/* Stammdaten Kontakte (Privatperson): channels of a linked partner come read-only from its own file. */
+.sw-origin {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sw-origin-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--wino-black-dark);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.sw-origin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.sw-origin-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--wino-bg-light);
+}
+
+.sw-origin-list dt {
+  font-size: 15px;
+  color: var(--wino-black-light);
+}
+
+.sw-origin-list dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.sw-origin-empty {
+  margin: 0;
+  font-size: 15px;
+  color: var(--wino-black-light);
+}
+
+/* Contact person block + rows (Figma 22720:174995): glyphs keep their own proportions. */
+.pp-person {
+  align-items: center;
+  gap: 8px;
+}
+
+.pp-person-avatar > img:first-child {
+  width: 32px;
+  height: 32px;
+}
+
+.pp-person-avatar .glyph {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: auto;
+  height: auto;
+  max-width: 21.33px;
+  max-height: 21.33px;
+}
+
+.pp-person-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pp-person-copy strong {
+  font-size: 13px;
+  letter-spacing: 0.13px;
+}
+
+.pp-person-copy small {
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+}
+
+.pp-person-open {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pp-person-open img {
+  display: block;
+}
+
+.pp-row-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+}
+
+.pp-row-icon img {
+  display: block;
+  max-width: 18px;
+  max-height: 18px;
+}
+
+/* ===================================================================================================
+   Prüfmodus – Stammdaten beim Kunden prüfen (advisor), Stammdaten-Prüfung (Bestandsmanager), Dock.
+   =================================================================================================== */
+.app.pm-app .shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.pm-shell {
+  min-height: 0;
+}
+
+.pm-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin: 16px 16px 0;
+  padding: 20px 32px;
+  border-radius: 12px 12px 0 0;
+  background: var(--wino-white);
+  border-bottom: 1px solid var(--wino-bg-light);
+}
+
+.pm-top h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.pm-top p {
+  margin: 0;
+  max-width: 640px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--wino-black-medium);
+}
+
+.pm-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 220px;
+  font-size: 13px;
+}
+
+.pm-progress i {
+  display: block;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--wino-bg-light);
+  overflow: hidden;
+}
+
+.pm-progress b {
+  display: block;
+  height: 100%;
+  background: #348d2c;
+  transition: width 0.2s ease;
+}
+
+.pm-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 24px;
+  align-items: start;
+  margin: 0 16px;
+  padding: 24px 32px;
+  background: var(--wino-white);
+}
+
+.pm-areas {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.pm-id {
+  max-width: 560px;
+}
+
+/* Areas look like the Stammdaten sections on the Profil page (pp-section); state is a chip, not a frame. */
+.pm-area {
+  padding-bottom: 8px;
+}
+
+.pm-area-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pm-area-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.pm-badge.ok {
+  background: var(--wino-signal-greenlight);
+  border-color: #8fc98a;
+}
+
+.pm-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 400;
+  background: var(--wino-signal-yellowlight);
+  border: 1px solid #e8c55a;
+}
+
+.pm-area-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pm-pass,
+.pm-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 16px;
+  background: var(--wino-white);
+  font: inherit;
+  font-size: 13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+
+.pm-pass img {
+  opacity: 0.35;
+}
+
+.pm-pass.on {
+  border-color: #348d2c;
+  background: var(--wino-signal-greenlight);
+}
+
+.pm-pass.on img {
+  opacity: 1;
+}
+
+.pm-pass:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pm-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.pm-card {
+  border-radius: 8px;
+  background: var(--wino-bg-lighter);
+  padding: 12px 14px;
+}
+
+.pm-card h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.pm-card dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pm-line {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.pm-line dt {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pm-line dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.pm-line:hover {
+  background: var(--wino-white);
+}
+
+.pm-line.marked {
+  background: var(--wino-signal-yellowlight);
+}
+
+.pm-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--wino-black-light);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.pm-line:hover .pm-edit,
+.pm-line.marked .pm-edit,
+.pm-edit:focus-visible {
+  opacity: 1;
+}
+
+.pm-empty,
+.pm-hint,
+.pm-sent {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--wino-black-light);
+}
+
+.pm-sent {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--wino-black-dark);
+  background: var(--wino-signal-yellowlight);
+}
+
+.pm-side {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pm-box {
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--wino-white);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pm-box > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pm-box h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pm-box > header span {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--wino-bg-lighter);
+}
+
+.pm-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.pm-change {
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pm-change.uebernommen {
+  background: var(--wino-signal-greenlight);
+}
+
+.pm-change.abgelehnt {
+  background: var(--wino-signal-redlight);
+}
+
+.pm-change-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pm-change-from,
+.pm-change-to {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.pm-change small,
+.pm-note small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pm-change-from s {
+  color: var(--wino-black-light);
+  overflow-wrap: anywhere;
+}
+
+.pm-change-to input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.pm-change-to input:focus {
+  outline: 2px solid #2b7396;
+  outline-offset: -1px;
+}
+
+.pm-change-files,
+.pm-change-reply {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+
+.pm-change-reply {
+  color: #b3263e;
+}
+
+.pm-status {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  background: var(--wino-bg-lighter);
+}
+
+.pm-status.uebernommen {
+  background: var(--wino-signal-greenlight);
+  color: #2b6b25;
+}
+
+.pm-status.abgelehnt {
+  background: var(--wino-signal-redlight);
+  color: #b3263e;
+}
+
+.pm-icon-btn {
+  border: 0;
+  background: none;
+  padding: 4px;
+  cursor: pointer;
+  flex: none;
+}
+
+.pm-free,
+.pm-link,
+.pf-link {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--wino-black-medium);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pm-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pm-note textarea {
+  min-height: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.pm-note p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.pm-drop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px;
+  border: 1px dashed var(--wino-bg-darker);
+  border-radius: 8px;
+  background: var(--wino-bg-lighter);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pm-drop span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.pm-drop small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pm-drop input {
+  display: none;
+}
+
+.pm-drop.drag-over,
+.pm-files.dragging .pm-drop {
+  border-color: #2b7396;
+  background: #e6f2f8;
+}
+
+.pm-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pm-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pm-thumb {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--wino-bg-lighter);
+}
+
+.pm-thumb.pdf {
+  object-fit: contain;
+  padding: 8px;
+}
+
+.pm-file-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.pm-file-copy strong {
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pm-file-copy small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pm-file-copy select {
+  height: 26px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 11px;
+  background: var(--wino-white);
+}
+
+.pm-footer {
+  margin-top: 0;
+}
+
+.pm-footer-left,
+.pm-footer-right,
+.pm-discard,
+.pf-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.pm-footer-right small,
+.pf-footer-right small {
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.pm-discard {
+  font-size: 13px;
+}
+
+.pm-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pm-start img {
+  filter: brightness(0) invert(1);
+}
+
+/* Bestandsmanager: Stammdaten-Prüfung */
+.pf-shell {
+  min-height: 0;
+}
+
+.pf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  margin: 16px 16px 0;
+  padding: 20px 32px;
+  border-radius: 12px 12px 0 0;
+  background: var(--wino-white);
+  border-bottom: 1px solid var(--wino-bg-light);
+}
+
+.pf-kicker {
+  font-size: 11px;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-light);
+}
+
+.pf-head h1 {
+  margin: 4px 0 8px;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.pf-from {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--wino-black-medium);
+}
+
+.pf-head-state {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.pf-state {
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: var(--wino-signal-yellowlight);
+}
+
+.pf-state.done {
+  background: var(--wino-signal-greenlight);
+}
+
+.pf-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+  margin: 0 16px;
+  padding: 24px 32px;
+  background: var(--wino-white);
+}
+
+.pf-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.pf-side {
+  position: sticky;
+  top: 0;
+}
+
+.pf-card {
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pf-card h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.pf-muted {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wino-black-light);
+}
+
+.pf-checked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pf-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  background: var(--wino-signal-greenlight);
+}
+
+.pf-note {
+  margin: 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--wino-bg-darker);
+  border-radius: 6px;
+  background: var(--wino-bg-lighter);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.pf-note small {
+  display: block;
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pf-changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pf-change {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 8px;
+}
+
+.pf-change.uebernommen {
+  background: var(--wino-signal-greenlight);
+}
+
+.pf-change.abgelehnt {
+  background: var(--wino-signal-redlight);
+}
+
+.pf-change-what {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.pf-change-what small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pf-diff {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.pf-diff s {
+  color: var(--wino-black-light);
+}
+
+.pf-diff span {
+  font-weight: 500;
+}
+
+.pf-proof {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.pf-proof button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: #2b7396;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pf-reply {
+  margin: 0;
+  font-size: 12px;
+  color: #b3263e;
+}
+
+.pf-reject {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.pf-reject input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.pf-change-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.pf-files {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pf-file {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-file.on,
+.pf-file:hover {
+  border-color: var(--wino-bg-darker);
+  background: var(--wino-bg-lighter);
+}
+
+.pf-file span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.pf-file small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pf-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-preview img,
+.pf-preview iframe {
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid var(--wino-bg-light);
+  border-radius: 8px;
+  background: var(--wino-bg-lighter);
+}
+
+.pf-preview iframe {
+  height: 420px;
+}
+
+.pf-missing {
+  padding: 48px;
+}
+
+/* Dock in the Stammdaten workflow */
+.pd-dock {
+  position: fixed;
+  right: calc(24px + var(--widget-space, 0px));
+  bottom: 96px;
+  z-index: 40;
+  width: 320px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 12px;
+  background: var(--wino-white);
+  overflow: hidden;
+}
+
+.pd-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 0;
+  background: var(--wino-signal-yellowlight);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pd-head span {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+
+.pd-head small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+
+.pd-dock.collapsed .pd-caret {
+  transform: rotate(180deg);
+}
+
+.pd-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pd-list li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--wino-bg-light);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pd-list li.here {
+  border-color: #e8a33d;
+  background: #fffaf0;
+}
+
+.pd-list p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pd-list s {
+  color: var(--wino-black-light);
+}
+
+.pd-done {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid #348d2c;
+  border-radius: 12px;
+  background: var(--wino-white);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.pd-empty {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.pd-back {
+  margin: 4px 14px 12px;
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Verlauf: Zeitraum filter and "Als Ansicht öffnen". */
+.ver-win-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--wino-black-medium);
+}
+
+.ver-win-range input {
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--wino-black-dark);
+  background: var(--wino-white);
+}
+
+.ver-win-range-open {
+  margin-left: auto;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--wino-black-dark);
+  border-radius: 15px;
+  background: var(--wino-white);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ver-win-range-open:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.hist-banner.range {
+  background: #e6f2f8;
+}
+
+.pd-head strong {
+  white-space: nowrap;
+}
+
+.pm-sent.done {
+  background: var(--wino-signal-greenlight);
+}
+
+/* Prüfmodus: the real Stammdaten cards (DataCard); every value row is clickable ("Ändern"). */
+.pm-cards {
+  /* Wide enough for a phone number or IBAN on one line, as on the Profil page. */
+  grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+  align-items: start;
+}
+
+.pm-datacard .pp-card-menu {
+  display: none;
+}
+
+.pm-cards.editable .pm-datacard .pp-row,
+.pm-cards.editable .pm-datacard .pp-person {
+  position: relative;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pm-cards.editable .pm-datacard .pp-row:hover,
+.pm-cards.editable .pm-datacard .pp-person:hover {
+  background: var(--wino-bg-lighter);
+  outline: 1px solid var(--wino-bg-darker);
+}
+
+.pm-cards.editable .pm-datacard .pp-row:hover::after,
+.pm-cards.editable .pm-datacard .pp-person:hover::after {
+  content: "Ändern";
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--wino-black-dark);
+  background: var(--wino-white);
+  border: 1px solid var(--wino-bg-darker);
+}
+
+.pm-datacard .pm-marked {
+  background: var(--wino-signal-yellowlight);
+  outline: 1px solid #e8c55a;
+  border-radius: 6px;
 }

@@ -18,6 +18,7 @@ import * as a from "../assets/index";
 import { DocumentRail, SignedDocumentPanel } from "../documents";
 import { DateField, Icon, InfoBox, Notice, PersonSelect, Segmented } from "../ui";
 import { useWorkflow } from "../workflow";
+import { useFilePerson } from "../chrome";
 
 const CONSENT = [
   "Der Kunde stimmt ausdrücklich zu, dass besondere Kategorien personenbezogener Daten (sensible Daten insb. Gesundheitsdaten) durch den Makler zum Zweck der Vertragserfüllung verarbeitet und – soweit erforderlich – an Versicherungsunternehmen sowie an weitere an der Vertragsabwicklung beteiligte Dritte übermittelt werden. Sofern zum Zwecke der Vertragserfüllung die Verarbeitung personenbezogener Daten oder sensible personenbezogener Daten weiterer Personen erforderlich ist, erklärt der Kunde, dass er die erforderlichen Einwilligungen der betroffenen Personen eingeholt hat.",
@@ -238,6 +239,8 @@ function SignaturFields({ locked }: { locked: boolean }) {
     setWinterSignYear,
     filePartnerId,
   } = useWorkflow();
+  const filePerson = useFilePerson();
+  const signerBorn = docSigner === filePerson.personName ? filePerson.born : undefined;
 
   return (
     <>
@@ -305,7 +308,7 @@ function SignaturFields({ locked }: { locked: boolean }) {
         {signMode === "digital" && (
           <div className="block">
             <span className="field-label">Unterzeichnet von</span>
-            <PersonSelect name={docSigner} meta="12.09.1988" locked />
+            <PersonSelect name={docSigner} meta={signerBorn} locked />
           </div>
         )}
 
@@ -341,7 +344,7 @@ function SignaturFields({ locked }: { locked: boolean }) {
         {signMode === "upload" && (
           <div className="block">
             <span className="field-label">Unterzeichnet von</span>
-            <PersonSelect name={docSigner} meta="12.09.1988" locked />
+            <PersonSelect name={docSigner} meta={signerBorn} locked />
           </div>
         )}
 

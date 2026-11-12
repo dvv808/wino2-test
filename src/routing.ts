@@ -22,6 +22,8 @@ const MAKLERMANDAT_AREA = "maklermandat";
 const INKASSO_AREA = "inkasso";
 const PERSON_WORKFLOWS = "workflows-to-dos";
 const STAMMDATEN_WORKFLOW = "stammdaten-workflow";
+/** Prüfmodus: Stammdaten beim Kunden prüfen. */
+const PRUEFUNG = "stammdaten-pruefen";
 
 function personRoot(partnerId: PartnerId = "julia") {
   return `person/${getPartner(partnerId).slug}`;
@@ -180,6 +182,7 @@ export function routeToHash({
   if (view === "konzernHub" && konzernHubId) {
     return `#/${personRoot(partnerId)}/konzern/${konzernHubId}`;
   }
+  if (view === "pruefung") return `#/${personRoot(partnerId)}/${PRUEFUNG}`;
   if (view === "stammdaten") {
     const area = AREA_SLUGS[stammdatenArea ?? "personendaten"];
     const card = stammdatenCardId ? `/${stammdatenCardId}` : "";
@@ -249,6 +252,9 @@ export function hashToRoute(hash: string): Route {
   if (parts[0] === "bestandsmanager") {
     const id = parts[2];
     return id ? { view: "freigabe", freigabeId: id } : { view: "manager", managerNav: { area: "bestand", tab: "freigaben" } };
+  }
+  if (parts[0] === "person" && parts[2] === PRUEFUNG) {
+    return { view: "pruefung", partnerId: partnerOf(parts), personModule: "profil", personArea: "stammdaten" };
   }
   if (parts[0] === "person" && parts[2] === STAMMDATEN_WORKFLOW) {
     const area = AREA_BY_SLUG.get(parts[3] ?? "") ?? STAMMDATEN_AREAS[0].id;

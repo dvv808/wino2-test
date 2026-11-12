@@ -2,6 +2,36 @@ import { type ReactNode } from "react";
 import * as a from "../assets/index";
 import { ContextMenu, Icon } from "../ui";
 import type { Block, Card, Empty, Row, Value } from "./stammdaten";
+import { FILE_PARTNERS, type PartnerId } from "./partners";
+import { useWorkflow } from "../workflow";
+
+/**
+ * Open-in-tab on a contact person (Figma 22720:174995): opens that partner's own file. Hidden when the
+ * person has no file in Wino yet.
+ */
+function PersonOpen({ name }: { name: string }) {
+  const { openPartner, extraPartners } = useWorkflow();
+  const key = name.trim().toLowerCase();
+  const target = [...Object.values(FILE_PARTNERS), ...extraPartners].find((entry) => entry.name.toLowerCase() === key);
+  if (!target) return null;
+  return (
+    <button
+      type="button"
+      className="pp-person-open"
+      aria-label={`${target.name} öffnen`}
+      title={`${target.name} öffnen`}
+      onClick={(event) => {
+        event.stopPropagation();
+        openPartner(target.id as PartnerId);
+      }}
+    >
+      <img src={a.openTab} alt="" />
+    </button>
+  );
+}
+
+/** Row labels as the card shows them; the stored label stays short. */
+const ROW_LABEL: Record<string, string> = { Webseite: "Website & Social Media" };
 
 function valueKey(value: Value) {
   if (typeof value === "string") return value;
@@ -95,8 +125,13 @@ function RowLine({
   return (
     <div className={`pp-row${change ? ` ${change}` : ""}`}>
       <span className="pp-label">
-        {row.icon ? <img src={row.icon} alt="" width={18} height={18} /> : null}
-        {row.label}
+        {/* Intrinsic size, centred in the 18px Figma box – the SVGs are not square. */}
+        {row.icon ? (
+          <span className="pp-row-icon">
+            <img src={row.icon} alt="" />
+          </span>
+        ) : null}
+        {ROW_LABEL[row.label] ?? row.label}
       </span>
       <DiffValue now={row.value} was={was} change={change} />
       {row.action && change !== "removed" ? (
@@ -168,7 +203,7 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
       <div className="pp-person">
         <span className="pp-person-avatar">
           <img src={a.avatarBg} alt="" width={32} height={32} />
-          <img className="glyph" src={block.party === "company" ? a.companyBlank : a.personSmall} alt="" width={21} height={21} />
+          <img className="glyph" src={block.party === "company" ? a.companyBlank : a.personSmall} alt="" />
         </span>
         <span className="pp-person-copy">
           {block.tag ? <span className={chipClass(block.tag)}>{block.tag}</span> : null}
@@ -183,7 +218,7 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
           )}
           <small>{block.sub}</small>
         </span>
-        <Icon src={a.openTab} size={18} />
+        <PersonOpen name={block.name} />
       </div>
     );
     if (block.caption) {

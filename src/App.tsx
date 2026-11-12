@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as a from "./assets/index";
-import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab, useParkedTabClicks } from "./chrome";
+import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab, useFilePerson, useParkedTabClicks } from "./chrome";
+import { MINDESTBETRAG } from "./lib/maklervereinbarung/zahlweise";
 import { CommentPrompt } from "./CommentPrompt";
 import { WicoDeviationBox } from "./Summary";
 import { ConsentWarning } from "./ConsentWarning";
@@ -27,11 +28,12 @@ import { KonzernHubPage } from "./person/KonzernHub";
 import { PartnerCreate } from "./person/PartnerCreate";
 import { PersonPage } from "./person/PersonPage";
 import { StammdatenWorkflow } from "./person/StammdatenWorkflow";
+import { PruefModus } from "./person/PruefModus";
 import { UnsavedChanges } from "./person/UnsavedChanges";
 import { VersionLayer } from "./person/VersionHistory";
 import { Icon } from "./ui";
 import { openTasks } from "./person/stammdaten";
-import { dateOf } from "./lib/maklervereinbarung/gueltigkeit";
+import { amountOf, dateOf } from "./lib/maklervereinbarung/gueltigkeit";
 import { WidgetBar } from "./widget/WidgetBar";
 import {
   STEPS,
@@ -40,6 +42,7 @@ import {
   type ApprovalStep,
   type StepId,
 } from "./workflow";
+import { GlobalSearch } from "./search/GlobalSearch";
 
 const LAYOUT: Record<StepId, string> = {
   tasks: "page single",
@@ -58,16 +61,20 @@ const LAYOUT: Record<StepId, string> = {
  * Individuell – the Notiz.
  */
 function useHonorarComplete() {
-  const { model, customNote, selectedPartner, billing, month, year, dueDay, dueMonth, payment, paymentTerm, delivery, commsChoice } =
+  const { model, customNote, selectedPartner, billing, month, year, dueDay, dueMonth, payment, paymentTerm, delivery, commsChoice, businessAmount } =
     useWorkflow();
+  const { isCompany } = useFilePerson();
   if (model === "custom") return Boolean(customNote.trim());
   if (model === "partner") return Boolean(selectedPartner?.ok);
   const first = billing === "custom" ? dateOf("01", month, year) : null;
   const billingOk = billing !== "custom" || Boolean(first && first > new Date());
   const dueOk = Boolean(dateOf(dueDay, dueMonth, "2000"));
-  const paymentOk = payment === "debit" || Number(paymentTerm) > 0;
-  const deliveryOk = delivery === "email" ? Boolean(commsChoice.mail) : Boolean(commsChoice.post);
-  return billingOk && dueOk && paymentOk && deliveryOk;
+  const paymentOk = payment === "debit" || !isCompany || Number(paymentTerm) > 0;
+  // Unternehmen: Rechnungen go to the Versand mail; the Honorarbetrag needs at least EUR 300,00.
+  const deliveryOk =
+    delivery === "email" ? Boolean(isCompany ? commsChoice.versandMail : commsChoice.mail) : Boolean(commsChoice.post);
+  const amountOk = !isCompany || amountOf(businessAmount) >= MINDESTBETRAG;
+  return billingOk && dueOk && paymentOk && deliveryOk && amountOk;
 }
 
 function Stepper() {
@@ -75,10 +82,17 @@ function Stepper() {
   // Offene Aufgaben is done as soon as the Stammdaten hold everything it asks for.
   const honorar = useHonorarComplete();
   const { commsChoice, termsOn, termsText } = useWorkflow();
+  const { isCompany } = useFilePerson();
   const isDone = (id: StepId) =>
     // Kommunikationsdaten: Fertig only while Telefon, Mail and Postadresse are all picked.
     id === "comms"
-      ? Boolean(commsChoice.phone && commsChoice.mail && commsChoice.post)
+      ? Boolean(
+          commsChoice.phone &&
+            commsChoice.mail &&
+            commsChoice.post &&
+            // Unternehmen also need the Vertretungsbefugte Person and the Versand mail.
+            (!isCompany || (commsChoice.rep && commsChoice.versandMail)),
+        )
       : // Honorar: Fertig as soon as everything the chosen model needs is filled in.
         id === "fee"
         ? honorar
@@ -316,6 +330,15 @@ function Screen() {
       </>
     );
   }
+  if (view === "pruefung") {
+    return (
+      <>
+        <PruefModus />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
   if (view === "stammdaten") {
     return (
       <>
@@ -337,9 +360,7 @@ function Screen() {
             <MeinBereichTab />
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>

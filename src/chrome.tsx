@@ -3,6 +3,9 @@ import * as a from "./assets/index";
 import { getPartner } from "./person/partners";
 import { partyName } from "./person/konzernLinks";
 import { liveFileIdentity } from "./person/stammdaten";
+import { standDate } from "./person/versions";
+import { discardPruefung, draftFor, usePruefungen } from "./person/pruefung";
+import type { FileContact } from "./person/partners";
 import { Icon } from "./ui";
 import { MANAGEMENT_VIEWS, useWorkflow, type WorkflowPane } from "./workflow";
 
@@ -498,8 +501,21 @@ export function WorkflowDockTab({
 
 /** Every open workflow stays in the bar; only its own close control dismisses it. */
 export function WorkflowDock() {
-  const { view, maklerOpen, stammdatenOpen, openMakler, closeMakler, resumeStammdaten, closeStammdaten, personName } =
-    useWorkflow();
+  const {
+    view,
+    maklerOpen,
+    stammdatenOpen,
+    openMakler,
+    closeMakler,
+    resumeStammdaten,
+    closeStammdaten,
+    personName,
+    filePartnerId,
+    openPruefung,
+    closePruefung,
+  } = useWorkflow();
+  const pruefList = usePruefungen();
+  const pruefDraft = draftFor(pruefList, filePartnerId);
 
   const tabs: {
     id: string;
@@ -527,6 +543,27 @@ export function WorkflowDock() {
     });
   }
 
+  // Prüfmodus: its own tab while open, and while a draft waits ("Später weiter").
+  if (view === "pruefung" || pruefDraft) {
+    tabs.push({
+      id: "pruefung",
+      kicker: "Stammdaten prüfen",
+      active: view === "pruefung",
+      onActivate: () => openPruefung(),
+      onClose: () => {
+        // An untouched draft goes away with the tab; one with notes stays (and keeps the tab).
+        const empty =
+          pruefDraft &&
+          !pruefDraft.changes.length &&
+          !pruefDraft.checked.length &&
+          !pruefDraft.files.length &&
+          !pruefDraft.note.trim();
+        if (pruefDraft && empty) discardPruefung(pruefDraft.id);
+        if (view === "pruefung") closePruefung();
+      },
+    });
+  }
+
   if (!tabs.length) return null;
 
   return (
@@ -545,6 +582,46 @@ export function WorkflowDock() {
   );
 }
 
+/**
+ * The partner whose file is open, as the identity cards show it: live Stammdaten first, the seed file second.
+ * Every workflow card (Offene Aufgaben, Zusammenfassung, Unterschrift) must use this, never a fixed name.
+ */
+export function useFilePerson() {
+  const { filePartnerId, personName, ashleyConverted, displaySections, commsChoice } = useWorkflow();
+  const file = getPartner(filePartnerId);
+  const live = liveFileIdentity(displaySections);
+  const born = live.born ?? file.born;
+  const address = live.address ?? file.address;
+  // A Zentraler Kontakt (Telefon / Mail picked in the Maklervereinbarung Kommunikationsdaten) wins; otherwise the
+  // first Telefon, Mail and Webseite from the Kontakte.
+  const central: FileContact[] = [
+    ...(commsChoice.phone ? [{ kind: "phone" as const, caption: "Zentraler Kontakt · Telefon", value: commsChoice.phone.value }] : []),
+    ...(commsChoice.mail ? [{ kind: "mail" as const, caption: "Zentraler Kontakt · Mail", value: commsChoice.mail.value }] : []),
+  ];
+  const usingLive = live.contacts.length > 0;
+  const contacts = central.length ? central : usingLive ? live.contacts : file.contacts;
+  const extra = central.length || usingLive ? Math.max(live.contactTotal - contacts.length, 0) : file.moreContacts;
+  const isCompany = file.fileKind === "company";
+  const tag: "interessent" | "kunde" | "einfach" | null =
+    filePartnerId === "julia" || (filePartnerId === "ashley" && ashleyConverted) || file.kind === "interessent"
+      ? "interessent"
+      : file.kind === "kunde"
+        ? "kunde"
+        : file.kind === "einfach"
+          ? "einfach"
+          : null;
+  return { file, personName, born, address, contacts, extra, isCompany, tag };
+}
+
+/** The tag chip of the open partner (Interessent / Kunde / Einfache Person). */
+export function FilePersonChip() {
+  const { tag } = useFilePerson();
+  if (tag === "interessent") return <span className="chip">Interessent</span>;
+  if (tag === "kunde") return <span className="chip kunde">Kunde</span>;
+  if (tag === "einfach") return <span className="chip einfach">Einfache Person</span>;
+  return null;
+}
+
 export function FileIdentity({
   className = "pp-id",
   forceInteressent = false,
@@ -552,19 +629,11 @@ export function FileIdentity({
   className?: string;
   forceInteressent?: boolean;
 }) {
-  const { filePartnerId, personName, ashleyConverted, displaySections } = useWorkflow();
-  const file = getPartner(filePartnerId);
-  const live = liveFileIdentity(displaySections);
-  const born = live.born ?? file.born;
-  const address = live.address ?? file.address;
-  const usingLive = live.contacts.length > 0;
-  const contacts = usingLive ? live.contacts : file.contacts;
-  const extra = usingLive ? Math.max(contacts.length - 2, 0) : file.moreContacts;
-  const shown = contacts.slice(0, 2);
+  const person = useFilePerson();
+  const { file, born, address, contacts, extra, isCompany, personName } = person;
+  const shown = contacts.slice(0, 3);
   const kind = file.kind;
-  const isCompany = file.fileKind === "company";
-  const interessent =
-    forceInteressent || filePartnerId === "julia" || (filePartnerId === "ashley" && ashleyConverted) || kind === "interessent";
+  const interessent = forceInteressent || person.tag === "interessent";
   const compact = /\bcompact\b/.test(className);
   const street = address?.[0] ?? "";
   const city = address?.[1] ?? "";
@@ -600,7 +669,7 @@ export function FileIdentity({
             {shown.map((contact) => (
               <div className="mm-contact" key={`${contact.kind}-${contact.value}`}>
                 <span className="mm-contact-icon">
-                  <Icon src={contact.kind === "mail" ? a.mail : a.phone} size={18} />
+                  <Icon src={contact.kind === "mail" ? a.mail : contact.kind === "web" ? a.globe : a.phone} size={18} />
                 </span>
                 <span>
                   <small>{contact.caption}</small>
@@ -694,11 +763,12 @@ export function ContentNav({
 }
 
 export function VerlaufCaption() {
-  const { isHistorical } = useWorkflow();
+  const { isHistorical, versions, viewingVersion } = useWorkflow();
+  // No version numbers: the Stand is named by its date, the latest date is the current one.
   return (
     <span className={`verlauf-copy${isHistorical ? " old" : ""}`}>
       Verlauf
-      <small>{isHistorical ? "Alte Version" : "Aktuellste Version"}</small>
+      <small>{isHistorical ? `Stand ${viewingVersion?.date ?? ""}` : `Aktuell · ${standDate(versions)}`}</small>
     </span>
   );
 }

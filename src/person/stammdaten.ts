@@ -450,7 +450,7 @@ const KONTAKT_JULIA: Card = {
   id: "kontakt-julia",
   title: "Kontaktdaten von Julia",
   blocks: [
-    { kind: "person", tag: "Interessent", name: "Julia Aktinson", sub: "12.09.1988" },
+    { kind: "person", tag: "Interessent", name: "Julia Atkinson", sub: "12.09.1988" },
     {
       kind: "note",
       caption: "Allgemeine Kontaktnotiz",
@@ -477,7 +477,7 @@ const KONTAKT_EHEMANN: Card = {
   id: "kontakt-ehemann",
   title: "Ehemann",
   blocks: [
-    { kind: "person", name: "Udo Ladraida", sub: "12.09.1988" },
+    { kind: "person", tag: "Einfache Person", name: "Udo Ladraida", sub: "12.09.1988" },
     {
       kind: "note",
       caption: "Allgemeine Kontaktnotiz",
@@ -750,11 +750,16 @@ export type CommsGroup = { id: string; title: string; person?: { name: string; t
 
 const COMMS_LABEL: Record<Exclude<CommsType, "post">, string> = { phone: "Telefon", mail: "Mail" };
 
+/** Unternehmen files carry "Personentyp: Unternehmen" in their Systemdaten. */
+export function isCompanyFile(sections: Section[]) {
+  return liveCards(sections, "systemdaten").some((card) => rowValue(card, "Personentyp") === "Unternehmen");
+}
+
 export function commsOptions(sections: Section[], type: CommsType): CommsGroup[] {
+  const partner = liveCards(sections, "personendaten")[0];
+  const form = partner ? partnerForm(partner) : null;
+  const owner = form ? [form.vorname, form.nachname].filter(filled).join(" ") : "";
   if (type === "post") {
-    const partner = liveCards(sections, "personendaten")[0];
-    const form = partner ? partnerForm(partner) : null;
-    const owner = form ? [form.vorname, form.nachname].filter(filled).join(" ") : "";
     return liveCards(sections, "adressen")
       .map((card) => {
         const rows = card.blocks?.flatMap((block) => ("rows" in block ? block.rows : [])) ?? [];
@@ -771,7 +776,19 @@ export function commsOptions(sections: Section[], type: CommsType): CommsGroup[]
       })
       .filter((group) => group.options.length > 0);
   }
+  const norm = (name: string) => name.trim().toLowerCase().replace(/\s+/g, " ");
+  const company = isCompanyFile(sections);
+  // Privatperson: only the partner's own contacts and channels – a relative's phone or mail (e.g. the husband)
+  // is not offered. Unternehmen: every contact counts, including people like the Geschäftsführung with their
+  // own company numbers.
+  const ownContact = (card: Card) => {
+    if (company) return true;
+    const person = card.blocks?.find((block) => block.kind === "person");
+    if (person?.kind !== "person" || person.tag === "Kanal") return true;
+    return !owner || norm(person.name) === norm(owner);
+  };
   return liveCards(sections, "kontakte")
+    .filter(ownContact)
     .map((card) => {
       const person = card.blocks?.find((block) => block.kind === "person");
       const note = card.blocks?.find((block) => block.kind === "note");
@@ -814,27 +831,22 @@ export function liveFileIdentity(sections: Section[]) {
   const form = partner ? partnerForm(partner) : null;
   const born = form ? joinDate(form.geburtTag, form.geburtMonat, form.geburtJahr) : "";
 
+  // File card: the first Telefon, the first Mail and the first Webseite across the Kontakte (in card order).
+  // A Zentraler Kontakt picked in the Maklervereinbarung replaces Telefon and Mail (see useFilePerson).
+  const company = isCompanyFile(sections);
+  const forms = liveCards(sections, "kontakte").map(contactForm);
+  const phones = forms.flatMap((form) => form.phones).filter((phone) => filled(phone.value));
+  const mails = forms.flatMap((form) => form.mails).filter((mail) => filled(mail.value));
+  const websites = forms.flatMap((form) => form.websites).filter((site) => filled(site.value));
   const contacts: FileContact[] = [];
-  const primaryContact = liveCards(sections, "kontakte")[0];
-  if (primaryContact) {
-    const contact = contactForm(primaryContact);
-    for (const phone of contact.phones) {
-      if (!filled(phone.value)) continue;
-      contacts.push({
-        kind: "phone",
-        caption: phone.extra === "Festnetz" ? "Festnetz" : "Mobil Privat",
-        value: phone.value,
-      });
-    }
-    for (const mail of contact.mails) {
-      if (!filled(mail.value)) continue;
-      contacts.push({
-        kind: "mail",
-        caption: "Mail Privat",
-        value: mail.value,
-      });
-    }
+  if (phones[0]) {
+    const festnetz = phones[0].extra === "Festnetz";
+    contacts.push({ kind: "phone", caption: festnetz ? "Festnetz" : company ? "Mobil" : "Mobil Privat", value: phones[0].value });
   }
+  if (mails[0]) contacts.push({ kind: "mail", caption: company ? "Mail" : "Mail Privat", value: mails[0].value });
+  if (websites[0]) contacts.push({ kind: "web", caption: "Webseite", value: websites[0].value });
+  /** All channels, for "+N weitere Kontakte". */
+  const contactTotal = phones.length + mails.length + websites.length;
 
   const addresses = liveCards(sections, "adressen");
   const preferred = addresses.find((card) => card.title === "Hauptwohnsitz") ?? addresses[0];
@@ -850,6 +862,7 @@ export function liveFileIdentity(sections: Section[]) {
     born: filled(born) || undefined,
     address: street || city ? ([street, city] as [string, string]) : undefined,
     contacts,
+    contactTotal,
   };
 }
 
@@ -1697,14 +1710,196 @@ export function cloneAshleySections(
   ]);
 }
 
-/** Lunixo AG starts with the company Wirtschaftsdaten cards from the Figma screens. */
-export function cloneLunixoSections(): Section[] {
-  const sections = cloneAshleySections("Lunixo", "AG", "partner-lunixo", "Unternehmen");
-  return sections.map((section) =>
-    section.id === "wirtschaftsdaten"
-      ? { ...section, cards: structuredClone(companyWirtschaftCards()) }
+/**
+ * Lunixo AG's own Kontakte: the Office channel, and Julia Atkinson as Geschäftsführerin. In an Unternehmen a
+ * person contact keeps its own company numbers – they differ from Julia's private ones on purpose.
+ */
+function lunixoKontakte(): Card[] {
+  return [
+    applyContact(
+      { id: "kontakt-lunixo-office" },
+      {
+        kind: "kanal",
+        partner: "",
+        bezeichnung: "Office Lunixo AG",
+        notiz: "Zentrale – Mo bis Fr 08:00 bis 17:00 erreichbar.",
+        phones: [
+          { value: "+43 662 21 33 40", note: "", extra: "Festnetz" },
+          { value: "+43 664 21 33 40 1", note: "", extra: "Mobil" },
+        ],
+        mails: [
+          { value: "office@lunixo.com", note: "" },
+          { value: "buchhaltung@lunixo.com", note: "" },
+        ],
+        websites: [{ value: "www.lunixo.com", extra: "Webseite", note: "" }],
+      },
+    ),
+    applyContact(
+      { id: "kontakt-lunixo-julia" },
+      {
+        kind: "person",
+        partner: "Julia Atkinson",
+        bezeichnung: "Geschäftsführung",
+        notiz: "Geschäftsführerin der Lunixo AG – bitte nur geschäftlich über diese Nummern kontaktieren.",
+        phones: [{ value: "+43 664 80 12 34 5", note: "", extra: "Mobil" }],
+        mails: [{ value: "julia.atkinson@lunixo.com", note: "" }],
+        websites: [],
+      },
+    ),
+  ];
+}
+
+/** Udo Ladraida's own file: his Kontaktdaten live here; Julia's Ehemann contact takes them from this profile. */
+export function cloneUdoSections(): Section[] {
+  return cloneAshleySections("Udo", "Ladraida", "partner-udo").map((section) =>
+    section.id === "kontakte"
+      ? {
+          ...section,
+          title: "Kontakte (1)",
+          cards: [
+            applyContact(
+              { id: "kontakt-udo" },
+              {
+                kind: "person",
+                partner: "Udo Ladraida",
+                bezeichnung: "Kontaktdaten von Udo",
+                notiz: "",
+                phones: [{ value: "+43 3810 393 112 3", note: "", extra: "Mobil" }],
+                mails: [{ value: "udo ladreiter@mail.at", note: "" }],
+                websites: [],
+              },
+            ),
+          ],
+        }
       : section,
   );
+}
+
+/**
+ * Thomas Debrezina: a Kunde whose Stammdaten are complete in every area (Prüfmodus demo). Built from the same
+ * cards as Julia's file, with his own values.
+ */
+export function cloneThomasSections(): Section[] {
+  const base = cloneSections();
+  const partner = applyPartner(
+    { id: "partner-thomas" },
+    {
+      ...EMPTY_PARTNER,
+      titelVor: "Mag.",
+      vorname: "Thomas",
+      nachname: "Debrezina",
+      rufname: "Tom",
+      geschlecht: "Männlich",
+      geburtTag: "07",
+      geburtMonat: "04",
+      geburtJahr: "1979",
+      nationalitaet: "Österreich",
+      notiz: "Langjähriger Kunde, bevorzugt Termine am Vormittag.",
+      files: [{ label: "Reisepass", name: "Reisepass_Debrezina.pdf", type: "pdf" }],
+    },
+  );
+  const kontakte = [
+    applyContact(
+      { id: "kontakt-thomas" },
+      {
+        kind: "person",
+        partner: "Thomas Debrezina",
+        bezeichnung: "Kontaktdaten von Thomas",
+        notiz: "Am besten mobil erreichbar, Mails werden abends gelesen.",
+        phones: [
+          { value: "+43 664 31 07 479", note: "", extra: "Mobil" },
+          { value: "+43 662 87 12 40", note: "", extra: "Festnetz" },
+        ],
+        mails: [{ value: "thomas.debrezina@gmx.at", note: "" }],
+        websites: [],
+      },
+    ),
+    applyContact(
+      { id: "kontakt-thomas-buero" },
+      {
+        kind: "kanal",
+        partner: "",
+        bezeichnung: "Büro Debrezina Steuerberatung",
+        notiz: "Kanzlei – Mo bis Do 08:00 bis 16:00.",
+        phones: [{ value: "+43 662 87 12 41 0", note: "", extra: "Festnetz" }],
+        mails: [{ value: "office@debrezina-stb.at", note: "" }],
+        websites: [{ value: "www.debrezina-stb.at", extra: "Webseite", note: "" }],
+      },
+    ),
+  ];
+  const adressen = [
+    applyAddress(
+      { id: "adresse-thomas-haupt" },
+      { ...EMPTY_ADDRESS, typ: "Hauptwohnsitz", strasse: "Linzer Gasse", nummer: "21", plz: "5020", ort: "Salzburg" },
+    ),
+    applyAddress(
+      { id: "adresse-thomas-neben" },
+      { ...EMPTY_ADDRESS, typ: "Nebenwohnsitz", strasse: "Seestraße", nummer: "4", plz: "5350", ort: "Strobl", notiz: "Ferienhaus am Wolfgangsee." },
+    ),
+  ];
+  const bank = [
+    applyBank(
+      { id: "bank-thomas-raiffeisen" },
+      { person: "Thomas Debrezina", institut: "Raiffeisenverband Salzburg", iban: "AT 3535 00000 0123 4567 8901", bic: "RVSAAT2S", notiz: "", files: [] },
+    ),
+  ];
+  return base.map((section) => {
+    if (section.id === "personendaten") return { ...section, cards: [partner] };
+    if (section.id === "kontakte") return { ...section, title: "Kontakte (2)", cards: kontakte };
+    if (section.id === "adressen") return { ...section, title: "Adressen (2)", cards: adressen };
+    if (section.id === "bankverbindungen") return { ...section, title: "Bankverbindungen (1)", cards: bank };
+    // Wirtschaftsdaten: his Gewerbe, Verein and Anhänge (no Firmenbuch entry of Julia's companies).
+    if (section.id === "wirtschaftsdaten") return { ...section, cards: section.cards.filter((card) => card.id !== "wirtschaft-firmenbuch") };
+    if (section.id === "systemdaten") {
+      return {
+        ...section,
+        cards: section.cards.map((card) => ({
+          ...card,
+          blocks: card.blocks?.map((block) =>
+            "rows" in block
+              ? { ...block, rows: block.rows.map((row) => (row.label === "Partnertyp" ? { ...row, value: "Kunde" } : row)) }
+              : block,
+          ),
+        })),
+      };
+    }
+    return section;
+  });
+}
+
+/** Lunixo AG starts with the company Wirtschaftsdaten cards from the Figma screens, its Kontakte and Firmensitz. */
+export function cloneLunixoSections(): Section[] {
+  const sections = cloneAshleySections("Lunixo", "AG", "partner-lunixo", "Unternehmen");
+  return sections.map((section) => {
+    if (section.id === "wirtschaftsdaten") return { ...section, cards: structuredClone(companyWirtschaftCards()) };
+    if (section.id === "kontakte") return { ...section, title: "Kontakte (2)", cards: lunixoKontakte() };
+    // Firmenkonto for the Abbuchung of the Honorar (Figma 21165:30327).
+    if (section.id === "bankverbindungen") {
+      return {
+        ...section,
+        title: "Bankverbindungen (1)",
+        cards: [
+          applyBank(
+            { id: "bank-lunixo-neon" },
+            { person: "Lunixo AG", institut: "Neon Bank", iban: "AT 2303 20002 0000 0002 0012", bic: "", notiz: "", files: [] },
+          ),
+        ],
+      };
+    }
+    if (section.id === "adressen") {
+      return {
+        ...section,
+        title: "Adressen (1)",
+        cards: [
+          applyAddress(
+            { id: "adresse-lunixo" },
+            { ...EMPTY_ADDRESS, typ: "Firmenadresse", strasse: "Getreidegasse", nummer: "12", plz: "5020", ort: "Salzburg" },
+          ),
+        ],
+      };
+    }
+    return section;
+  });
 }
 
 /** Other company files: same Stammdaten shell, Wirtschaftsdaten only named (fill later). */

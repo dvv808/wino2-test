@@ -8,6 +8,8 @@ import { DeleteWarning } from "./DeleteWarning";
 import { FreigabenPanel, type BestandListenTab } from "./FreigabenPanel";
 import { FreigabePage } from "./FreigabePage";
 import { HrmListen } from "./HrmListen";
+import { PruefungFreigabe } from "./PruefungFreigabe";
+import { usePruefungen } from "../person/pruefung";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
 import {
   ADVISOR_REQUESTS,
@@ -15,6 +17,7 @@ import {
   STAMMDATEN_REQUESTS,
   liveHomeofficeRows,
   liveMaklerRows,
+  livePruefungRows,
   liveRechnungRows,
   type RequestRow,
   type RequestStatus,
@@ -57,6 +60,8 @@ export function ManagerView() {
   /** Homeoffice-Anträge from the Kalender, shared through the same store. */
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
   useEffect(() => onAntraegeChange(setHomeoffice), []);
+  /** Stammdaten-Prüfungen from the Prüfmodus (beim Kunden geprüft). */
+  const pruefungen = usePruefungen();
 
   const liveRows = liveMaklerRows({
     approvalOf,
@@ -72,6 +77,7 @@ export function ManagerView() {
     ...(liveRows.every((row) => row.pending) ? [] : liveRows),
     ...liveRechnungRows(honorar),
     ...liveHomeofficeRows(homeoffice),
+    ...livePruefungRows(pruefungen),
     ...DEMO_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...ADVISOR_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
     ...STAMMDATEN_REQUESTS.map((row) => ({ ...row, ...demoDecisions[row.id] })),
@@ -116,6 +122,10 @@ export function ManagerView() {
       },
     }));
     closeFreigabe();
+  }
+
+  if (reviewing?.pruefungId && view === "freigabe") {
+    return <PruefungFreigabe id={reviewing.pruefungId} onClose={closeFreigabe} onPark={parkFreigabe} />;
   }
 
   if (reviewing && view === "freigabe") {

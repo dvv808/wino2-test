@@ -6,6 +6,7 @@ import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { HomeWorkflows } from "./HomeWorkflows";
 import { PartnerList } from "./PartnerList";
+import { GlobalSearch } from "../search/GlobalSearch";
 
 type Area = "Planner" | "Kommunikation" | "Bestand" | "Wissen";
 const AREAS: Area[] = ["Planner", "Kommunikation", "Bestand", "Wissen"];
@@ -51,9 +52,7 @@ export function HomeView() {
             <FileTabs />
           </div>
           <div className="main-nav-right">
-            <button type="button" className="search-btn" aria-label="Suche">
-              <Icon src={a.search} size={42} />
-            </button>
+            <GlobalSearch />
             <ProfileMenu />
           </div>
         </header>

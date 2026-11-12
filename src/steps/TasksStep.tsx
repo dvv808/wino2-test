@@ -2,6 +2,7 @@ import * as a from "../assets/index";
 import { Icon, IdCardIcon } from "../ui";
 import { openTasks } from "../person/stammdaten";
 import { useWorkflow } from "../workflow";
+import { FilePersonChip, useFilePerson } from "../chrome";
 
 const TASKS = [
   { id: "id", label: "Ausweis und/oder Reisepass hochladen" },
@@ -12,6 +13,8 @@ const TASKS = [
 export function TasksStep() {
   // Only what is still missing in the Stammdaten: an added Ausweis, Bankverbindung or contact drops off.
   const { sections } = useWorkflow();
+  // The partner whose file this Maklervereinbarung belongs to – never a fixed person.
+  const { personName, born, address, file, isCompany } = useFilePerson();
   const open = new Set(openTasks(sections));
   const tasks = TASKS.filter((task) => open.has(task.id as "id" | "bank" | "contact"));
   return (
@@ -19,19 +22,27 @@ export function TasksStep() {
       <div className="tasks-person">
         <span className="stack-icon" style={{ width: 32, height: 32 }}>
           <img src={a.avatarBg} alt="" width={32} height={32} />
-          <img src={a.personSmall} alt="" width={21} height={21} style={{ inset: 5 }} />
+          <img
+            src={isCompany ? a.companyBlank : a.personSmall}
+            alt=""
+            width={21}
+            height={21}
+            style={{ inset: 5 }}
+          />
         </span>
         <div className="tasks-person-copy">
-          <span className="chip">Interessent</span>
-          <strong>Julia Atkinson</strong>
-          <small>12.09.1988</small>
-          <p>
-            Mondseestrasse 32
-            <br />
-            A-5310 Mondsee
-          </p>
+          <FilePersonChip />
+          <strong>{personName}</strong>
+          {isCompany ? (file.fn ? <small>FN {file.fn}</small> : null) : born ? <small>{born}</small> : null}
+          {address && (address[0] || address[1]) ? (
+            <p>
+              {address[0]}
+              {address[0] && address[1] ? <br /> : null}
+              {address[1]}
+            </p>
+          ) : null}
         </div>
-        <span className="tasks-person-id">ID: 2813</span>
+        <span className="tasks-person-id">ID: {file.fileId}</span>
       </div>
 
       <h1>Offene Aufgaben</h1>

@@ -381,6 +381,21 @@ export function blankFileVersions(
 
 export const ASHLEY_VERSIONS: PersonVersion[] = blankFileVersions("Ashley", "Johnson", "partner-ashley", "a01");
 
+/** Thomas Debrezina's Verlauf: a Kunde since 2018 with a signed Maklervereinbarung (Prüfmodus demo). */
+export function thomasVersions(): PersonVersion[] {
+  const base = { number: 1, legal: false, vorname: "Thomas", nachname: "Debrezina", editor: EDITOR_ADVISOR };
+  return [
+    { ...base, id: "t01", legal: true, kind: "added", date: "14.03.2018", time: "10:02", field: "Person", to: "Mag. Thomas Debrezina", placeLabel: "Stammdaten · Partnerdaten", place: { app: "stammdaten", area: "personendaten", cardId: "partner-thomas" } },
+    { ...base, id: "t02", kind: "added", date: "14.03.2018", time: "10:06", field: "Hauptwohnsitz", to: "Linzer Gasse 21, A-5020 Salzburg", placeLabel: "Stammdaten · Adressen", place: { app: "stammdaten", area: "adressen", cardId: "adresse-thomas-haupt" } },
+    { ...base, id: "t03", kind: "added", date: "14.03.2018", time: "10:09", field: "Kontakt", to: "+43 664 31 07 479 · thomas.debrezina@gmx.at", placeLabel: "Stammdaten · Kontakte", place: { app: "stammdaten", area: "kontakte", cardId: "kontakt-thomas" } },
+    { ...base, id: "t04", kind: "added", date: "20.03.2018", time: "14:30", field: "Bankverbindung", to: "Raiffeisenverband Salzburg · AT 3535 00000 0123 4567 8901", placeLabel: "Stammdaten · Bankverbindung", place: { app: "stammdaten", area: "bankverbindungen", cardId: "bank-thomas-raiffeisen" } },
+    { ...base, id: "t05", kind: "added", date: "02.05.2018", time: "09:15", field: "Signatur", to: "Maklervereinbarung von Kunde und Makler Winter unterschrieben", placeLabel: "Maklervereinbarung · Signaturen", place: { app: "makler", step: "sign" } },
+    { ...base, id: "t06", kind: "added", date: "11.06.2021", time: "16:40", field: "Nebenwohnsitz", to: "Seestraße 4, A-5350 Strobl", placeLabel: "Stammdaten · Adressen", place: { app: "stammdaten", area: "adressen", cardId: "adresse-thomas-neben" }, editor: EDITOR_MANAGER },
+    { ...base, id: "t07", kind: "changed", date: "03.02.2025", time: "11:20", field: "Telefon", from: "+43 662 87 12 39", to: "+43 662 87 12 40", placeLabel: "Stammdaten · Kontakte", place: { app: "stammdaten", area: "kontakte", cardId: "kontakt-thomas" } },
+    { ...base, id: "t08", kind: "added", date: "09.09.2026", time: "08:55", field: "Kontakt", to: "Büro Debrezina Steuerberatung", placeLabel: "Stammdaten · Kontakte", place: { app: "stammdaten", area: "kontakte", cardId: "kontakt-thomas-buero" }, editor: EDITOR_MANAGER },
+  ];
+}
+
 export const WICO_DEVIATION_FIELD = "Abweichende Daten · WICO";
 
 export function wicoDeviationHistoryEntry({
@@ -471,6 +486,120 @@ export function latestLegalNumber(versions: PersonVersion[]) {
 export function currentVersion(versions: PersonVersion[]) {
   const number = latestLegalNumber(versions);
   return [...versions].reverse().find((version) => version.number === number) ?? versions[versions.length - 1];
+}
+
+/** "03.06.2019" → sortable "20190603". */
+const sortable = (date: string) => date.split(".").reverse().join("");
+
+/**
+ * There are no version numbers for the user: a Stand is named by its date. The latest date is the current Stand
+ * (dd.mm.yyyy). With a number: the latest date of that legal version's changes.
+ */
+export function standDate(versions: PersonVersion[], number?: number) {
+  const pool = number === undefined ? versions : versions.filter((version) => version.number === number);
+  return pool.reduce((latest, version) => (sortable(version.date) > sortable(latest) ? version.date : latest), pool[0]?.date ?? "");
+}
+
+/** Sortable key of a dd.mm.yyyy date. */
+export const dateKey = (date: string) => sortable(date);
+
+/** The entry that stands for "today": the latest date (the last one entered on that date). */
+export function latestEntry(versions: PersonVersion[]) {
+  return versions.reduce<PersonVersion | undefined>(
+    (latest, version) => (!latest || sortable(version.date) >= sortable(latest.date) ? version : latest),
+    undefined,
+  );
+}
+
+/** An older Stand is open when the picked change is dated before the latest date. */
+export function isOlderStand(versions: PersonVersion[], version: PersonVersion | undefined) {
+  return Boolean(version && sortable(version.date) < sortable(standDate(versions)));
+}
+
+/**
+ * How one Stammdaten area stood on `date`: changed on that very date, or unchanged since its last change before it.
+ * `none`: nothing recorded for this area up to then.
+ */
+export function areaStand(versions: PersonVersion[], area: StammdatenAreaId, date: string) {
+  const key = sortable(date);
+  const upTo = versions.filter(
+    (version) => version.place.app === "stammdaten" && version.place.area === area && sortable(version.date) <= key,
+  );
+  if (!upTo.length) return { state: "none" as const };
+  if (upTo.some((version) => version.date === date)) return { state: "changed" as const, date };
+  return { state: "unchanged" as const, date: standDate(upTo) };
+}
+
+/** How many changes an area got within a range (dd.mm.yyyy, both ends included). */
+export function areaChangesIn(versions: PersonVersion[], area: StammdatenAreaId, from: string, to: string) {
+  const start = sortable(from);
+  const end = sortable(to);
+  return versions.filter(
+    (version) =>
+      version.place.app === "stammdaten" &&
+      version.place.area === area &&
+      sortable(version.date) >= start &&
+      sortable(version.date) <= end,
+  ).length;
+}
+
+function revertRows(card: Card, field: string, to: string | undefined, from: string | undefined): Card {
+  if (!to || !card.blocks) return card;
+  const target = field.trim().toLowerCase();
+  return {
+    ...card,
+    blocks: card.blocks.map((block) => {
+      if (block.kind === "note") {
+        return target === "notiz" && block.text === to ? { ...block, text: from && from !== "–" ? from : "-" } : block;
+      }
+      if (!("rows" in block)) return block;
+      return {
+        ...block,
+        rows: block.rows.map((row) =>
+          row.label.trim().toLowerCase() === target && valueText(row.value) === to ? { ...row, value: from ?? "-" } : row,
+        ),
+      };
+    }),
+  };
+}
+
+/**
+ * The whole file as it stood on the date of `version` (a Stand is a date, for every area at once):
+ * - cards first added after that date are left out,
+ * - values changed after that date go back to their earlier value (where the row can be matched),
+ * - the name is the one valid then (overlayPersonVersion).
+ * Areas without a change after that date look exactly like today.
+ */
+export function standSections(sections: Section[], versions: PersonVersion[], version: PersonVersion): Section[] {
+  const key = sortable(version.date);
+  const stammdaten = versions.filter((entry) => entry.place.app === "stammdaten");
+  const firstOf = new Map<string, PersonVersion>();
+  for (const entry of stammdaten) {
+    const cardId = entry.place.app === "stammdaten" ? entry.place.cardId : undefined;
+    if (!cardId) continue;
+    const seen = firstOf.get(cardId);
+    if (!seen || sortable(entry.date) < sortable(seen.date)) firstOf.set(cardId, entry);
+  }
+  const later = stammdaten
+    .filter((entry) => entry.kind === "changed" && sortable(entry.date) > key)
+    .sort((left, right) => sortable(right.date).localeCompare(sortable(left.date)));
+
+  const named = overlayPersonVersion(sections, version);
+  return named.map((section) => {
+    const cards = section.cards
+      .filter((card) => {
+        if (card.empty) return true;
+        const first = firstOf.get(card.id);
+        return !(first && first.kind === "added" && sortable(first.date) > key);
+      })
+      .map((card) =>
+        later
+          .filter((entry) => entry.place.app === "stammdaten" && entry.place.cardId === card.id)
+          .reduce((current, entry) => revertRows(current, entry.field, entry.to, entry.from), card),
+      );
+    const live = cards.filter((card) => !card.empty);
+    return { ...section, cards: live.length || !section.cards.some((card) => card.empty) ? cards : section.cards };
+  });
 }
 
 export function personNameFromVersion(version: PersonVersion | undefined, fallback = "Julia Atkinson") {

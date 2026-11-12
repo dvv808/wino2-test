@@ -65,7 +65,8 @@ export function ersteVerrechnung(ab: Date, jahresbetrag: number, dueDay: number,
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const ddmmyyyy = (d: Date) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-export const euro = (n: number) => `€ ${n.toLocaleString("de-AT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// de-DE: thousands with "." (EUR 1.200,00) as in Figma; de-AT would print a narrow space.
+export const euro = (n: number) => `€ ${n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** "EUR 120,00" → 120 */
 export function amountOf(text: string) {

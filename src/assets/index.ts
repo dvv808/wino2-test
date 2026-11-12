@@ -296,3 +296,16 @@ export { default as textbaustein } from "./icons/textbaustein.svg";
 
 /* Zeiterfassung → Arbeitszeit (Figma 21495:97817): Speichern button icon (white) */
 export { default as save } from "./icons/save.svg";
+export { default as searchActive } from "./icons/search-active.svg";
+export { default as searchGlass } from "./icons/search-glass.svg";
+export { default as searchClose } from "./icons/search-close.svg";
+export { default as searchWinterBadge } from "./icons/search-winter-badge.svg";
+export { default as searchStar } from "./icons/search-star.svg";
+export { default as searchEmptyIcons } from "./icons/search-empty-icons.svg";
+export { default as searchEmptyDeco } from "./icons/search-empty-deco.svg";
+
+/* Honorar Unternehmen (Figma 21095:73121): Business model icon in the Zusammenfassung */
+export { default as subBusiness } from "./icons/sub-business.svg";
+
+/* Kommunikationsdaten Unternehmen (Figma 21023:48116): Versand-Mail block in the Zusammenfassung */
+export { default as commsMailSent } from "./icons/comms-mail-sent.svg";
