@@ -1,3 +1,4 @@
+import { readDayParam } from "./dayParam";
 /**
  * Termine erfasst in the mobile Kalender (Figma 19074:464695). Kept per browser; the desktop week view does not
  * read them yet.
@@ -28,9 +29,12 @@ const isoDay = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2
 
 /** Demo Termine for the week after today (Mo–Fr), so the mobile day view is not empty. */
 export function seedTermine(today: string): MobileTermin[] {
-  const [y, m, d] = today.split("-").map(Number);
+  const linked = readDayParam();
+  const [y, m, d] = (linked ?? today).split("-").map(Number);
   const base = new Date(y, m - 1, d);
-  base.setDate(base.getDate() + ((8 - base.getDay()) % 7 || 7)); // next Monday
+  // The Monday of the linked day's week; without a link, next Monday.
+  if (linked) base.setDate(base.getDate() - ((base.getDay() + 6) % 7));
+  else base.setDate(base.getDate() + ((8 - base.getDay()) % 7 || 7));
   const day = (offset: number) => {
     const x = new Date(base);
     x.setDate(base.getDate() + offset);

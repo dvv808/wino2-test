@@ -5,6 +5,7 @@ import { MobileKalender } from "./MobileKalender";
 import { MobileKontakte } from "./MobileKontakte";
 import { MobileTerminForm } from "./MobileTermin";
 import { iso, seedWeek } from "../home/calendar/calendarData";
+import { readDayParam, writeDayParam } from "./dayParam";
 import { SideNav, type SidePanel } from "../home/calendar/KalenderPage";
 import { HomeofficeModal } from "../home/calendar/HomeofficeUI";
 import { loadAntraege, onAntraegeChange, saveAntraege, saveDay } from "../home/calendar/homeoffice";
@@ -35,7 +36,9 @@ type Screen = null | { kind: "arbeitszeit"; day: string } | { kind: "termin"; da
 export function MobileApp() {
   const today = iso(new Date());
   const [nav, setNav] = useState<Nav>("kalender");
-  const [day, setDay] = useState(today);
+  const [day, setDay] = useState(() => readDayParam() ?? today);
+  /* Every day you look at has its own link (?tag=YYYY-MM-DD) to share. */
+  useEffect(() => writeDayParam(day), [day]);
   const [screen, setScreen] = useState<Screen>(null);
   const [toast, setToast] = useState<string | null>(null);
   /* The desktop side nav (Mein Kalender, Aktivitäten, Kalender) as a drawer, opened from the name in the header. */

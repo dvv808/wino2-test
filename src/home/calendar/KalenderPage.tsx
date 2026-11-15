@@ -27,6 +27,7 @@ import { ArbeitszeitModal } from "./ArbeitszeitUI";
 import { defaultBlocks, loadArbeitszeiten, onArbeitszeitenChange, saveArbeitszeiten, type Arbeitszeiten } from "./arbeitszeit";
 import { withoutHomeoffice, workMinutes } from "./overlap";
 import { decide, inCalendar, loadAntraege, sollzeit, onFocus, takeFocus, onAntraegeChange, remove, saveAntraege, saveDay, type HomeofficeAntrag } from "./homeoffice";
+import { readDayParam, writeDayParam } from "../../mobile/dayParam";
 
 /** Home → Planner → Kalender: "Mein Kalender", Ansicht Woche (Figma 16702:185207). Tag/Monat/Jahr follow. */
 
@@ -691,7 +692,9 @@ export function KalenderPage() {
     const id = takeFocus();
     return id ? loadAntraege().find((x) => x.id === id) ?? null : null;
   });
-  const [day, setDay] = useState(focused?.day ?? today);
+  const [day, setDay] = useState(focused?.day ?? readDayParam() ?? today);
+  // The shown day is part of the link (?tag=YYYY-MM-DD), so it can be shared.
+  useEffect(() => writeDayParam(day), [day]);
   const [view, setView] = useState<View>("Woche");
   const [visible, setVisible] = useState<Set<string>>(() => new Set(["lucy", "icloud"]));
   const [full24, setFull24] = useState(readFull24);
