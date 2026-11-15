@@ -3,6 +3,7 @@ import * as a from "../assets/index";
 import { FILE_PARTNERS, type PartnerId } from "../person/partners";
 import { ContextMenu, Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { HnKicker } from "../honorar/ui";
 import {
   STEP_LABEL,
   STEP_POSITION,
@@ -413,10 +414,7 @@ export function FreigabenPanel({
 
   return (
     <section className="freigaben">
-      <h1 className="freigaben-title">
-        <Icon src={a.shelveToggle} size={18} />
-        Bestand Listen
-      </h1>
+      <HnKicker>Bestand Listen</HnKicker>
 
       <div className="freigaben-tabs">
         {TABS.map((entry) => (

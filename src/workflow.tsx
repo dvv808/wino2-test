@@ -81,7 +81,7 @@ export type SignMode = "upload" | "digital";
  */
 /** "rechnung" is the workflow of one invoice (Gutschrift, Zahlungsziel, ...), opened from Info zur Rechnung. */
 /** "pruefung": Prüfmodus – the advisor checks the Stammdaten with the client and sends Änderungswünsche. */
-export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "pruefung" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home" | "admin";
+export type View = "workflow" | "manager" | "freigabe" | "person" | "stammdaten" | "pruefung" | "finanzen" | "meinBereich" | "konzernHub" | "rechnung" | "home" | "admin" | "mitarbeiter" | "abteilung";
 export type WorkflowPane = "workflow" | "notizen" | "email" | "dateien" | "verlauf";
 /** Views that belong to the Management tab. */
 export const MANAGEMENT_VIEWS: View[] = ["manager", "freigabe", "finanzen", "rechnung"];
@@ -404,6 +404,14 @@ function useWorkflowState() {
   /** "Admin" (profile menu) is a tab of its own too, like "Mein Bereich". */
   const [adminOpen, setAdminOpen] = useState(initialRoute.view === "admin");
   const [adminFrom, setAdminFrom] = useState<View | null>(null);
+  /** Employee tabs (opened from the Mitarbeiter side nav): the open ones, the shown one, and where it was opened from. */
+  const [mitarbeiterTabs, setMitarbeiterTabs] = useState<string[]>(initialRoute.mitarbeiterId ? [initialRoute.mitarbeiterId] : []);
+  const [mitarbeiterId, setMitarbeiterId] = useState<string | null>(initialRoute.mitarbeiterId ?? null);
+  const [mitarbeiterFrom, setMitarbeiterFrom] = useState<View | null>(null);
+  /** Department tabs (open icon on a department in the Mitarbeiter side nav): slugs of the Abteilungen. */
+  const [abteilungTabs, setAbteilungTabs] = useState<string[]>(initialRoute.abteilungId ? [initialRoute.abteilungId] : []);
+  const [abteilungId, setAbteilungId] = useState<string | null>(initialRoute.abteilungId ?? null);
+  const [abteilungFrom, setAbteilungFrom] = useState<View | null>(null);
   const [meinBereichNav, setMeinBereichNav] = useState(initialRoute.view === "meinBereich" && initialRoute.nav ? initialRoute.nav : { area: "Mein Bereich", page: "Dashboard" });
   /** Management: Bestand (Freigaben …) or HRM (Anträge …), and the list tab. In the URL. */
   /** Kommunikationsdaten of the Maklervereinbarung per partner: picked from the Stammdaten, empty ("Auswahl") at first. */
@@ -586,6 +594,8 @@ function useWorkflowState() {
       rechnungFeeId: rechnungFeeId ?? undefined,
       nav: view === "home" ? homeNav : view === "meinBereich" ? meinBereichNav : undefined,
       managerNav,
+      mitarbeiterId: mitarbeiterId ?? undefined,
+      abteilungId: abteilungId ?? undefined,
     });
     if (window.location.hash === next) {
       hashWritten.current = true;
@@ -614,6 +624,7 @@ function useWorkflowState() {
     homeNav,
     meinBereichNav,
     managerNav,
+    mitarbeiterId,
   ]);
 
   useEffect(() => {
@@ -638,6 +649,16 @@ function useWorkflowState() {
         setMeinBereichOpen(true);
       }
       if (route.managerNav) setManagerNav(route.managerNav);
+      if (route.view === "abteilung" && route.abteilungId) {
+        const id = route.abteilungId;
+        setAbteilungId(id);
+        setAbteilungTabs((tabs) => (tabs.includes(id) ? tabs : [...tabs, id]));
+      }
+      if (route.view === "mitarbeiter" && route.mitarbeiterId) {
+        const id = route.mitarbeiterId;
+        setMitarbeiterId(id);
+        setMitarbeiterTabs((tabs) => (tabs.includes(id) ? tabs : [...tabs, id]));
+      }
       if (route.view === "finanzen") {
         setFinanzenPage(route.finanzenPage ?? "month");
         if (route.finanzenMonth) setFinanzenMonth(route.finanzenMonth);
@@ -836,11 +857,11 @@ function useWorkflowState() {
   }
 
   function ensureFileTab(id: PartnerId) {
+    // Next to the current file when that tab is open; a closed file (e.g. Julia after closing her tab) stays closed.
     setOpenFileIds((ids) => {
-      const withCurrent = ids.includes(filePartnerId) ? ids : [...ids, filePartnerId];
-      if (withCurrent.includes(id)) return withCurrent;
-      const at = withCurrent.indexOf(filePartnerId);
-      return [...withCurrent.slice(0, at + 1), id, ...withCurrent.slice(at + 1)];
+      if (ids.includes(id)) return ids;
+      const at = ids.indexOf(filePartnerId);
+      return at < 0 ? [...ids, id] : [...ids.slice(0, at + 1), id, ...ids.slice(at + 1)];
     });
   }
 
@@ -1602,6 +1623,48 @@ function useWorkflowState() {
     setView(back ? adminFrom : "manager");
   }
 
+  /** Opens an employee as a tab of its own (the open icon in the Mitarbeiter side nav). */
+  function openMitarbeiter(id: string) {
+    if (view !== "mitarbeiter") setMitarbeiterFrom(view);
+    setMitarbeiterTabs((tabs) => (tabs.includes(id) ? tabs : [...tabs, id]));
+    setMitarbeiterId(id);
+    setReviewStep(null);
+    setView("mitarbeiter");
+  }
+
+  /** Closes an employee tab; closing the shown one goes to the next employee tab or back to where it came from. */
+  function closeMitarbeiter(id: string) {
+    const rest = mitarbeiterTabs.filter((x) => x !== id);
+    setMitarbeiterTabs(rest);
+    if (view !== "mitarbeiter" || mitarbeiterId !== id) return;
+    if (rest.length) return setMitarbeiterId(rest[rest.length - 1]);
+    setMitarbeiterId(null);
+    const back =
+      mitarbeiterFrom && mitarbeiterFrom !== "mitarbeiter" && !(mitarbeiterFrom === "admin" && !adminOpen) && !(mitarbeiterFrom === "meinBereich" && !meinBereichOpen);
+    setView(back ? mitarbeiterFrom : "manager");
+  }
+
+  /** Opens a department (Abteilung) as a tab of its own: its HRM, scoped to its employees. */
+  function openAbteilung(id: string) {
+    if (view !== "abteilung") setAbteilungFrom(view);
+    setAbteilungTabs((tabs) => (tabs.includes(id) ? tabs : [...tabs, id]));
+    setAbteilungId(id);
+    setReviewStep(null);
+    setView("abteilung");
+  }
+
+  /** Closes a department tab; closing the shown one goes to the next department tab or back to where it came from. */
+  function closeAbteilung(id: string) {
+    const rest = abteilungTabs.filter((x) => x !== id);
+    setAbteilungTabs(rest);
+    if (view !== "abteilung" || abteilungId !== id) return;
+    if (rest.length) return setAbteilungId(rest[rest.length - 1]);
+    setAbteilungId(null);
+    const back =
+      abteilungFrom && abteilungFrom !== "abteilung" && !(abteilungFrom === "admin" && !adminOpen) && !(abteilungFrom === "meinBereich" && !meinBereichOpen);
+    setView(back ? abteilungFrom : "manager");
+  }
+
   function openFinanzen(page: FinanzenPage = "month", month = finanzenMonth, step: HonorarStepKey = "status") {
     setFinanzenPage(page);
     setFinanzenMonth(month);
@@ -1766,6 +1829,14 @@ function useWorkflowState() {
     adminOpen,
     openAdmin,
     closeAdmin,
+    mitarbeiterTabs,
+    mitarbeiterId,
+    openMitarbeiter,
+    closeMitarbeiter,
+    abteilungTabs,
+    abteilungId,
+    openAbteilung,
+    closeAbteilung,
     openFinanzen,
     openFinanzenStep,
     openFinanzenInkasso,

@@ -4,7 +4,7 @@
  */
 import { parseIso } from "./calendarData";
 
-export type ArbeitszeitBlock = { start: number; end: number; kommentar?: string };
+export type ArbeitszeitBlock = { start: number; end: number; kommentar?: string; /** Where the time was worked (mobile form), e.g. "Schladming" or "Homeoffice". */ ort?: string };
 export type Arbeitszeiten = Record<string, ArbeitszeitBlock[]>;
 
 // v2: starts empty (clean Kalender); Arbeitszeit erfasst before is not read.

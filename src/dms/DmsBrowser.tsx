@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useKeptState } from "../lib/keptState";
 import * as a from "../assets/index";
 import { atLeast, documentLevel, filterView, whoHasAccess } from "../lib/dms/permissions";
 import { formatPath } from "../lib/dms/placeholders";
@@ -329,8 +330,8 @@ export function DmsBrowser({
   const person = state.people.find((p) => p.id === state.activePerson) ?? state.people[0];
   const full = useMemo(() => buildView(state, ansicht), [state, ansicht]);
   const view = useMemo(() => filterView(full, person, state.groups, { lockConfidential }), [full, person, state.groups, lockConfidential]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [docId, setDocId] = useState<string | null>(null);
+  const [selected, setSelected] = useKeptState<string | null>(`dms.${title}.${ansicht}.selected`, null);
+  const [docId, setDocId] = useKeptState<string | null>(`dms.${title}.${ansicht}.doc`, null);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [treeOpen, setTreeOpen] = useState(true);
   const [search, setSearch] = useState("");

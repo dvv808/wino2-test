@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../../assets/index";
-import { Icon } from "../../ui";
+import { Icon, ShelveToggleIcon } from "../../ui";
 import {
   DEFAULT_RANGE,
   FULL_RANGE,
@@ -604,6 +604,9 @@ const ERFASSUNG = [
 ];
 
 /** Closes a popover on a click outside of it or on Escape. */
+/** Below this page width (without padding) the header needs the side nav's room: the side nav shelves itself. */
+const KAL_NARROW = 1260;
+
 function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -628,7 +631,7 @@ function ZeiterfassungMenu({ onHomeoffice, onArbeitszeit }: { onHomeoffice: () =
   const ref = useDismiss(open, () => setOpen(false));
   return (
     <div className="kal-menu-wrap" ref={ref}>
-      <button type="button" className="kal-action" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="button" className="kal-action" title="Zeiterfassung" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         <img src={a.calZeiterfassung} alt="" width={22} height={25} />
         <span>
           Zeit-
@@ -694,6 +697,29 @@ export function KalenderPage() {
   const [menu, setMenu] = useState(false);
   const [settings, setSettings] = useState(false);
   const menuRef = useDismiss(menu, () => setMenu(false));
+  /*
+   * Side nav: the shelve toggle before the date hides it. When the page gets too narrow for the header (e.g. the
+   * widget bar is open) it shelves itself; shelved, the date opens it as a dropdown.
+   */
+  const pageRef = useRef<HTMLDivElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  const [shelf, setShelf] = useState<boolean | null>(null);
+  const [sideDrop, setSideDrop] = useState(false);
+  /** The dropdown is fixed (the calendar panel clips its overflow): placed under the date when it opens. */
+  const [dropAt, setDropAt] = useState({ top: 0, left: 0 });
+  const dropRef = useDismiss(sideDrop, () => setSideDrop(false));
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setNarrow(entry.contentRect.width < KAL_NARROW));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    setShelf(null);
+    setSideDrop(false);
+  }, [narrow]);
+  const shelved = shelf ?? narrow;
   const [antraege, setAntraegeState] = useState<HomeofficeAntrag[]>(loadAntraege);
   /** The day the Homeoffice modal is open on, or null. */
   const [hoModal, setHoModal] = useState<string | null>(null);
@@ -748,12 +774,14 @@ export function KalenderPage() {
     });
   const step = (n: number) => setDay((d) => addDays(d, view === "Tag" ? n : 7 * n));
 
-  return (
-    <div className="content-shell kal-page">
-      <SideNav
+  const sideNav = (
+    <SideNav
         day={day}
         today={today}
-        onPick={(d) => setDay(d)}
+        onPick={(d) => {
+        setDay(d);
+        setSideDrop(false);
+      }}
         visible={visible}
         toggle={toggle}
         panel={panel}
@@ -766,12 +794,47 @@ export function KalenderPage() {
         onOpenAntrag={showAntrag}
         onEditAntrag={editAntrag}
       />
+  );
+
+  return (
+    <div className={shelved ? "content-shell kal-page shelved" : "content-shell kal-page"} ref={pageRef}>
+      {shelved ? null : sideNav}
       <section className="kal-main">
         <header className="kal-top">
-          <button type="button" className="kal-date" title="Datum wählen">
-            {headerDate(day)} <small>(KW {isoWeek(day)})</small>
-            <Icon src={a.chevronDown} size={14} />
-          </button>
+          <div className="kal-date-wrap" ref={dropRef}>
+            <button
+              type="button"
+              className="hn-shelve"
+              aria-label={shelved ? "Navigation einblenden" : "Navigation ausblenden"}
+              title={shelved ? "Navigation einblenden" : "Navigation ausblenden"}
+              onClick={() => {
+                setShelf(!shelved);
+                setSideDrop(false);
+              }}
+            >
+              <ShelveToggleIcon collapsed={shelved} />
+            </button>
+            <button
+              type="button"
+              className={sideDrop ? "kal-date open" : "kal-date"}
+              title={shelved ? "Kalender-Navigation öffnen" : "Datum wählen"}
+              aria-expanded={shelved ? sideDrop : undefined}
+              onClick={(event) => {
+                if (!shelved) return;
+                const rect = event.currentTarget.getBoundingClientRect();
+                setDropAt({ top: rect.bottom + 16, left: Math.max(16, rect.left - 34) });
+                setSideDrop(!sideDrop);
+              }}
+            >
+              {headerDate(day)} <small>(KW {isoWeek(day)})</small>
+              <Icon src={a.chevronDown} size={14} />
+            </button>
+            {shelved && sideDrop ? (
+              <div className="kal-side-drop" style={{ top: dropAt.top, left: dropAt.left }}>
+                {sideNav}
+              </div>
+            ) : null}
+          </div>
           <div className="kal-nav">
             <button type="button" aria-label="Zurück" onClick={() => step(-1)}>
               <Icon src={a.chevronDark} size={14} className="kal-prev" />

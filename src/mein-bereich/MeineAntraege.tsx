@@ -47,14 +47,15 @@ const ART_ICON: Record<Art, string> = {
   Krank: a.mbOffline,
 };
 
-const STATS: { art: Art | "Gesamt"; label: string; icon: string }[] = [
-  { art: "Gesamt", label: "Gesamt", icon: a.aktRequest },
-  { art: "Homeoffice", label: "Homeoffice", icon: a.hoDot },
-  { art: "Urlaub", label: "Urlaub", icon: a.mbHoliday },
-  { art: "Dienstverh. Arzt", label: "Dienstverh. Arzt", icon: a.mbArzt },
-  { art: "Dienstverh. Sonstiges", label: "Dienstverh. Sonstiges", icon: a.mbBlocked },
-  { art: "Krank", label: "Krankenst.", icon: a.mbSickness },
+/** Status cards come first: Beantragt (clock) and Genehmigt (tick). They filter the list by status. */
+type StatusFilter = Status;
+const STATUS_STATS: { status: StatusFilter; label: string; icon: string; activeIcon?: string }[] = [
+  { status: "beantragt", label: "Beantragt", icon: a.antOnhold },
+  { status: "genehmigt", label: "Genehmigt", icon: a.antConfirm },
+  // Revert arrow: dark on the light card, white on the selected (dark) card.
+  { status: "zurueckgesetzt", label: "Zurückgesetzt", icon: a.antRevertDark, activeIcon: a.antRefresh },
 ];
+
 
 const STATUS_LABEL: Record<Status, string> = { beantragt: "Beantragt", genehmigt: "Genehmigt", zurueckgesetzt: "Zurückgesetzt" };
 
@@ -98,6 +99,26 @@ const DEMO: Antrag[] = [
     zeit: "4 Tage 4 Stunden",
     beantragt: { datum: "03.05.2026", zeit: "07:42" },
     status: "beantragt",
+  },
+  {
+    id: "urlaub-2",
+    art: "Urlaub",
+    day: "2026-08-10",
+    datum: "10.08.2026 - 21.08.2026",
+    zeit: "10 Tage",
+    beantragt: { datum: "02.06.2026", zeit: "09:20" },
+    status: "genehmigt",
+    kommentar: "Genehmigt von Thomas Winter",
+  },
+  {
+    id: "arzt-1",
+    art: "Dienstverh. Arzt",
+    day: "2026-10-21",
+    datum: "21.10.2026",
+    zeit: "14:00 - 16:00 (2h)",
+    beantragt: { datum: "15.10.2026", zeit: "11:05" },
+    status: "zurueckgesetzt",
+    kommentar: "Zurückgesetzt von Thomas Winter: Bitte die Terminbestätigung als Anhang hinzufügen.",
   },
 ];
 
@@ -182,14 +203,15 @@ export function MeineListen() {
   const [tab, setTab] = useState<ListTab>("antraege");
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
   useEffect(() => onAntraegeChange(setHomeoffice), []);
-  /** Figma: the list opens on the open requests ("Beantragt" chip); removing the chip shows all. */
-  const [onlyOpen, setOnlyOpen] = useState(true);
-  const [art, setArt] = useState<Art | null>(null);
+  /** Figma: the list opens on the open requests ("Beantragt"); clicking the active status card again shows all. */
+  const [status, setStatus] = useState<StatusFilter | null>("beantragt");
+  /** Bumped by "Alle Filter zurücksetzen" so the table's column filters start empty again. */
+  const [tableKey, setTableKey] = useState(0);
 
   const all = [...homeofficeRows(homeoffice), ...DEMO].sort((x, y) => y.day.localeCompare(x.day));
-  const rows = all.filter((r) => (!onlyOpen || r.status === "beantragt") && (!art || r.art === art));
-  const open = all.filter((r) => r.status === "beantragt");
-  const count = (key: Art | "Gesamt") => open.filter((r) => key === "Gesamt" || r.art === key).length;
+  // Only the two status cards filter; the Antragsart is filtered in its table column.
+  const rows = all.filter((r) => !status || r.status === status);
+  const countStatus = (key: StatusFilter) => all.filter((r) => r.status === key).length;
 
   return (
     <div className="content-shell mb-listen-body">
@@ -208,53 +230,52 @@ export function MeineListen() {
         ) : (
           <>
             <div className="mb-ant-stats">
-              {STATS.map((s) => {
-                const active = s.art === "Gesamt" ? art === null : art === s.art;
+              {STATUS_STATS.map((s) => {
+                const active = status === s.status;
                 return (
                   <button
                     type="button"
-                    key={s.art}
-                    className={`stat-card mb-ant-stat${active ? " active" : ""}`}
+                    key={s.status}
+                    className={`stat-card mb-ant-stat ${s.status}${active ? " active" : ""}`}
                     aria-pressed={active}
-                    onClick={() => setArt(s.art === "Gesamt" || art === s.art ? null : s.art)}
+                    onClick={() => setStatus(active ? null : s.status)}
                   >
                     <span className="stat-copy">
                       <small>{s.label}</small>
-                      <strong>{String(count(s.art)).padStart(2, "0")}</strong>
-                      <span>beantragt</span>
+                      <strong>{String(countStatus(s.status)).padStart(2, "0")}</strong>
+                      <span>total</span>
                     </span>
                     <span className="stat-icon">
-                      <img src={s.icon} alt="" width={16} height={16} />
+                      <img src={active && s.activeIcon ? s.activeIcon : s.icon} alt="" width={16} height={16} />
                     </span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="mb-ant-chips">
-              {onlyOpen ? (
-                <span className="mb-ant-chip">
-                  Beantragt
-                  <button type="button" aria-label="Filter Beantragt entfernen" onClick={() => setOnlyOpen(false)}>
-                    <img src={a.iconCloseDark} alt="" width={8} height={8} />
-                  </button>
-                </span>
-              ) : (
-                <button type="button" className="mb-ant-chip add" onClick={() => setOnlyOpen(true)}>
-                  Nur beantragte
+            {/* Figma 17685:117446: the picked status as a bubble to click away, and the reset on the right. */}
+            {status ? (
+              <div className="mb-ant-filterbar">
+                <button type="button" className="mb-ant-bubble" onClick={() => setStatus(null)}>
+                  {STATUS_LABEL[status]}
+                  <img src={a.iconCloseDark} alt={`Filter ${STATUS_LABEL[status]} entfernen`} width={12} height={12} />
                 </button>
-              )}
-              {art ? (
-                <span className="mb-ant-chip">
-                  {art}
-                  <button type="button" aria-label={`Filter ${art} entfernen`} onClick={() => setArt(null)}>
-                    <img src={a.iconCloseDark} alt="" width={8} height={8} />
-                  </button>
-                </span>
-              ) : null}
-            </div>
+                <button
+                  type="button"
+                  className="mb-ant-reset"
+                  onClick={() => {
+                    setStatus(null);
+                    setTableKey((key) => key + 1);
+                  }}
+                >
+                  <img src={a.antRefresh} alt="" width={16} height={16} />
+                  Alle Filter zurücksetzen
+                </button>
+              </div>
+            ) : null}
 
             <DmsTable
+              key={tableKey}
               rows={rows}
               columns={COLUMNS}
               rowKey={(r) => r.id}
@@ -267,7 +288,13 @@ export function MeineListen() {
                 focusAntrag(r.homeofficeId);
                 openHome("Planner", "Kalender");
               }}
-              empty={<p className="dms-empty">{onlyOpen ? "Keine offenen Anträge." : "Noch keine Anträge."}</p>}
+              empty={<p className="dms-empty">{status === "beantragt"
+                    ? "Keine offenen Anträge."
+                    : status === "genehmigt"
+                      ? "Keine genehmigten Anträge."
+                      : status === "zurueckgesetzt"
+                        ? "Keine zurückgesetzten Anträge."
+                        : "Noch keine Anträge."}</p>}
             />
           </>
         )}

@@ -181,7 +181,8 @@ function maklerAgreementCard(
 
   return {
     id: "makler-vereinbarung",
-    icon: a.onhold,
+    // Listed under Gültige Vereinbarungen: a valid agreement carries the green tick (not the pending clock).
+    icon: a.hoStatusGenehmigt,
     title: `Maklervereinbarung: ${agreementKindLabel(file.kind)}`,
     clampTo: 551,
     blocks,

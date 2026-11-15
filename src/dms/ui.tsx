@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { ColumnFilter, FilterSummary, filterInputProps, matchesFilter, type FilterGroup } from "../honorar/ColumnFilter";
 import { StickyScroll } from "../honorar/ui";
@@ -87,8 +87,14 @@ export function DmsTable<Row>({
   selected,
   onSelect,
   rowClass,
+  rowProps,
+  actions,
   empty,
 }: {
+  /** Three-dot menu at the end of each row (RowMenu); adds the empty Aktionen column. */
+  actions?: (row: Row) => ReactNode;
+  /** Extra props per row, e.g. to make it draggable. */
+  rowProps?: (row: Row) => HTMLAttributes<HTMLDivElement>;
   rows: Row[];
   columns: DmsColumn<Row>[];
   rowKey: (row: Row) => string;
@@ -110,7 +116,7 @@ export function DmsTable<Row>({
           className="hn-status-table dms-table"
           role="table"
           aria-label={label}
-          style={{ ["--st-cols" as string]: columns.map((c) => c.width).join(" ") }}
+          style={{ ["--st-cols" as string]: [...columns.map((c) => c.width), ...(actions ? ["minmax(56px, 0.25fr)"] : [])].join(" ") }}
         >
           <div className="hn-st-head" role="row">
             {columns.map((c) => (
@@ -122,6 +128,7 @@ export function DmsTable<Row>({
                 <input className="col-input" aria-label={`${c.label} filtern`} {...filterInputProps(filters[c.key], set(c.key))} />
               </div>
             ))}
+            {actions ? <div className="hn-st-th hn-st-more-head" role="columnheader" aria-label="Aktionen" /> : null}
           </div>
           {shown.map((row) => {
             const key = rowKey(row);
@@ -131,18 +138,90 @@ export function DmsTable<Row>({
                 role="row"
                 key={key}
                 onClick={onSelect ? () => onSelect(row) : undefined}
+                {...rowProps?.(row)}
               >
                 {columns.map((c) => (
                   <div key={c.key} className={c.className}>
                     {c.render ? c.render(row) : c.text(row) || "–"}
                   </div>
                 ))}
+                {actions ? (
+                  <div className="hn-st-more" onClick={(event) => event.stopPropagation()}>
+                    {actions(row)}
+                  </div>
+                ) : null}
               </div>
             );
           })}
         </div>
       </StickyScroll>
       {shown.length === 0 ? (empty ?? <p className="dms-empty">{rows.length ? "Keine Treffer für diese Filter." : "Noch keine Einträge."}</p>) : null}
+    </>
+  );
+}
+
+export type RowMenuItem = { label: string; icon: string; onSelect: () => void };
+
+/**
+ * The three-dot menu at the end of a table row (Status zu Rechnungen look). The card is fixed to the screen, so the
+ * table's sideways scroll never cuts it off.
+ */
+export function RowMenu({ label, items }: { label: string; items: RowMenuItem[] }) {
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!at) return;
+    const away = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setAt(null);
+    };
+    const escape = (event: KeyboardEvent) => event.key === "Escape" && setAt(null);
+    const close = () => setAt(null);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", escape);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [at]);
+  if (!items.length) return null;
+  return (
+    <>
+      <button
+        type="button"
+        className="hn-st-menu"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={!!at}
+        onMouseDown={(event) => at && event.stopPropagation()}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          setAt(at ? null : { top: rect.bottom + 4, left: Math.max(8, rect.right - 224) });
+        }}
+      >
+        <img src={a.contextMenu} alt="" width={24} height={24} />
+      </button>
+      {at ? (
+        <div className="hn-row-menu" ref={menuRef} role="menu" style={{ top: at.top, left: at.left }}>
+          {items.map((item) => (
+            <button
+              type="button"
+              role="menuitem"
+              key={item.label}
+              onClick={() => {
+                setAt(null);
+                item.onSelect();
+              }}
+            >
+              <span className="hn-menu-ico">
+                <img src={item.icon} alt="" width={18} height={18} />
+              </span>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
     </>
   );
 }

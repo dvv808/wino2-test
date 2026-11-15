@@ -11,6 +11,7 @@ import { HrmListen } from "./HrmListen";
 import { PruefungFreigabe } from "./PruefungFreigabe";
 import { usePruefungen } from "../person/pruefung";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
+import { HonorarSideContext } from "../honorar/ui";
 import {
   ADVISOR_REQUESTS,
   DEMO_REQUESTS,
@@ -51,6 +52,8 @@ export function ManagerView() {
   /** Workflows deleted from the list, and the one waiting on the warning prompt. */
   const [deleted, setDeleted] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<RequestRow | null>(null);
+  /** HRM / Bestand Listen side nav (Mitarbeiter): shown or shelved. */
+  const [sideCollapsed, setSideCollapsed] = useState(false);
   const { state: honorar, decideInvoiceCorrection } = useHonorar();
   // Area (Bestand / HRM) and list tab live in the URL: management/<area>/<tab>.
   const { managerNav, setManagerNav } = useWorkflow();
@@ -138,12 +141,17 @@ export function ManagerView() {
         <BestandMainNav />
         <BestandAreaNav
           active={area}
-          onArea={(next) => setManagerNav(next === "HRM" ? { area: "hrm", tab: "antraege" } : { area: "bestand", tab: "freigaben" })}
+          onArea={(next) => setManagerNav(next === "HRM" ? { area: "hrm", tab: "dashboard" } : { area: "bestand", tab: "freigaben" })}
         />
         <BestandModuleNav />
 
+        {/* Side nav logic as in Forderungen: the shelve toggle in the page title hides it; shelved, the
+            title opens it as a dropdown. */}
+        <HonorarSideContext.Provider
+          value={{ collapsed: sideCollapsed, toggle: () => setSideCollapsed((value) => !value), sidebar: <MitarbeiterSidebar /> }}
+        >
         <div className="content-shell bestand-body">
-          <MitarbeiterSidebar />
+          {sideCollapsed ? null : <MitarbeiterSidebar />}
           {area === "HRM" ? (
             <HrmListen tab={managerNav.tab} onTab={(tab) => setManagerNav({ area: "hrm", tab })} />
           ) : (
@@ -157,6 +165,7 @@ export function ManagerView() {
           />
           )}
         </div>
+        </HonorarSideContext.Provider>
       </div>
 
       {deleting ? (

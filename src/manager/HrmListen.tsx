@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { DmsTable, type DmsColumn } from "../dms/ui";
 import { Icon, Snackbar } from "../ui";
-import { hhmm, parseIso } from "../home/calendar/calendarData";
-import { decide, loadAntraege, onAntraegeChange, saveAntraege, type HomeofficeAntrag } from "../home/calendar/homeoffice";
+import { decide, loadAntraege, onAntraegeChange, saveAntraege } from "../home/calendar/homeoffice";
 import { StatCard } from "./FreigabenPanel";
+import { HrmDashboard } from "./HrmDashboard";
+import { HnKicker } from "../honorar/ui";
+import { AbteilungScope, inAuswahl, inZeitpunkt, setSelected, useAuswahl, useAuswahlRaw } from "./mitarbeiterAuswahl";
+import { ABTEILUNGEN } from "./hrmTeam";
+import { STATUS_LABEL, STATUS_ICON, ART_ICON, HR, homeofficeRows, useHrDemo, type HrStatus, type HrAntrag } from "./hrmAntraege";
 
 /**
  * Management → HRM → HRM Listen → Anträge (Figma section "MANAGEMENT - ANTRÄGE", 17588:78920).
@@ -14,79 +18,6 @@ import { StatCard } from "./FreigabenPanel";
  * Homeoffice rows are live (Lucy's Kalender); the others are the demo rows of the Figma table.
  */
 
-type HrStatus = "beantragt" | "zurueckgesetzt" | "genehmigt";
-type Art = "Homeoffice" | "Urlaub" | "Krank" | "DV Arzt" | "DV Sonstiges";
-
-type Person = { name: string; role: string; photo?: string };
-
-type HrAntrag = {
-  id: string;
-  person: Person;
-  art: Art;
-  /** Sort key (ISO day). */
-  day: string;
-  datum: string;
-  zeit: string;
-  anhang: string[];
-  status: HrStatus;
-  /** The employee's own comment (DV Sonstiges and Homeoffice). */
-  kommentar?: string;
-  /** HR's note with the decision ("Status Kommentar"). */
-  statusKommentar?: string;
-  vertretung?: Person;
-  homeofficeId?: string;
-};
-
-const STATUS_LABEL: Record<HrStatus, string> = { beantragt: "Beantragt", zurueckgesetzt: "Zurückgesetzt", genehmigt: "Genehmigt" };
-const STATUS_ICON: Record<HrStatus, string> = { beantragt: a.hoOnhold, zurueckgesetzt: a.revertDark, genehmigt: a.confirm };
-
-const ART_ICON: Record<Art, string> = {
-  Homeoffice: a.hoDot,
-  Urlaub: a.mbUrlaub,
-  Krank: a.mbOffline,
-  "DV Arzt": a.mbOffline,
-  "DV Sonstiges": a.mbOffline,
-};
-
-const HR = "Adams Anna";
-const LUCY: Person = { name: "Lucy Dallon", role: "Innendienst", photo: a.empLucy };
-const MIKE: Person = { name: "Bennett Mike", role: "KFZ Innendienst", photo: a.reqMike };
-
-/** The rows of the Figma table. */
-const DEMO: HrAntrag[] = [
-  { id: "hr-1", person: { name: "Adams Anna", role: "Geschäftsleitung", photo: a.reqAnna }, art: "Urlaub", day: "2026-01-01", datum: "01.01.2026", zeit: "09:00 - 11:30 (2h 30m)", anhang: [], status: "beantragt", vertretung: MIKE },
-  { id: "hr-2", person: { name: "Adams Sonja", role: "KFZ Innendienst", photo: a.reqSonja }, art: "Krank", day: "2026-05-03", datum: "03.05.2026 - 07.05.2026", zeit: "4 Tage 4 Stunden", anhang: ["arztzeugnis.pdf", "bestätigung...2023.pdf"], status: "beantragt" },
-  { id: "hr-3", person: { name: "Adams Sonja", role: "KFZ Innendienst", photo: a.reqSonja }, art: "DV Sonstiges", day: "2026-05-03", datum: "03.05.2026", zeit: "1 Tag", anhang: ["Umzugsbestät_.pdf"], status: "beantragt", kommentar: "Ziehe um und brauche bitte einen Umzugstag.", vertretung: MIKE },
-  { id: "hr-4", person: MIKE, art: "DV Sonstiges", day: "2026-03-02", datum: "02.03.2026 - 04.03.2026", zeit: "3 Tage", anhang: [], status: "beantragt", kommentar: "Begleitung meiner Mutter zur Reha." },
-  { id: "hr-5", person: { name: "Cooper Ashton", role: "KFZ Innendienst", photo: a.reqAshton }, art: "DV Arzt", day: "2026-10-04", datum: "04.10.2026", zeit: "1 Tag", anhang: ["arztzeugnis.pdf", "bestätigung.pdf"], status: "beantragt" },
-  { id: "hr-6", person: { name: "Davis Julia", role: "KFZ Innendienst", photo: a.reqDavis }, art: "Urlaub", day: "2026-05-05", datum: "05.05.2026 - 09.05.2026", zeit: "4 Tage", anhang: [], status: "zurueckgesetzt", statusKommentar: "Wie besprochen ist es an diesem Zeitpunkt leider nicht möglich." },
-  { id: "hr-7", person: { name: "Dennett Lily", role: "Schaden", photo: a.empJasmin }, art: "DV Sonstiges", day: "2026-05-02", datum: "02.05.2026", zeit: "1 Tag", anhang: [], status: "zurueckgesetzt", statusKommentar: "Bitte Vertretung auswählen und neuen Antrag bitte stellen." },
-  { id: "hr-8", person: { name: "Garcia Thomas", role: "Schaden", photo: a.empPeter }, art: "Urlaub", day: "2026-07-25", datum: "25.07.2026", zeit: "09:15 - 11:45 (2h 30m)", anhang: [], status: "zurueckgesetzt", statusKommentar: "Es fehlen noch weitere Angaben zum Q1." },
-  { id: "hr-9", person: { name: "Patel Aarav", role: "Schaden", photo: a.empAlexander }, art: "Urlaub", day: "2027-01-08", datum: "08.01.2027 - 12.01.2027", zeit: "4 Tage", anhang: ["lalala.pdf"], status: "genehmigt", statusKommentar: "Bitte in Zukunft Dateien richtig benennen. Danke." },
-];
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const dmy = (day: string) => {
-  const d = parseIso(day);
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
-};
-const span = (min: number) => `${Math.floor(min / 60)}h${min % 60 ? ` ${min % 60}m` : ""}`;
-
-function homeofficeRows(antraege: HomeofficeAntrag[]): HrAntrag[] {
-  return antraege.map((x) => ({
-    id: `ho-${x.id}`,
-    person: LUCY,
-    art: "Homeoffice",
-    day: x.day,
-    datum: dmy(x.day),
-    zeit: `${hhmm(x.start)} - ${hhmm(x.end)} (${span(x.end - x.start)})`,
-    anhang: [],
-    status: x.status === "offen" ? "beantragt" : x.status,
-    kommentar: x.kommentar,
-    statusKommentar: x.entscheidNotiz,
-    homeofficeId: x.id,
-  }));
-}
 
 function StatusChip({ status }: { status: HrStatus }) {
   return (
@@ -261,6 +192,7 @@ function DecidePrompt({
 }
 
 const TABS = [
+  { id: "dashboard", label: "Dashboard", icon: a.dashboard },
   { id: "antraege", label: "Anträge", icon: a.aktRequest },
   { id: "zeit", label: "Zeitübersichten", icon: a.aktClock },
   { id: "reisen", label: "Reisen", icon: a.mbCar },
@@ -272,13 +204,29 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
   useEffect(() => onAntraegeChange(setHomeoffice), []);
   /** Decisions on the demo rows stay on this screen. */
-  const [demo, setDemo] = useState(DEMO);
+  const [demo, setDemo] = useHrDemo();
   const [pending, setPending] = useState<{ row: HrAntrag; next: "zurueckgesetzt" | "genehmigt" } | null>(null);
   const [snack, setSnack] = useState<{ message: string; undo: () => void } | null>(null);
   const [statusFilter, setStatusFilter] = useState<HrStatus | null>(null);
+  /** Bumped by "Alle Filter zurücksetzen" so the table's column filters start empty again. */
+  const [tableKey, setTableKey] = useState(0);
+  /* Who is ticked in the Mitarbeiter side nav: shown as bubbles under the hot filters (a whole department as one). */
+  const raw = useAuswahlRaw().selected;
+  const scope = useContext(AbteilungScope);
+  const ticked = scope ? raw.filter((name) => scope.includes(name)) : raw;
+  const fullDepts = ABTEILUNGEN.filter((dept) => dept.people.length > 1 && dept.people.every((name) => ticked.includes(name)));
+  const selectionBubbles = [
+    ...fullDepts.map((dept) => ({ key: dept.name, label: dept.name, names: dept.people })),
+    ...ticked.filter((name) => !fullDepts.some((dept) => dept.people.includes(name))).map((name) => ({ key: name, label: name, names: [name] })),
+  ];
+  const STATUS_TEXT: Record<HrStatus, string> = { beantragt: "Beantragt", zurueckgesetzt: "Zurückgesetzt", genehmigt: "Genehmigt" };
   const [comment, setComment] = useState<string | null>(null);
 
-  const all = [...homeofficeRows(homeoffice), ...demo].sort((x, y) => y.day.localeCompare(x.day));
+  /* The Mitarbeiter side nav filters the list: selected employees and the Zeitpunkt. */
+  const { selected, zeitpunkt } = useAuswahl();
+  const all = [...homeofficeRows(homeoffice), ...demo]
+    .filter((r) => inAuswahl(selected, r.person.name) && inZeitpunkt(zeitpunkt, r.day))
+    .sort((x, y) => y.day.localeCompare(x.day));
   const rows = statusFilter ? all.filter((r) => r.status === statusFilter) : all;
   const count = (s: HrStatus) => all.filter((r) => r.status === s).length;
   const card = (s: HrStatus) => ({ active: statusFilter === s, onClick: () => setStatusFilter((c) => (c === s ? null : s)) });
@@ -390,11 +338,8 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
   ];
 
   return (
-    <section className="freigaben hrm-listen" onClick={() => setComment(null)}>
-      <h1 className="freigaben-title">
-        <Icon src={a.shelveToggle} size={18} />
-        HRM Listen
-      </h1>
+    <section className={tab === "dashboard" ? "freigaben hrm-listen hrm-dash" : "freigaben hrm-listen"} onClick={() => setComment(null)}>
+      <HnKicker>HRM Listen</HnKicker>
       <div className="freigaben-tabs">
         {TABS.map((t) => (
           <button type="button" key={t.id} className={t.id === tab ? "fg-tab active" : "fg-tab"} onClick={() => setTab(t.id)}>
@@ -404,7 +349,17 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
         ))}
       </div>
 
-      {tab !== "antraege" ? (
+      {tab === "dashboard" ? (
+        <HrmDashboard
+          onTab={setTab}
+          exportSlot={(run) => (
+            <button type="button" className="hd-export" onClick={run}>
+              <Icon src={a.download} size={18} />
+              Export
+            </button>
+          )}
+        />
+      ) : tab !== "antraege" ? (
         <p className="atab-empty center">Diese Liste folgt.</p>
       ) : (
         <>
@@ -415,7 +370,43 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
               <StatCard label="Genehmigt" value={count("genehmigt")} icon={a.confirm} {...card("genehmigt")} />
             </div>
           </div>
-          <DmsTable rows={rows} columns={columns} rowKey={(r) => r.id} label="Anträge" unit="Anträge" rowClass={(r) => `hrm-row ${r.status}`} />
+          {/* Every active filter as a bubble to click away: the hot filter and the side nav selection. */}
+          {statusFilter || selectionBubbles.length ? (
+            <div className="mb-ant-filterbar">
+              <div className="mb-ant-bubbles">
+                {statusFilter ? (
+                  <button type="button" className="mb-ant-bubble" onClick={() => setStatusFilter(null)}>
+                    {STATUS_TEXT[statusFilter]}
+                    <img src={a.iconCloseDark} alt={`Filter ${STATUS_TEXT[statusFilter]} entfernen`} width={12} height={12} />
+                  </button>
+                ) : null}
+                {selectionBubbles.map((bubble) => (
+                  <button
+                    type="button"
+                    key={bubble.key}
+                    className="mb-ant-bubble"
+                    onClick={() => setSelected(raw.filter((name) => !bubble.names.includes(name)))}
+                  >
+                    {bubble.label}
+                    <img src={a.iconCloseDark} alt={`Filter ${bubble.label} entfernen`} width={12} height={12} />
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="mb-ant-reset"
+                onClick={() => {
+                  setStatusFilter(null);
+                  setSelected(scope ? raw.filter((name) => !scope.includes(name)) : []);
+                  setTableKey((key) => key + 1);
+                }}
+              >
+                <img src={a.antRefresh} alt="" width={16} height={16} />
+                Alle Filter zurücksetzen
+              </button>
+            </div>
+          ) : null}
+          <DmsTable key={tableKey} rows={rows} columns={columns} rowKey={(r) => r.id} label="Anträge" unit="Anträge" rowClass={(r) => `hrm-row ${r.status}`} />
         </>
       )}
 

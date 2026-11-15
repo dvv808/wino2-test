@@ -8,6 +8,7 @@ import { discardPruefung, draftFor, usePruefungen } from "./person/pruefung";
 import type { FileContact } from "./person/partners";
 import { Icon } from "./ui";
 import { MANAGEMENT_VIEWS, useWorkflow, type WorkflowPane } from "./workflow";
+import { abteilungBySlug, memberBySlug } from "./manager/hrmTeam";
 
 export const APPS = ["Person", "Verträge", "Schäden", "Angebote"];
 
@@ -57,7 +58,7 @@ export function FileTabs() {
       {openFileIds.map((id) => {
         // On Home, Management or Mein Bereich every partner tab is parked; only a partner view has an active one.
         const active =
-          id === filePartnerId && view !== "konzernHub" && view !== "home" && view !== "meinBereich" && view !== "admin" && !MANAGEMENT_VIEWS.includes(view);
+          id === filePartnerId && view !== "konzernHub" && view !== "home" && view !== "meinBereich" && view !== "admin" && view !== "mitarbeiter" && view !== "abteilung" && !MANAGEMENT_VIEWS.includes(view);
         const name = active ? personName : getPartner(id).name;
         const tabIcon = getPartner(id).fileKind === "company" ? a.company : a.person;
         if (active) {
@@ -214,24 +215,109 @@ export function MeinBereichTab() {
   );
 }
 
-/** The "Admin" tab while it is open but another tab is shown. */
+/** The "Admin" tab while it is open but another tab is shown, followed by the employee tabs. */
 export function AdminTab() {
   const { view, adminOpen, openAdmin, closeAdmin } = useWorkflow();
-  if (!adminOpen || view === "admin") return null;
   return (
-    <div className="person-tab inactive">
-      <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
-      <span className="person-tab-body">
-        <Icon src={a.profileAdmin} size={24} />
-        <button type="button" className="person-tab-open" onClick={openAdmin}>
-          Admin
-        </button>
-        <button type="button" className="close-icon" aria-label="Admin schließen" onClick={closeAdmin}>
-          <img src={a.iconClose} alt="" width={18} height={18} />
-        </button>
-      </span>
-      <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
-    </div>
+    <>
+      {!adminOpen || view === "admin" ? null : (
+        <div className="person-tab inactive">
+          <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+          <span className="person-tab-body">
+            <Icon src={a.profileAdmin} size={24} />
+            <button type="button" className="person-tab-open" onClick={openAdmin}>
+              Admin
+            </button>
+            <button type="button" className="close-icon" aria-label="Admin schließen" onClick={closeAdmin}>
+              <img src={a.iconClose} alt="" width={18} height={18} />
+            </button>
+          </span>
+          <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+        </div>
+      )}
+      <MitarbeiterTabs />
+      <AbteilungTabs />
+    </>
+  );
+}
+
+/** Employee tabs (avatar and name): every open one, the shown one as the active tab. */
+export function MitarbeiterTabs() {
+  const { view, mitarbeiterTabs, mitarbeiterId, openMitarbeiter, closeMitarbeiter } = useWorkflow();
+  return (
+    <>
+      {mitarbeiterTabs.map((id) => {
+        const person = memberBySlug(id);
+        if (!person) return null;
+        const active = view === "mitarbeiter" && id === mitarbeiterId;
+        return (
+          <div className={active ? "person-tab" : "person-tab inactive"} key={id}>
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body">
+              <span className="emp-avatar">
+                <img src={person.photo} alt="" />
+                <img className="emp-dot" src={a.statusDot} alt="" />
+              </span>
+              {active ? (
+                person.name
+              ) : (
+                <button type="button" className="person-tab-open" onClick={() => openMitarbeiter(id)}>
+                  {person.name}
+                </button>
+              )}
+              <button type="button" className="close-icon" aria-label={`${person.name} schließen`} onClick={() => closeMitarbeiter(id)}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Department tabs (Figma 17685:116438): the Winter mark, "Fachabteilung" over the department name. Every open one,
+ * the shown one as the active tab.
+ */
+export function AbteilungTabs() {
+  const { view, abteilungTabs, abteilungId, openAbteilung, closeAbteilung } = useWorkflow();
+  return (
+    <>
+      {abteilungTabs.map((id) => {
+        const dept = abteilungBySlug(id);
+        if (!dept) return null;
+        const active = view === "abteilung" && id === abteilungId;
+        const copy = (
+          <>
+            <small>Fachabteilung</small>
+            {dept.name}
+          </>
+        );
+        return (
+          <div className={active ? "person-tab" : "person-tab inactive"} key={id}>
+            <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
+            <span className="person-tab-body dept-tab">
+              <img src={a.deptTabWinter} alt="" width={24} height={24} />
+              {active ? (
+                <span className="dept-tab-copy" title={dept.name}>
+                  {copy}
+                </span>
+              ) : (
+                <button type="button" className="dept-tab-copy person-tab-open" title={dept.name} onClick={() => openAbteilung(id)}>
+                  {copy}
+                </button>
+              )}
+              <button type="button" className="close-icon" aria-label={`${dept.name} schließen`} onClick={() => closeAbteilung(id)}>
+                <img src={a.iconClose} alt="" width={18} height={18} />
+              </button>
+            </span>
+            <img className="tab-ear flip" src={a.tabRight} alt="" width={10} height={11} />
+          </div>
+        );
+      })}
+    </>
   );
 }
 

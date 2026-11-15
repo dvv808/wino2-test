@@ -152,6 +152,10 @@ export type Route = {
   konzernHubId?: string;
   /** Invoice workflow: the fee it belongs to. */
   rechnungFeeId?: string;
+  /** Employee tab: the employee's slug. */
+  mitarbeiterId?: string;
+  /** Department tab: the Abteilung's slug. */
+  abteilungId?: string;
 };
 
 function partnerOf(parts: string[]): PartnerId {
@@ -177,7 +181,11 @@ export function routeToHash({
   rechnungFeeId,
   nav,
   managerNav,
+  mitarbeiterId,
+  abteilungId,
 }: Route): string {
+  if (view === "mitarbeiter" && mitarbeiterId) return `#/mitarbeiter/${mitarbeiterId}`;
+  if (view === "abteilung" && abteilungId) return `#/abteilung/${abteilungId}`;
   if (view === "rechnung" && rechnungFeeId) return `#/${FINANZEN}/rechnung/${rechnungFeeId}`;
   if (view === "konzernHub" && konzernHubId) {
     return `#/${personRoot(partnerId)}/konzern/${konzernHubId}`;
@@ -224,11 +232,13 @@ export function hashToRoute(hash: string): Route {
   const parts = hash.replace(/^#\/?/, "").split("/").filter(Boolean);
   if (parts[0] === "mein-bereich") return { view: "meinBereich", nav: navOf(parts.slice(1), { area: "Mein Bereich", page: "Dashboard" }) };
   if (parts[0] === "admin") return { view: "admin" };
+  if (parts[0] === "mitarbeiter" && parts[1]) return { view: "mitarbeiter", mitarbeiterId: parts[1] };
+  if (parts[0] === "abteilung" && parts[1]) return { view: "abteilung", abteilungId: parts[1] };
   if (parts[0] === "home") return { view: "home", nav: navOf(parts.slice(1), { area: "Planner", page: "Workflows & To-Dos" }) };
   // Management: management/<area>/<tab>[/<freigabe>]. Older links (bestandsmanager/…) mean the same.
   if (parts[0] === "management" && parts[1] !== "finanzen") {
     const area = parts[1] === "hrm" ? "hrm" : "bestand";
-    const tab = parts[2] ?? (area === "hrm" ? "antraege" : "freigaben");
+    const tab = parts[2] ?? (area === "hrm" ? "dashboard" : "freigaben");
     if (area === "bestand" && tab === "freigaben" && parts[3]) return { view: "freigabe", freigabeId: parts[3], managerNav: { area, tab } };
     return { view: "manager", managerNav: { area, tab } };
   }

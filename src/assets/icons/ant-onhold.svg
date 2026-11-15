@@ -1,0 +1,10 @@
+<svg width="16" height="16" viewBox="7 7 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="15" cy="15" r="6" transform="rotate(90 15 15)" fill="url(#ant_onhold_paint)"/>
+<path d="M14.9053 11.2363V15.4561C14.9053 15.7322 15.1291 15.9561 15.4053 15.9561L18.0518 15.9561" stroke="#313537" stroke-linecap="round"/>
+<defs>
+<linearGradient id="ant_onhold_paint" x1="9" y1="15" x2="26.8333" y2="15" gradientUnits="userSpaceOnUse">
+<stop stop-color="#FFBC39"/>
+<stop offset="1" stop-color="#FCF5E3"/>
+</linearGradient>
+</defs>
+</svg>

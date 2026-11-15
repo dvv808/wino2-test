@@ -2,16 +2,13 @@ import * as a from "../assets/index";
 import { FileTabs, LogoButton, MeinBereichTab, ProfileMenu } from "../chrome";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { useState } from "react";
-import { UploadSources } from "../dms/UploadSources";
+import { useKeptState } from "../lib/keptState";
 import { DmsBrowser, PersonSwitch } from "../dms/DmsBrowser";
 import { Berechtigungen } from "../dms/admin/Berechtigungen";
 import { Dokumenttypen } from "../dms/admin/Dokumenttypen";
-import { Eingang } from "../dms/admin/Eingang";
 import { Zuordnung } from "../dms/admin/Zuordnung";
 import type { Ansicht } from "../types/dms";
 import { useDms } from "../dms/store";
-import { eingang } from "../lib/dms/views";
 import { GlobalSearch } from "../search/GlobalSearch";
 
 /** Ordner Zuordnung (build and link) and Spaces (the outcome) belong together, like a pill group in HRM. */
@@ -22,8 +19,6 @@ const PAIR = [
 const PAGES = [
   { id: "typen", label: "Dokumenttypen", icon: a.docList },
   { id: "rechte", label: "Gruppen & Berechtigungen", icon: a.contacts },
-  { id: "eingang", label: "Eingang", icon: a.navFolder },
-  { id: "quellen", label: "Upload-Quellen (Demo)", icon: a.upload },
 ] as const;
 type Page = (typeof PAIR)[number]["id"] | (typeof PAGES)[number]["id"];
 
@@ -49,12 +44,11 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 export function AdminView() {
   const { closeAdmin } = useWorkflow();
   const { state } = useDms();
-  const [page, setPage] = useState<Page>("zuordnung");
+  const [page, setPage] = useKeptState<Page>("admin.page", "zuordnung");
   // Spaces simulates the real thing: a DMS-Admin gets the Verwaltung structure, everyone else the Standard one.
   // Switch the person in the Spaces header to see the other outcome.
   const viewer = state.people.find((p) => p.id === state.activePerson);
   const ansicht: Ansicht = viewer?.rollen.includes("DMS-Admin") ? "Verwaltung" : "Standard";
-  const waiting = eingang(state).length;
 
   return (
     <div className="app">
@@ -106,7 +100,8 @@ export function AdminView() {
               </button>
             ))}
           </div>
-          {PAGES.map((item) => (
+          {/* Dokumenttypen stays built but is not shown yet. */}
+          {PAGES.filter((item) => item.id !== "typen").map((item) => (
             <button
               type="button"
               className={item.id === page ? "module-pill active" : "module-pill"}
@@ -115,11 +110,6 @@ export function AdminView() {
             >
               <Icon src={item.icon} size={24} />
               {item.label}
-              {item.id === "eingang" && waiting > 0 ? (
-                <span className="mb-action-count dms-eingang-count" aria-label={`${waiting} nicht zugeordnet`}>
-                  {waiting}
-                </span>
-              ) : null}
             </button>
           ))}
         </div>
@@ -143,12 +133,6 @@ export function AdminView() {
               <Berechtigungen />
             </AdminOnly>
           ) : null}
-          {page === "eingang" ? (
-            <AdminOnly>
-              <Eingang />
-            </AdminOnly>
-          ) : null}
-          {page === "quellen" ? <UploadSources /> : null}
         </div>
       </div>
     </div>

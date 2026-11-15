@@ -1,4 +1,7 @@
-import { createContext, useContext, useMemo, useState, type DragEvent } from "react";
+import { useKeptState } from "../../lib/keptState";
+import { HotFilters } from "../../HotFilters";
+import { UploadSources } from "../UploadSources";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import * as a from "../../assets/index";
 import { addChildNode, findNode, moveNode, newId, removeNode, updateNode } from "../../lib/dms/admin";
 import {
@@ -15,13 +18,13 @@ import {
   unlinkSource,
 } from "../../lib/dms/links";
 import { formatPath } from "../../lib/dms/placeholders";
-import { SOURCE_ITEMS, sourceKey, sourceLabel, type SourceItem } from "../../lib/dms/sources";
+import { SOURCE_ITEMS, sourceItem, sourceKey, sourceLabel, type SourceItem } from "../../lib/dms/sources";
 import { childrenOf, nodeIndex, type MergedFolder } from "../../lib/dms/views";
 import type { DmsState, EntityType, GroupBy, Knoten, MetaField, Ordnervorlage, QuellenLink } from "../../types/dms";
 import { ConfirmModal } from "../../honorar/ui";
-import { Icon } from "../../ui";
+import { Icon, Snackbar } from "../../ui";
 import { useDms } from "../store";
-import { DmsModal } from "../ui";
+import { DmsModal, DmsTable, RowMenu } from "../ui";
 import { ConditionRow, PermissionsEditor } from "./folderFields";
 
 /**
@@ -31,7 +34,16 @@ import { ConditionRow, PermissionsEditor } from "./folderFields";
 
 const DRAG_TYPE = "application/x-wino-source";
 
-type Ask = { title: string; text: string; confirmLabel: string; run: () => void };
+type Ask = {
+  title: string;
+  text: string;
+  confirmLabel: string;
+  run: () => void;
+  /** Linking an upload to a folder: shown in the Verknüpfung overlay look instead of the plain question. */
+  link?: { item: SourceItem; where: string; level?: string };
+  /** Removing one link from a folder (Einstellungen): same overlay look. */
+  unlink?: { item: SourceItem; where: string; last: boolean };
+};
 /** Adding or removing a link always asks first. */
 const ConfirmContext = createContext<(ask: Ask) => void>(() => undefined);
 
@@ -46,7 +58,9 @@ function useConfirmUnlink() {
   const { state, apply } = useDms();
   return (link: Pick<QuellenLink, "source" | "slot">, nodeId: string) => {
     const last = placesOf(state, link).length <= 1;
+    const item = sourceItem(link.source, link.slot);
     ask({
+      unlink: item ? { item, where: nodePath(state, nodeId), last } : undefined,
       title: "Verknüpfung lösen?",
       text: `„${sourceLabel(link.source, link.slot)}“ von „${nodePath(state, nodeId)}“ lösen?${
         last ? " Neue Dateien von dort landen danach im Eingang." : ""
@@ -83,6 +97,13 @@ function levelTag(node: Knoten) {
 
 type Selection = { vorlageId: string; nodeId: string };
 
+/** Folders of the upload clicked in Wino Datei Uploads: marked green in the Ordnerstruktur (blue = selected folder). */
+const UploadMarkContext = createContext<Set<string>>(new Set());
+
+function holdsMark(node: Knoten, marks: Set<string>): boolean {
+  return node.children.some((child) => marks.has(child.id) || holdsMark(child, marks));
+}
+
 function readDrag(event: DragEvent): SourceItem | null {
   try {
     const raw = event.dataTransfer.getData(DRAG_TYPE);
@@ -111,8 +132,12 @@ function TreeNode({
   nodes: Map<string, Knoten>;
   viaLink?: boolean;
 }) {
-  const [open, setOpen] = useState(depth < 2);
+  const [kept, setOpen] = useKeptState(`admin.zu.open.${node.id}`, depth < 2);
   const [over, setOver] = useState(false);
+  const marks = useContext(UploadMarkContext);
+  const marked = marks.has(node.id) && !viaLink;
+  // A marked folder deeper down opens its parents, so it is visible.
+  const open = kept || (!viaLink && marks.size > 0 && holdsMark(node, marks));
   const kids = node.linkTo ? childrenOf(node, nodes) : node.children;
   const selected = selection?.nodeId === node.id && !viaLink;
   const tag = levelTag(node);
@@ -121,7 +146,7 @@ function TreeNode({
   return (
     <li>
       <div
-        className={`dms-tree-row dms-zu-row${selected ? " selected" : ""}${over ? " drop-over" : ""}${viaLink ? " via-link" : ""}`}
+        className={`dms-tree-row dms-zu-row${selected ? " selected" : ""}${marked ? " upload-mark" : ""}${over ? " drop-over" : ""}${viaLink ? " via-link" : ""}`}
         style={{ paddingLeft: 8 + depth * 18 }}
         onDragOver={(event) => {
           if (viaLink) return;
@@ -192,159 +217,396 @@ function TreeNode({
   );
 }
 
-/** Where one upload point is linked, with a way to open or unlink each place. */
-function PlacesModal({ item, onClose, onOpen }: { item: SourceItem; onClose: () => void; onOpen: (s: Selection) => void }) {
+/** "Verknüpfen?" for an upload dropped on a folder, in the same look as the Verknüpfung(en) overlay. */
+function LinkAskModal({
+  item,
+  where,
+  level,
+  removing = false,
+  last = false,
+  onCancel,
+  onConfirm,
+}: {
+  /** Asks to remove the link to `where` instead of adding it. */
+  removing?: boolean;
+  /** Removing the upload's only link: its files land in the Eingang afterwards. */
+  last?: boolean;
+  item: SourceItem;
+  where: string;
+  /** Entity type of the level that gets created (e.g. Partner), if any. */
+  level?: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
   const { state } = useDms();
-  const confirmUnlink = useConfirmUnlink();
-  const places = placesOf(state, item);
+  const existing = placesOf(state, item).filter((p) => !removing || formatPath(p.path) !== where);
+  const place = winoPlace(item);
   return (
-    <DmsModal title="Verknüpft mit" onClose={onClose}>
-      <p className="prompt-text">
-        {item.module} → {item.label}
-      </p>
-      <ul className="dms-places-list">
-        {places.map((p) => (
-          <li key={p.node.id}>
+    <DmsModal
+      title={removing ? "Verknüpfung auflösen" : "Verknüpfen"}
+      onClose={onCancel}
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            Abbrechen
+          </button>
+          <button type="button" className="btn-primary" onClick={onConfirm}>
+            {removing ? "Verknüpfung auflösen" : "Verknüpfen"}
+          </button>
+        </>
+      }
+    >
+      <div className="dms-links-source">
+        <strong>{item.label}</strong>
+        <span>
+          {place.crumbs.map((crumb, i) => (
+            <span key={crumb}>
+              {i ? <span className="sep">›</span> : null}
+              {crumb}
+            </span>
+          ))}
+        </span>
+      </div>
+      <p className="dms-links-label">{removing ? "Auflösen mit" : "Neu verknüpfen mit"}</p>
+      <ul className="dms-links-list">
+        <li className="picked">
+          <span className="dms-links-row">
             <Icon src={a.folder} size={18} />
+            <span>{where}</span>
+          </span>
+        </li>
+      </ul>
+      {existing.length ? (
+        <>
+          <p className="dms-links-label">{removing ? "Bleibt verknüpft mit" : "Bereits verknüpft mit"}</p>
+          <ul className="dms-links-list">
+            {existing.map((p) => (
+              <li key={p.node.id}>
+                <span className="dms-links-row">
+                  <Icon src={a.folder} size={18} />
+                  <span>{formatPath(p.path)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {removing ? (
+        last ? (
+          <p className="dms-links-note">
+            <Icon src={a.onhold} size={16} />
+            Danach nicht verknüpft: neue Dateien von hier landen im Eingang.
+          </p>
+        ) : null
+      ) : (
+        <p className="dms-links-note">
+          <Icon src={a.paperclip} size={16} />
+          {level ? `Dafür wird die Ebene je ${level} angelegt. ` : ""}Dateien von dort erscheinen dann in diesem Ordner.
+        </p>
+      )}
+    </DmsModal>
+  );
+}
+
+/**
+ * The folders one upload is linked to. Tick the ones to remove and "Auflösen" (opened from the row menu, all are
+ * ticked); the folder button jumps to that folder in the Ordnerstruktur.
+ */
+function LinksModal({
+  item,
+  removing,
+  onClose,
+  onOpen,
+}: {
+  item: SourceItem;
+  /** Opened from "Verknüpfung(en) auflösen": everything ticked. */
+  removing: boolean;
+  onClose: () => void;
+  onOpen: (s: Selection) => void;
+}) {
+  const { state, apply } = useDms();
+  const places = placesOf(state, item);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(removing ? places.map((p) => p.node.id) : []));
+  const all = places.length > 0 && places.every((p) => picked.has(p.node.id));
+  const toggle = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const place = winoPlace(item);
+  return (
+    <DmsModal
+      title={places.length > 1 ? "Verknüpfungen" : "Verknüpfung"}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={picked.size === 0}
+            onClick={() => {
+              apply((current) => [...picked].reduce((next, nodeId) => unlinkSource(next, item, nodeId), current));
+              onClose();
+            }}
+          >
+            {picked.size > 1 ? `${picked.size} Verknüpfungen auflösen` : "Verknüpfung auflösen"}
+          </button>
+        </>
+      }
+    >
+      <div className="dms-links-source">
+        <strong>{item.label}</strong>
+        <span>
+          {place.crumbs.map((crumb, i) => (
+            <span key={crumb}>
+              {i ? <span className="sep">›</span> : null}
+              {crumb}
+            </span>
+          ))}
+        </span>
+      </div>
+      <p className="dms-links-label">Verknüpft mit {places.length === 1 ? "diesem Ordner" : `${places.length} Ordnern`}</p>
+      <ul className="dms-links-list">
+        {places.map((p) => (
+          <li key={p.node.id} className={picked.has(p.node.id) ? "picked" : undefined}>
+            <label>
+              <input type="checkbox" checked={picked.has(p.node.id)} onChange={() => toggle(p.node.id)} />
+              <Icon src={a.folder} size={18} />
+              <span>{formatPath(p.path)}</span>
+            </label>
             <button
               type="button"
-              className="dms-places-path"
+              className="hn-st-open"
+              title="Ordner in der Ordnerstruktur zeigen"
+              aria-label={`${formatPath(p.path)} zeigen`}
               onClick={() => {
                 onOpen({ vorlageId: p.vorlage.id, nodeId: p.node.id });
                 onClose();
               }}
             >
-              {formatPath(p.path)}
-            </button>
-            <button type="button" className="btn-secondary dms-row-btn" onClick={() => confirmUnlink(item, p.node.id)}>
-              Lösen
+              <Icon src={a.openTab} size={16} />
             </button>
           </li>
         ))}
-        {places.length === 0 ? <li className="dms-muted">Nicht mehr verknüpft – Dateien landen im Eingang.</li> : null}
       </ul>
+      {places.length === 0 ? <p className="dms-muted">Nicht verknüpft.</p> : null}
+      {all ? (
+        <p className="dms-links-note">
+          <Icon src={a.onhold} size={16} />
+          Danach nicht verknüpft: neue Dateien von hier landen im Eingang.
+        </p>
+      ) : null}
     </DmsModal>
   );
 }
 
+
+/**
+ * Where each upload point lives in Wino, as a breadcrumb that opens that page. Modules the prototype does not have
+ * yet open their stand-in in Upload-Quellen (Demo).
+ */
+const WINO_PLACES: Record<string, { crumbs: string[]; hash?: string }> = {
+  [sourceKey("partner.stammdaten.anhang", "anhang")]: {
+    crumbs: ["Partner", "Stammdaten", "Allgemeine Partnerdaten"],
+    hash: "#/person/julia-atkinson/stammdaten-workflow/allgemeine-partnerdaten",
+  },
+  [sourceKey("partner.stammdaten.anhang", "pruefung")]: {
+    crumbs: ["Partner", "Stammdaten prüfen"],
+    hash: "#/person/thomas-debrezina/stammdaten-pruefen",
+  },
+  [sourceKey("partner.stammdaten.anhang", "wirtschaft")]: {
+    crumbs: ["Partner", "Stammdaten", "Wirtschaftsdaten"],
+    hash: "#/person/julia-atkinson/stammdaten-workflow/wirtschaftsdaten",
+  },
+  [sourceKey("partner.bank", "bank")]: {
+    crumbs: ["Partner", "Stammdaten", "Bankverbindung"],
+    hash: "#/person/julia-atkinson/stammdaten-workflow/bankverbindung",
+  },
+  [sourceKey("maklervereinbarung.vertrag", "vertrag")]: {
+    crumbs: ["Partner", "Maklervereinbarung", "Signaturen"],
+    hash: "#/person/julia-atkinson/maklervereinbarung/signaturen",
+  },
+  [sourceKey("partner.aktivitaet.anhang", null)]: { crumbs: ["Partner", "Aktivität"] },
+  [sourceKey("kunde.polizze", null)]: { crumbs: ["Polizzen", "Polizze anlegen"] },
+  [sourceKey("schaden.dokumente", null)]: { crumbs: ["Schaden", "Dokumente"] },
+  [sourceKey("kommunikation.email", null)]: { crumbs: ["Kommunikation", "E-Mail"] },
+  [sourceKey("versicherer.bedingungen", null)]: { crumbs: ["Versicherer", "Bedingungen"] },
+};
+
+const winoPlace = (item: SourceItem) => WINO_PLACES[sourceKey(item.source, item.slot)] ?? { crumbs: [item.module] };
+
+type UploadFilter = "linked" | "open";
+
 function SourcesPanel({
   selection,
-  onLink,
   onOpen,
+  onDemo,
+  pickedUpload,
+  onPick,
 }: {
+  /** The upload clicked in the table (its folders are marked in the Ordnerstruktur). */
+  pickedUpload: string | null;
+  onPick: (key: string | null) => void;
   selection: Selection | null;
-  onLink: (item: SourceItem) => void;
   onOpen: (s: Selection) => void;
+  /** Opens Upload-Quellen (Demo) for modules the prototype does not have yet. */
+  onDemo: () => void;
 }) {
   const { state } = useDms();
-  const confirmUnlink = useConfirmUnlink();
-  const [tab, setTab] = useState<"linked" | "open">("linked");
-  const [placesFor, setPlacesFor] = useState<SourceItem | null>(null);
+  const [filter, setFilter] = useKeptState<UploadFilter | null>("admin.zu.uploads.v2", null);
+  const [linksFor, setLinksFor] = useState<{ item: SourceItem; removing: boolean } | null>(null);
   const places = linkPlaces(state);
   const countOf = (item: SourceItem) => places.filter((p) => p.link.source === item.source && p.link.slot === item.slot).length;
-  // With a folder selected the tabs are about that folder: what is linked to it, and what can still be linked.
+  // With a folder selected the hot filters are about that folder: linked to it, or not (yet).
   const vorlage = selection ? state.vorlagen.find((v) => v.id === selection.vorlageId) : undefined;
   const folder = vorlage && selection ? findNode(vorlage.root, selection.nodeId) : null;
   const onFolder = (item: SourceItem) => Boolean(folder?.quellen?.some((q) => q.source === item.source && q.slot === item.slot));
-  const linked = SOURCE_ITEMS.filter((item) => (folder ? onFolder(item) : countOf(item) > 0));
-  const open = SOURCE_ITEMS.filter((item) => (folder ? !onFolder(item) : countOf(item) === 0));
-  const list = tab === "linked" ? linked : open;
-  const modules = [...new Set(list.map((s) => s.module))];
+  const isLinked = (item: SourceItem) => (folder ? onFolder(item) : countOf(item) > 0);
+  const linked = SOURCE_ITEMS.filter(isLinked);
+  const open = SOURCE_ITEMS.filter((item) => !isLinked(item));
+  const picked = filter === "linked" ? linked : filter === "open" ? open : SOURCE_ITEMS;
+  // A selected folder's own uploads come first and are highlighted.
+  const rows = folder ? [...picked].sort((x, y) => Number(onFolder(y)) - Number(onFolder(x))) : picked;
   const hint = folder
-    ? tab === "linked"
-      ? `Mit „${folder.name}“ verknüpft.`
-      : `Kann mit „${folder.name}“ verknüpft werden: hierher ziehen oder auf den Knopf klicken.`
-    : tab === "linked"
-      ? "Ordner links wählen, um seine Quellen zu sehen. Auf einen Ordner ziehen, um zu verknüpfen."
-      : "Noch nirgends verknüpft: Dateien von hier landen im Eingang.";
+    ? `Auf einen Ordner links ziehen, um zu verknüpfen. Verknüpft = mit „${folder.name}“.`
+    : "Auf einen Ordner links ziehen, um zu verknüpfen. Nicht verknüpfte Uploads landen im Eingang.";
   return (
     <div className="dms-zu-pane">
       <p className="dms-zu-intro">
-        <strong>Quellen (Orte mit Dateiupload)</strong> · Jeder Upload in WINO erscheint hier automatisch.
+        <strong>Wino Datei Uploads</strong> · Jeder Ort in Wino mit Dateiupload erscheint hier automatisch.
       </p>
-      <div className="dms-segment dms-zu-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === "linked"} className={tab === "linked" ? "active" : ""} onClick={() => setTab("linked")}>
-          Verknüpft ({linked.length})
-        </button>
-        <button type="button" role="tab" aria-selected={tab === "open"} className={tab === "open" ? "active" : ""} onClick={() => setTab("open")}>
-          Verfügbar ({open.length})
-        </button>
-      </div>
+      <HotFilters
+        active={filter}
+        onChange={setFilter}
+        items={[
+          { id: "linked", label: "Verknüpft", value: linked.length, icon: a.paperclip, unit: "Uploads" },
+          { id: "open", label: "Nicht verknüpft", value: open.length, icon: a.onhold, unit: "→ Eingang" },
+        ]}
+      />
       <p className="dms-muted dms-zu-hint">{hint}</p>
-      <div className="dms-zu-source-list">
-        {list.length === 0 ? (
-          <p className="dms-empty">
-            {tab === "linked"
-              ? folder
-                ? "Mit diesem Ordner ist noch keine Quelle verknüpft."
-                : "Noch keine Quelle verknüpft."
-              : folder
-                ? "Alle Quellen sind mit diesem Ordner verknüpft."
-                : "Alle Quellen sind verknüpft."}
-          </p>
-        ) : null}
-        {modules.map((module) => (
-          <div key={module} className="dms-zu-module">
-            <h4>{module}</h4>
-            {list
-              .filter((s) => s.module === module)
-              .map((item) => {
-                const count = countOf(item);
-                const first = places.find((p) => p.link.source === item.source && p.link.slot === item.slot);
+      <div className="dms-zu-upload-table">
+        <DmsTable
+          rows={rows}
+          rowKey={(item) => sourceKey(item.source, item.slot)}
+          label="Wino Datei Uploads"
+          unit="Uploads"
+          rowClass={(item) =>
+            `dms-zu-upload-row${countOf(item) ? "" : " unlinked"}${folder && onFolder(item) ? " on-folder" : ""}${pickedUpload === sourceKey(item.source, item.slot) ? " upload-mark" : ""}`
+          }
+          onSelect={(item) => {
+            const key = sourceKey(item.source, item.slot);
+            onPick(pickedUpload === key ? null : key);
+          }}
+          rowProps={(item) => ({
+            draggable: true,
+            title: "Auf einen Ordner ziehen, um zu verknüpfen",
+            onDragStart: (event) => {
+              event.dataTransfer.setData(DRAG_TYPE, JSON.stringify(item));
+              event.dataTransfer.effectAllowed = "link";
+            },
+          })}
+          actions={(item) => {
+            const count = countOf(item);
+            return (
+              <RowMenu
+                label={`Aktionen für ${item.label}`}
+                items={
+                  count
+                    ? [{ label: count > 1 ? "Verknüpfungen auflösen" : "Verknüpfung auflösen", icon: a.menuUnlink, onSelect: () => setLinksFor({ item, removing: true }) }]
+                    : []
+                }
+              />
+            );
+          }}
+          columns={[
+            {
+              key: "upload",
+              label: "Upload",
+              width: "minmax(240px, 1.3fr)",
+              text: (item) => item.label,
+              render: (item) => (
+                <span className="dms-zu-upload-name">
+                  <span className="dms-zu-grip" aria-hidden>
+                    ⋮⋮
+                  </span>
+                  {item.label}
+                </span>
+              ),
+            },
+            { key: "bereich", label: "Bereich", width: "minmax(130px, 0.7fr)", text: (item) => item.module },
+            {
+              key: "ort",
+              label: "Ort in Wino",
+              width: "minmax(240px, 1.4fr)",
+              text: (item) => winoPlace(item).crumbs.join(" › "),
+              render: (item) => {
+                const place = winoPlace(item);
+                const title = place.hash ? "In Wino öffnen" : "Gibt es im Prototyp noch nicht – in Upload-Quellen (Demo) öffnen";
+                const go = () => (place.hash ? (window.location.hash = place.hash) : onDemo());
                 return (
-                  <div
-                    key={sourceKey(item.source, item.slot)}
-                    className={`dms-zu-source${count ? "" : " unlinked"}`}
-                    draggable
-                    onDragStart={(event) => {
-                      event.dataTransfer.setData(DRAG_TYPE, JSON.stringify(item));
-                      event.dataTransfer.effectAllowed = "link";
-                    }}
-                  >
-                    <span className="dms-zu-grip" aria-hidden>
-                      ⋮⋮
-                    </span>
-                    <span className="dms-zu-source-copy">
-                      <strong>{item.label}</strong>
-                      <small>{first ? formatPath(first.path) + (count > 1 ? ` + ${count - 1} weitere` : "") : "Landet im Eingang"}</small>
-                    </span>
-                    {count ? (
-                      <button
-                        type="button"
-                        className="dms-zu-count"
-                        aria-label={`${count} Verknüpfung${count === 1 ? "" : "en"} anzeigen`}
-                        onClick={() => setPlacesFor(item)}
-                      >
-                        {count}
-                      </button>
-                    ) : null}
-                    {folder && onFolder(item) ? (
-                      <button
-                        type="button"
-                        className="dms-icon-btn"
-                        title={`Verknüpfung mit „${folder.name}“ lösen`}
-                        onClick={() => confirmUnlink(item, folder.id)}
-                      >
-                        <Icon src={a.trash} size={16} />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="dms-icon-btn"
-                        disabled={!selection}
-                        title={selection ? "Mit dem ausgewählten Ordner verknüpfen" : "Erst links einen Ordner wählen"}
-                        onClick={() => onLink(item)}
-                      >
-                        <Icon src={a.verknuepfung} size={16} />
-                      </button>
-                    )}
-                  </div>
+                  <>
+                    <button type="button" className="dms-zu-crumbs" title={title} onClick={go}>
+                      {place.crumbs.map((crumb, i) => (
+                        <span key={crumb}>
+                          {i ? <span className="sep">›</span> : null}
+                          {crumb}
+                        </span>
+                      ))}
+                    </button>
+                    <button type="button" className="hn-st-open" aria-label={`${place.crumbs.join(" › ")} öffnen`} title={title} onClick={go}>
+                      <Icon src={a.openTab} size={16} />
+                    </button>
+                  </>
                 );
-              })}
-          </div>
-        ))}
+              },
+            },
+            {
+              key: "verknuepft",
+              label: "Verknüpft",
+              width: "minmax(170px, 0.6fr)",
+              text: (item) => (countOf(item) ? `${countOf(item)}` : "Nicht verknüpft"),
+              render: (item) => {
+                const count = countOf(item);
+                return count ? (
+                  <button
+                    type="button"
+                    className="dms-link-count dms-zu-count-btn"
+                    aria-label={`${count} Verknüpfung${count === 1 ? "" : "en"} anzeigen`}
+                    onClick={() => setLinksFor({ item, removing: false })}
+                  >
+                    <Icon src={a.paperclip} size={14} />
+                    {count}
+                  </button>
+                ) : (
+                  <span className="dms-zu-inbox">
+                    <Icon src={a.onhold} size={16} />
+                    Nicht verknüpft
+                  </span>
+                );
+              },
+            },
+          ]}
+          empty={
+            <p className="dms-empty">
+              {filter === "linked"
+                ? folder
+                  ? "Mit diesem Ordner ist noch kein Upload verknüpft."
+                  : "Noch kein Upload verknüpft."
+                : filter === "open"
+                  ? folder
+                    ? "Alle Uploads sind mit diesem Ordner verknüpft."
+                    : "Alle Uploads sind verknüpft."
+                  : "Keine Uploads."}
+            </p>
+          }
+        />
       </div>
-      {placesFor ? <PlacesModal item={placesFor} onClose={() => setPlacesFor(null)} onOpen={onOpen} /> : null}
+      {linksFor ? <LinksModal key={sourceKey(linksFor.item.source, linksFor.item.slot)} item={linksFor.item} removing={linksFor.removing} onClose={() => setLinksFor(null)} onOpen={onOpen} /> : null}
     </div>
   );
 }
@@ -519,20 +781,6 @@ function mergedCount(m: MergedFolder): number {
   return ids.size;
 }
 
-/** Files a connection actually brings along with the chosen sub-folders. */
-function chosenCount(list: MergedFolder[], include: string[] | null, own: number) {
-  if (include === null) return null;
-  const ids = new Set<string>();
-  const go = (items: MergedFolder[]) =>
-    items.forEach((m) => {
-      if (!include.includes(m.rel)) return;
-      m.docs.forEach((d) => ids.add(d.id));
-      go(m.children);
-    });
-  go(list);
-  return ids.size + own;
-}
-
 function allRels(list: MergedFolder[]): string[] {
   return list.flatMap((m) => [m.rel, ...allRels(m.children)]);
 }
@@ -573,47 +821,133 @@ function SubfolderChecks({
   );
 }
 
+type Port = { x: number; y: number };
+type Line = { from: string; to: string };
+type DragLine = { from: string; x: number; y: number; over: string | null };
+
+/** Every folder of one root template, in tree order, with its depth (linked sub-folders are not repeated). */
+function flatFolders(root: Knoten, depth = 0): { node: Knoten; depth: number }[] {
+  return [{ node: root, depth }, ...root.children.flatMap((child) => flatFolders(child, depth + 1))];
+}
+
 /**
- * Ordner verbinden: the selected folder also shows the files of another folder, from every place that folder
- * appears (e.g. the Fachbereiche of every Versicherer). Recurring sub-folders are merged by name; pick which.
+ * Ordner verbinden as a board: one column per root folder, every folder a node. Drag from a folder's dot onto another
+ * folder: that folder then also shows the files of the first one (from every place it appears; same-named sub-folders
+ * merged). Click a line to choose its sub-folders or to separate it. Folders are only added in the Ordnerstruktur.
  */
-function ConnectPane({ selection }: { selection: Selection | null }) {
+function ConnectPane({ selection, onSelect, onEdit }: { selection: Selection | null; onSelect: (s: Selection) => void; onEdit: () => void }) {
   const { state, apply } = useDms();
   const ask = useContext(ConfirmContext);
-  const [pick, setPick] = useState<string | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [ports, setPorts] = useState<Record<string, { in: Port; out: Port }>>({});
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [drag, setDrag] = useState<DragLine | null>(null);
+  /** The line being edited or the one just drawn (not saved yet). */
+  const [active, setActive] = useState<(Line & { pending: boolean }) | null>(null);
   const [include, setInclude] = useState<Set<string> | null>(null);
-  const [search, setSearch] = useState("");
-  const vorlage = selection ? state.vorlagen.find((v) => v.id === selection.vorlageId) : undefined;
-  const folder = vorlage && selection ? findNode(vorlage.root, selection.nodeId) : null;
-  if (!vorlage || !folder) {
-    return (
-      <div className="dms-zu-pane dms-zu-empty">
-        <img src={a.folder} alt="" width={36} height={36} />
-        <p>Links den Ordner wählen, der zusätzlich die Dateien anderer Ordner zeigen soll.</p>
-      </div>
-    );
-  }
-  const targets = linkTargets(state);
-  const ownPath = targets.find((t) => t.id === folder.id)?.path ?? [];
-  const existing = folder.verbindungen ?? [];
-  const needle = search.trim().toLocaleLowerCase("de-AT");
-  const candidates = targets.filter(
-    (t) =>
-      !related(t.path, ownPath) &&
-      !existing.some((e) => e.nodeId === t.id) &&
-      (!needle || formatPath(t.path).toLocaleLowerCase("de-AT").includes(needle)),
+  const [hover, setHover] = useState<string | null>(null);
+
+  const targets = useMemo(() => linkTargets(state), [state]);
+  const pathOf = (id: string) => targets.find((t) => t.id === id)?.path ?? [];
+  const vorlageOf = (id: string) => state.vorlagen.find((v) => findNode(v.root, id));
+  const lines: Line[] = state.vorlagen.flatMap((v) =>
+    flatFolders(v.root).flatMap(({ node }) => (node.verbindungen ?? []).map((x) => ({ from: x.nodeId, to: node.id }))),
   );
-  const preview = pick ? connectionPreview(state, pick) : null;
+  const lineKey = (l: Line) => `${l.from}>${l.to}`;
+  const canConnect = (from: string, to: string) =>
+    from !== to && !related(pathOf(from), pathOf(to)) && !lines.some((l) => l.from === from && l.to === to);
+
+  // Measure every folder's dots, relative to the board (it scrolls; the lines scroll with it).
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board) return;
+    const measure = () => {
+      const box = board.getBoundingClientRect();
+      const next: Record<string, { in: Port; out: Port }> = {};
+      board.querySelectorAll<HTMLElement>("[data-cc-node]").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        const y = r.top - box.top + board.scrollTop + r.height / 2;
+        next[el.dataset.ccNode!] = {
+          in: { x: r.left - box.left + board.scrollLeft, y },
+          out: { x: r.right - box.left + board.scrollLeft, y },
+        };
+      });
+      setPorts(next);
+      setSize({ w: board.scrollWidth, h: board.scrollHeight });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(board);
+    board.querySelectorAll(".cc-col").forEach((col) => observer.observe(col));
+    return () => observer.disconnect();
+  }, [state.vorlagen]);
+
+  // With the panel open the board is narrower: keep both ends of the line in view.
+  useEffect(() => {
+    if (!active) return;
+    const board = boardRef.current;
+    const el = board?.querySelector<HTMLElement>(`[data-cc-node="${active.to}"]`);
+    el?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [active]);
+
+  function pointAt(event: { clientX: number; clientY: number }) {
+    const board = boardRef.current!;
+    const box = board.getBoundingClientRect();
+    return { x: event.clientX - box.left + board.scrollLeft, y: event.clientY - box.top + board.scrollTop };
+  }
+
+  function nodeUnder(event: { clientX: number; clientY: number }) {
+    const el = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-cc-node]");
+    return el?.dataset.ccNode ?? null;
+  }
+
+  function startDrag(event: React.PointerEvent, from: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    const at = pointAt(event);
+    setActive(null);
+    setDrag({ from, ...at, over: null });
+    const move = (e: PointerEvent) => {
+      const over = nodeUnder(e);
+      setDrag((d) => (d ? { ...d, ...pointAt(e), over: over && canConnect(from, over) ? over : null } : d));
+    };
+    const up = (e: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const to = nodeUnder(e);
+      setDrag(null);
+      if (to && canConnect(from, to)) {
+        setActive({ from, to, pending: true });
+        setInclude(null);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  function curve(a: Port, b: Port) {
+    // Out of the right side, into the left side; a backwards line swings out wide.
+    const dx = Math.max(60, Math.abs(b.x - a.x) / 2);
+    return `M ${a.x} ${a.y} C ${a.x + dx} ${a.y}, ${b.x - dx} ${b.y}, ${b.x} ${b.y}`;
+  }
+
+  const preview = active ? connectionPreview(state, active.from) : null;
   const rels = preview ? allRels(preview.tree) : [];
+  const saved = active && !active.pending ? vorlageOf(active.to)?.root && findNode(vorlageOf(active.to)!.root, active.to)?.verbindungen?.find((x) => x.nodeId === active.from) : null;
+
+  function openLine(l: Line) {
+    const to = vorlageOf(l.to);
+    const existing = to ? findNode(to.root, l.to)?.verbindungen?.find((x) => x.nodeId === l.from) : undefined;
+    setActive({ ...l, pending: false });
+    setInclude(existing?.include ? new Set(existing.include) : null);
+  }
 
   function toggle(m: MergedFolder) {
     setInclude((prev) => {
       const next = new Set(prev ?? rels);
       if (next.has(m.rel)) {
-        // Off with everything below it.
         for (const r of [...next]) if (r === m.rel || r.startsWith(`${m.rel}/`)) next.delete(r);
       } else {
-        // On with the way to it.
         const parts = m.rel.split("/");
         parts.forEach((_, i) => next.add(parts.slice(0, i + 1).join("/")));
       }
@@ -622,155 +956,216 @@ function ConnectPane({ selection }: { selection: Selection | null }) {
   }
 
   function save() {
-    if (!pick || !preview || !vorlage || !folder) return;
+    if (!active) return;
+    const to = vorlageOf(active.to);
+    if (!to) return;
     const chosen = include === null ? null : [...include];
-    const where = nodePath(state, pick);
+    apply((s) => setVerbindung(s, to.id, active.to, { nodeId: active.from, include: chosen }));
+    setActive({ ...active, pending: false });
+  }
+
+  function separate() {
+    if (!active) return;
+    const to = vorlageOf(active.to);
+    if (!to) return;
+    const line = active;
     ask({
-      title: "Ordner verbinden?",
-      text: `„${where}“ (an ${preview.instances.length} Stellen) mit „${formatPath(ownPath)}“ verbinden? Die Dateien erscheinen dann zusätzlich hier, es wird nichts kopiert.`,
-      confirmLabel: "Verbinden",
+      title: "Verbindung trennen?",
+      text: `„${nodePath(state, line.from)}“ von „${nodePath(state, line.to)}“ trennen? Die Dateien bleiben an ihrem Ort.`,
+      confirmLabel: "Trennen",
       run: () => {
-        apply((s) => setVerbindung(s, vorlage.id, folder.id, { nodeId: pick, include: chosen }));
-        setPick(null);
-        setInclude(null);
+        apply((s) => removeVerbindung(s, to.id, line.to, line.from));
+        setActive(null);
       },
     });
   }
 
-  return (
-    <div className="dms-zu-pane dms-connect">
-      <p className="dms-zu-intro">
-        <strong>Ordner verbinden</strong> · „{folder.name}“ zeigt zusätzlich alle Dateien eines anderen Ordners, von jeder Stelle, an der es ihn
-        gibt. Gleichnamige Unterordner werden zusammengeführt.
-      </p>
+  const marked = new Set(active ? [active.from, active.to] : hover ? hover.split(">") : []);
 
-      {existing.length ? (
-        <>
-          <h4>Verbunden</h4>
-          <ul className="dms-places-list">
-            {existing.map((e) => {
-              const p = connectionPreview(state, e.nodeId);
+  return (
+    <div className="dms-zu-pane cc">
+      <div className="cc-head">
+        <p className="dms-zu-intro">
+          <strong>Ordner verbinden</strong> · Vom Punkt eines Ordners eine Linie auf einen anderen ziehen: der zeigt dann zusätzlich dessen Dateien,
+          von jeder Stelle. Linie anklicken zum Bearbeiten oder Trennen.
+        </p>
+      </div>
+      <div className="cc-wrap">
+        <div className={drag ? "cc-board dragging" : "cc-board"} ref={boardRef}>
+          <svg className="cc-lines" width={size.w} height={size.h} aria-hidden={false}>
+            <defs>
+              <marker id="cc-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
+              </marker>
+            </defs>
+            {lines.map((l) => {
+              const a = ports[l.from]?.out;
+              const b = ports[l.to]?.in;
+              if (!a || !b) return null;
+              const key = lineKey(l);
+              const on = active && !active.pending && lineKey(active) === key;
+              const d = curve(a, b);
               return (
-                <li key={e.nodeId}>
-                  <Icon src={a.verknuepfung} size={18} />
-                  <span className="dms-zu-link-name">
-                    <strong>{nodePath(state, e.nodeId)}</strong>
-                    <small className="dms-muted">
-                      {" "}
-                      · an {p.instances.length} Stellen · {e.include === null ? "alle Unterordner" : `${e.include.length} Unterordner gewählt`} ·{" "}
-                      {chosenCount(p.tree, e.include, p.instances.reduce((n, f) => n + f.docs.length, 0)) ?? p.docs} Dateien
-                    </small>
-                  </span>
-                  <button
-                    type="button"
-                    className="btn-secondary dms-row-btn"
-                    onClick={() => {
-                      setPick(e.nodeId);
-                      setInclude(e.include === null ? null : new Set(e.include));
-                    }}
-                  >
-                    Bearbeiten
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary dms-row-btn"
-                    onClick={() =>
-                      ask({
-                        title: "Verbindung trennen?",
-                        text: `„${nodePath(state, e.nodeId)}“ von „${formatPath(ownPath)}“ trennen? Die Dateien bleiben an ihrem Ort.`,
-                        confirmLabel: "Trennen",
-                        run: () => apply((s) => removeVerbindung(s, vorlage.id, folder.id, e.nodeId)),
-                      })
-                    }
-                  >
-                    Trennen
-                  </button>
-                </li>
+                <g key={key} className={`cc-line${on ? " active" : ""}${hover === key ? " hover" : ""}`}>
+                  <path d={d} className="cc-line-path" markerEnd="url(#cc-arrow)" />
+                  <path
+                    d={d}
+                    className="cc-line-hit"
+                    role="button"
+                    aria-label={`Verbindung ${nodePath(state, l.from)} zu ${nodePath(state, l.to)}`}
+                    onMouseEnter={() => setHover(key)}
+                    onMouseLeave={() => setHover(null)}
+                    onClick={() => openLine(l)}
+                  />
+                </g>
               );
             })}
-          </ul>
-        </>
-      ) : null}
-
-      <div className="dms-connect-split">
-        <div className="dms-connect-pick">
-          <h4>Ordner wählen</h4>
-          <label className="dms-search">
-            <Icon src={a.search} size={20} />
-            <input placeholder="Ordner suchen..." value={search} onChange={(event) => setSearch(event.target.value)} />
-          </label>
-          <ul className="dms-pick-list">
-            {candidates.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  className={pick === t.id ? "active" : ""}
-                  onClick={() => {
-                    setPick(t.id);
-                    setInclude(null);
-                  }}
-                >
-                  <strong>{t.path.at(-1)}</strong>
-                  <small>{formatPath(t.path)}</small>
-                </button>
-              </li>
+            {active?.pending && ports[active.from] && ports[active.to] ? (
+              <g className="cc-line pending">
+                <path d={curve(ports[active.from].out, ports[active.to].in)} className="cc-line-path" markerEnd="url(#cc-arrow)" />
+              </g>
+            ) : null}
+            {drag && ports[drag.from] ? (
+              <g className={drag.over ? "cc-line drawing ok" : "cc-line drawing"}>
+                <path
+                  d={curve(ports[drag.from].out, drag.over && ports[drag.over] ? ports[drag.over].in : { x: drag.x, y: drag.y })}
+                  className="cc-line-path"
+                  markerEnd="url(#cc-arrow)"
+                />
+              </g>
+            ) : null}
+          </svg>
+          <div className="cc-cols">
+            {state.vorlagen.map((v) => (
+              <section key={v.id} className="cc-col">
+                <header className="cc-col-head">
+                  <strong>{v.name}</strong>
+                  <span className="dms-tag">{v.ansichten.length > 1 ? "Verwaltung & Standard" : `nur ${v.ansichten[0]}`}</span>
+                </header>
+                <ul>
+                  {flatFolders(v.root).map(({ node, depth }) => {
+                    const selected = selection?.nodeId === node.id;
+                    const blocked = drag && drag.from !== node.id && !canConnect(drag.from, node.id);
+                    return (
+                      <li key={node.id}>
+                        <div
+                          data-cc-node={node.id}
+                          className={`cc-node${depth === 0 ? " root" : ""}${selected ? " selected" : ""}${marked.has(node.id) ? " marked" : ""}${
+                            drag?.over === node.id ? " drop" : ""
+                          }${blocked ? " blocked" : ""}${drag?.from === node.id ? " from" : ""}`}
+                          style={{ marginLeft: depth * 14 }}
+                          onClick={() => onSelect({ vorlageId: v.id, nodeId: node.id })}
+                          onDoubleClick={onEdit}
+                          title="Klicken: wählen · Doppelklick: Einstellungen"
+                        >
+                          <span className="cc-port in" aria-hidden />
+                          <Icon src={a.folder} size={16} />
+                          <span className="cc-name">{node.name}</span>
+                          {node.verbindungen?.length ? <span className="cc-badge">{node.verbindungen.length}</span> : null}
+                          <span
+                            className="cc-port out"
+                            role="button"
+                            aria-label={`Linie von ${node.name} ziehen`}
+                            title="Ziehen, um zu verbinden"
+                            onPointerDown={(event) => startDrag(event, node.id)}
+                          />
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         </div>
-        <div className="dms-connect-preview">
-          {preview && pick ? (
-            <>
-              <h4>{nodePath(state, pick)}</h4>
-              <p className="dms-muted">
-                Kommt an {preview.instances.length} Stellen vor: {preview.instances.slice(0, 3).map((f) => formatPath(f.path)).join(" · ")}
-                {preview.instances.length > 3 ? ` · +${preview.instances.length - 3} weitere` : ""}
-              </p>
-              {preview.tree.length ? (
-                <>
-                  <label className="dms-check">
-                    <input type="checkbox" checked={include === null} onChange={(event) => setInclude(event.target.checked ? null : new Set(rels))} />
-                    Alle Unterordner übernehmen
-                  </label>
-                  <p className="dms-muted">Wiederkehrende Unterordner, nach Namen zusammengeführt:</p>
-                  <SubfolderChecks list={preview.tree} total={preview.instances.length} include={include} onToggle={toggle} />
-                </>
-              ) : (
-                <p className="dms-muted">Keine Unterordner – nur die Dateien direkt darin werden übernommen.</p>
-              )}
-              <div className="dms-connect-actions">
-                <span className="dms-muted">{preview.docs} Dateien</span>
-                <button type="button" className="btn-secondary" onClick={() => setPick(null)}>
+
+        {active && preview ? (
+          <aside className="cc-panel" aria-label="Verbindung">
+            <header>
+              <small>{active.pending ? "Neue Verbindung" : "Verbindung"}</small>
+              <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={() => setActive(null)}>
+                <img src={a.iconCloseDark} alt="" width={12} height={12} />
+              </button>
+            </header>
+            <div className="cc-pair">
+              <span>
+                <small>Dateien aus</small>
+                <strong>{nodePath(state, active.from)}</strong>
+              </span>
+              <span>
+                <small>erscheinen zusätzlich in</small>
+                <strong>{nodePath(state, active.to)}</strong>
+              </span>
+            </div>
+            <p className="dms-muted">
+              Kommt an {preview.instances.length} {preview.instances.length === 1 ? "Stelle" : "Stellen"} vor · {preview.docs} Dateien
+            </p>
+            {preview.tree.length ? (
+              <div className="cc-subs">
+                <label className="dms-check">
+                  <input type="checkbox" checked={include === null} onChange={(event) => setInclude(event.target.checked ? null : new Set(rels))} />
+                  Alle Unterordner übernehmen
+                </label>
+                <SubfolderChecks list={preview.tree} total={preview.instances.length} include={include} onToggle={toggle} />
+              </div>
+            ) : (
+              <p className="dms-muted">Keine Unterordner – nur die Dateien direkt darin.</p>
+            )}
+            <footer>
+              {active.pending ? (
+                <button type="button" className="btn-secondary" onClick={() => setActive(null)}>
                   Abbrechen
                 </button>
-                <button type="button" className="btn-primary" disabled={include !== null && include.size === 0 && preview.tree.length > 0} onClick={save}>
-                  {existing.some((e) => e.nodeId === pick) ? "Speichern" : "Verbinden"}
+              ) : (
+                <button type="button" className="btn-secondary" onClick={separate}>
+                  Trennen
                 </button>
-              </div>
-            </>
-          ) : (
-            <p className="dms-muted dms-connect-hint">Links einen Ordner wählen, um zu sehen, was er mitbringt.</p>
-          )}
-        </div>
+              )}
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={(include !== null && include.size === 0 && preview.tree.length > 0) || (!active.pending && sameInclude(saved?.include ?? null, include))}
+                onClick={save}
+              >
+                {active.pending ? "Verbinden" : "Speichern"}
+              </button>
+            </footer>
+          </aside>
+        ) : null}
       </div>
     </div>
   );
 }
 
-type MainTab = "quellen" | "verbinden" | "einstellungen";
+function sameInclude(saved: string[] | null, current: Set<string> | null) {
+  if (saved === null || current === null) return saved === null && current === null;
+  return saved.length === current.size && saved.every((r) => current.has(r));
+}
+
+type MainTab = "quellen" | "verbinden" | "einstellungen" | "demo";
+
+const MAIN_TABS: [MainTab, string][] = [
+  ["quellen", "Wino Datei Uploads"],
+  ["verbinden", "Ordner verbinden"],
+  ["einstellungen", "Einstellungen"],
+  ["demo", "Upload-Quellen (Demo)"],
+];
 
 export function Zuordnung() {
   const { state, apply } = useDms();
-  const [selection, setSelection] = useState<Selection | null>(null);
-  const [flash, setFlash] = useState<string | null>(null);
+  const [selection, setSelection] = useKeptState<Selection | null>("admin.zu.selection", null);
+  const [flash, setFlash] = useState<{ message: string; tone?: "ok" | "warn"; undo?: () => void } | null>(null);
   const nodes = useMemo(() => nodeIndex(state.vorlagen), [state.vorlagen]);
   // Every folder in one structure; Spaces shows what Verwaltung and Standard each make of it.
   const tops = state.vorlagen;
   const current = selection && tops.some((v) => v.id === selection.vorlageId) ? selection : null;
 
   const [ask, setAsk] = useState<Ask | null>(null);
-  const [tab, setTab] = useState<MainTab>("quellen");
-  const selVorlage = current ? state.vorlagen.find((v) => v.id === current.vorlageId) : undefined;
-  const selNode = selVorlage && current ? findNode(selVorlage.root, current.nodeId) : null;
+  const [picked, setPicked] = useKeptState<string | null>("admin.zu.picked", null);
+  const [kept, setTab] = useKeptState<MainTab>("admin.zu.tab", "quellen");
+  const tab = MAIN_TABS.some(([id]) => id === kept) ? kept : "quellen";
+  const pickedItem = tab === "quellen" && picked ? SOURCE_ITEMS.find((item) => sourceKey(item.source, item.slot) === picked) : undefined;
+  const marks = useMemo(() => new Set(pickedItem ? placesOf(state, pickedItem).map((p) => p.node.id) : []), [state, pickedItem]);
 
   function link(target: Selection, item: SourceItem) {
     // Same pure step for the question, the message and the store, with the new level's id made up front.
@@ -782,7 +1177,7 @@ export function Zuordnung() {
     const already = placesOf(state, item).some((p) => p.node.id === landed);
     if (already) {
       setSelection({ vorlageId: target.vorlageId, nodeId: landed });
-      setFlash(`„${item.label}“ ist mit diesem Ordner schon verknüpft.`);
+      setFlash({ message: `„${item.label}“ ist mit diesem Ordner schon verknüpft.`, tone: "warn" });
       return;
     }
     const where = createsLevel ? `${nodePath(state, target.nodeId)} / {${item.entityType}…}` : nodePath(state, landed);
@@ -792,16 +1187,28 @@ export function Zuordnung() {
         createsLevel ? ` Dafür wird die Ebene je ${item.entityType} angelegt.` : ""
       } Dateien von dort erscheinen dann in diesem Ordner.`,
       confirmLabel: "Verknüpfen",
+      link: { item, where, level: createsLevel ? item.entityType ?? undefined : undefined },
       run: () => {
-        apply((s) => linkSource(s, target.vorlageId, target.nodeId, link, levelId).state);
+        let before: DmsState | null = null;
+        apply((s) => {
+          before = s;
+          return linkSource(s, target.vorlageId, target.nodeId, link, levelId).state;
+        });
         setSelection({ vorlageId: target.vorlageId, nodeId: landed });
-        setFlash(createsLevel ? `„${item.label}“ verknüpft. Ebene je ${item.entityType} wurde angelegt.` : `„${item.label}“ verknüpft.`);
+        setFlash({
+          message: createsLevel ? `„${item.label}“ verknüpft. Ebene je ${item.entityType} wurde angelegt.` : `„${item.label}“ verknüpft.`,
+          undo: () => {
+            if (before) apply(() => before!);
+            setFlash(null);
+          },
+        });
       },
     });
   }
 
   return (
     <ConfirmContext.Provider value={setAsk}>
+    <UploadMarkContext.Provider value={marks}>
     <div className="dms-zu">
       <section className="dms-panel dms-zu-tree">
         <header className="dms-panel-head">
@@ -810,12 +1217,6 @@ export function Zuordnung() {
             <strong>Ordnerstruktur</strong>
           </div>
         </header>
-        {flash ? (
-          <p className="dms-upload-note" role="status">
-            <Icon src={a.confirm} size={16} />
-            <span>{flash}</span>
-          </p>
-        ) : null}
         <ul className="dms-tree-list">
           {tops.map((v) => (
             <TreeNode key={v.id} vorlage={v} node={v.root} depth={0} selection={current} onSelect={setSelection} onDropSource={link} nodes={nodes} />
@@ -838,28 +1239,21 @@ export function Zuordnung() {
       <section className="dms-panel dms-zu-main">
         <header className="dms-panel-head dms-zu-main-head">
           <div className="dms-list-title">
-            <small>{selNode && selVorlage ? (selVorlage.ansichten.length > 1 ? "Ordner · in Verwaltung und Standard" : `Ordner · nur ${selVorlage.ansichten[0]}`) : "Kein Ordner gewählt"}</small>
+            <small>Ordner Zuordnung</small>
             <strong>
-              <Icon src={a.folder} size={20} />
-              <span>{selNode ? nodePath(state, selNode.id) : "Ordner links wählen"}</span>
+              <span>{MAIN_TABS.find(([id]) => id === tab)?.[1]}</span>
             </strong>
           </div>
           <div className="dms-segment" role="tablist">
-            {(
-              [
-                ["quellen", "Quellen"],
-                ["verbinden", "Ordner verbinden"],
-                ["einstellungen", "Einstellungen"],
-              ] as [MainTab, string][]
-            ).map(([id, label]) => (
+            {MAIN_TABS.map(([id, label]) => (
               <button type="button" role="tab" key={id} aria-selected={tab === id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
                 {label}
               </button>
             ))}
           </div>
         </header>
-        {tab === "quellen" ? <SourcesPanel selection={current} onLink={(item) => current && link(current, item)} onOpen={setSelection} /> : null}
-        {tab === "verbinden" ? <ConnectPane key={current?.nodeId ?? "none"} selection={current} /> : null}
+        {tab === "quellen" ? <SourcesPanel selection={current} onOpen={setSelection} onDemo={() => setTab("demo")} pickedUpload={picked} onPick={setPicked} /> : null}
+        {tab === "verbinden" ? <ConnectPane selection={current} onSelect={setSelection} onEdit={() => setTab("einstellungen")} /> : null}
         {tab === "einstellungen" ? (
           current ? (
             <NodeDetails selection={current} onSelect={setSelection} />
@@ -870,9 +1264,28 @@ export function Zuordnung() {
             </div>
           )
         ) : null}
+        {tab === "demo" ? (
+          <div className="dms-zu-pane dms-zu-embed">
+            <UploadSources />
+          </div>
+        ) : null}
       </section>
     </div>
-    {ask ? (
+    {flash ? <Snackbar key={flash.message} message={flash.message} tone={flash.tone} onUndo={flash.undo} onClose={() => setFlash(null)} /> : null}
+    {ask?.link || ask?.unlink ? (
+      <LinkAskModal
+        item={(ask.link ?? ask.unlink)!.item}
+        where={(ask.link ?? ask.unlink)!.where}
+        level={ask.link?.level}
+        removing={!!ask.unlink}
+        last={ask.unlink?.last}
+        onCancel={() => setAsk(null)}
+        onConfirm={() => {
+          ask.run();
+          setAsk(null);
+        }}
+      />
+    ) : ask ? (
       <ConfirmModal
         title={ask.title}
         text={ask.text}
@@ -884,6 +1297,7 @@ export function Zuordnung() {
         }}
       />
     ) : null}
+    </UploadMarkContext.Provider>
     </ConfirmContext.Provider>
   );
 }

@@ -1,3 +1,5 @@
+import { MitarbeiterView } from "./manager/MitarbeiterView";
+import { AbteilungView } from "./manager/AbteilungView";
 import { useState } from "react";
 import * as a from "./assets/index";
 import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab, useFilePerson, useParkedTabClicks } from "./chrome";
@@ -262,6 +264,24 @@ function Screen() {
     return (
       <>
         <HomeView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
+  if (view === "abteilung") {
+    return (
+      <>
+        <AbteilungView />
+        <VersionLayer />
+        <LeavePrompt />
+      </>
+    );
+  }
+  if (view === "mitarbeiter") {
+    return (
+      <>
+        <MitarbeiterView />
         <VersionLayer />
         <LeavePrompt />
       </>
