@@ -842,12 +842,15 @@ export function KalenderPage() {
           <div className="kal-nav">
             <button type="button" aria-label="Zurück" onClick={() => step(-1)}>
               <Icon src={a.chevronDark} size={14} className="kal-prev" />
+              {/* Narrow panel: the nav is the dark mobile pill and uses the mobile chevron. */}
+              <img className="kal-pill-chev" src={a.mChevronLeft} alt="" width={8} height={14} />
             </button>
             <button type="button" className="kal-today" onClick={() => setDay(today)}>
               Heute
             </button>
             <button type="button" aria-label="Weiter" onClick={() => step(1)}>
               <Icon src={a.chevronDark} size={14} className="kal-next" />
+              <img className="kal-pill-chev flip" src={a.mChevronLeft} alt="" width={8} height={14} />
             </button>
           </div>
           <div className="kal-switch" role="tablist" aria-label="Ansicht">

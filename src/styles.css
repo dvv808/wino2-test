@@ -26448,3 +26448,160 @@ button.m-chip {
   color: var(--wino-white);
   font-weight: 500;
 }
+
+/*
+ * Kalender header between the wide desktop and the phone: ‹ Heute › becomes the floating dark pill from the
+ * mobile Kalender (bottom right), so the header stays one clean row: date · Tag/Woche/Monat/Jahr · actions.
+ * Narrower still, the view switch moves to its own row under the date.
+ */
+.kal-main {
+  position: relative;
+}
+
+@container kalmain (max-width: 900px) {
+  .kal-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "date actions search menu";
+    align-items: center;
+    gap: 10px 12px;
+    min-height: 72px;
+    padding: 10px 14px 10px 16px;
+  }
+
+  .kal-top > .kal-date-wrap {
+    grid-area: date;
+    min-width: 0;
+  }
+
+  /* The view switch sits in the middle of the header (centred on the panel, not between its neighbours). */
+  .kal-top > .kal-switch {
+    position: absolute;
+    top: 36px;
+    left: 50%;
+    z-index: 2;
+    transform: translate(-50%, -50%);
+  }
+
+  /* Zeiterfassung and Neuer Termin: bigger touch targets with more room between them. */
+  .kal-top > .kal-actions {
+    grid-area: actions;
+    gap: 14px;
+    margin-left: 0;
+  }
+
+  .kal-top > .kal-actions .kal-action {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+  }
+
+  .kal-top > .kal-actions .kal-action:hover {
+    background: rgba(255, 255, 255, 0.55);
+  }
+
+  .kal-top > .kal-actions .kal-action > img {
+    width: 27px;
+    height: 31px;
+  }
+
+  .kal-top > .kal-actions .kal-action > .icon {
+    display: none;
+  }
+
+  .kal-top > .kal-round {
+    grid-area: search;
+  }
+
+  .kal-top > .kal-menu-wrap {
+    grid-area: menu;
+  }
+
+  .kal-top > .kal-divider {
+    display: none;
+  }
+
+  .kal-date {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ‹ Heute ›: the mobile pill, floating over the week. */
+  .kal-top > .kal-nav {
+    position: absolute;
+    right: 14px;
+    bottom: 16px;
+    z-index: 20;
+    gap: 6px;
+    height: 48px;
+    margin: 0;
+    padding: 0 2px;
+    align-items: center;
+    border-radius: 24px;
+    background: linear-gradient(180deg, #313537 0%, #444f56 100%);
+    box-shadow: 0 3px 17px 1px rgba(49, 53, 55, 0.25);
+  }
+
+  .kal-top > .kal-nav button {
+    width: 44px;
+    min-width: 0;
+    height: 44px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+    color: var(--wino-white);
+  }
+
+  .kal-top > .kal-nav button.kal-today {
+    width: 63px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .kal-top > .kal-nav .icon {
+    display: none;
+  }
+
+  .kal-top > .kal-nav .kal-pill-chev {
+    display: block;
+  }
+}
+
+.kal-pill-chev {
+  display: none;
+}
+
+.kal-pill-chev.flip {
+  transform: rotate(180deg);
+}
+
+@container kalmain (max-width: 830px) {
+  .kal-top {
+    grid-template-areas:
+      "date actions search menu"
+      "switch switch switch switch";
+  }
+
+  /* Narrower: the switch gets its own row, centred under the header. */
+  .kal-top > .kal-switch {
+    position: static;
+    grid-area: switch;
+    justify-self: center;
+    transform: none;
+  }
+}
+
+/* Very narrow (just above the phone layout): the KW note goes, the switch stays compact. */
+@container kalmain (max-width: 620px) {
+  .kal-date small {
+    display: none;
+  }
+
+  .kal-switch button {
+    padding: 0 9px;
+  }
+}
