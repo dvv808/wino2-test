@@ -45,6 +45,7 @@ import {
   type StepId,
 } from "./workflow";
 import { GlobalSearch } from "./search/GlobalSearch";
+import { MobileApp, useIsMobile } from "./mobile/MobileApp";
 
 const LAYOUT: Record<StepId, string> = {
   tasks: "page single",
@@ -259,6 +260,9 @@ function LeavePrompt() {
 
 function Screen() {
   const { activeStep, view, workflowPane, setWorkflowPane, isHistorical } = useWorkflow();
+  /* At phone width every URL lands in the mobile version (Kalender + Kontakte); the desktop app is not shown. */
+  const mobile = useIsMobile();
+  if (mobile) return <MobileApp />;
 
   if (view === "home") {
     return (

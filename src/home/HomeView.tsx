@@ -7,7 +7,6 @@ import { useWorkflow } from "../workflow";
 import { HomeWorkflows } from "./HomeWorkflows";
 import { PartnerList } from "./PartnerList";
 import { GlobalSearch } from "../search/GlobalSearch";
-import { MobileApp, useIsMobile } from "../mobile/MobileApp";
 
 type Area = "Planner" | "Kommunikation" | "Bestand" | "Wissen";
 const AREAS: Area[] = ["Planner", "Kommunikation", "Bestand", "Wissen"];
@@ -39,14 +38,10 @@ export function HomeView() {
   const partners = area === "Bestand" && page === "Dashboard";
   const workflows = area === "Planner" && page === "Workflows & To-Dos";
   const kalender = area === "Planner" && page === "Kalender";
-  /* Only the Kalender has a mobile version so far: at phone width it replaces the whole desktop page. */
-  const mobile = useIsMobile();
 
   function openArea(next: Area) {
     setHomeNav({ area: next, page: next === "Planner" ? "Workflows & To-Dos" : PAGES[next][0].label });
   }
-
-  if (kalender && mobile) return <MobileApp />;
 
   return (
     <div className="app">
