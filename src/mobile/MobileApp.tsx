@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { MobileArbeitszeit } from "./MobileArbeitszeit";
-import { MobileKalender } from "./MobileKalender";
+import { MobileKalender, type MobileView } from "./MobileKalender";
 import { MobileKontakte } from "./MobileKontakte";
 import { MobileTerminForm } from "./MobileTermin";
 import { iso, seedWeek } from "../home/calendar/calendarData";
@@ -43,6 +43,7 @@ export function MobileApp() {
   const [toast, setToast] = useState<string | null>(null);
   /* The desktop side nav (Mein Kalender, Aktivitäten, Kalender) as a drawer, opened from the name in the header. */
   const [drawer, setDrawer] = useState(false);
+  const [view, setView] = useState<MobileView>("tag");
   const [panel, setPanel] = useState<SidePanel>("kalender");
   const [visible, setVisible] = useState<Set<string>>(() => new Set(["lucy", "icloud"]));
   const [hoDay, setHoDay] = useState<string | null>(null);
@@ -125,6 +126,8 @@ export function MobileApp() {
                 onArbeitszeit={() => setScreen({ kind: "arbeitszeit", day })}
                 onHomeoffice={() => setHoDay(day < today ? today : day)}
                 visible={visible}
+                view={view}
+                onView={setView}
                 onTermin={(art) => setScreen({ kind: "termin", day, art })}
                 onToast={setToast}
               />

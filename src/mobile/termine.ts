@@ -18,9 +18,18 @@ export type MobileTermin = {
   ankunft?: number;
   abfahrtOrt?: string;
   ankunftOrt?: string;
+  /** Overlay details (Figma 22761:367180). */
+  beschreibung?: string;
+  teams?: boolean;
+  winter?: Teilnehmer[];
+  extern?: Teilnehmer[];
+  /** Termin mit Beratung: the documentation is not finished yet. */
+  dokuOffen?: boolean;
 };
 
-const KEY = "wino.mobile.termine.v2";
+export type Teilnehmer = { name: string; status: "ja" | "offen" | "nein"; host?: boolean };
+
+const KEY = "wino.mobile.termine.v3";
 const EVENT = "wino:mobile-termine";
 
 const h = (hours: number, minutes = 0) => hours * 60 + minutes;
@@ -41,17 +50,53 @@ export function seedTermine(today: string): MobileTermin[] {
     return isoDay(x);
   };
   const art = TERMINARTEN.map((t) => t.label);
+  const lucy: Teilnehmer = { name: "Lucy Dallon", status: "ja", host: true };
   return [
-    { id: "s1", day: day(0), start: h(9), end: h(10), art: art[3], title: "Wochenstart Team Beratung", ort: "Büro Schladming" },
-    { id: "s2", day: day(0), start: h(13, 30), end: h(15), art: art[0], title: "Julia Atkinson", ort: "Mondseestrasse 32, A-5310 Mondsee", abfahrt: h(12, 30), ankunft: h(16), abfahrtOrt: "Büro", ankunftOrt: "Büro" },
-    { id: "s3", day: day(1), start: h(9), end: h(11), art: art[0], title: "Lunixo AG", ort: "Getreidegasse 12, A-5020 Salzburg", abfahrt: h(7), ankunft: h(14, 30), abfahrtOrt: "zu Hause", ankunftOrt: "Büro" },
-    { id: "s4", day: day(1), start: h(15), end: h(16), art: art[5], title: "Tamara Auer", ort: "Büro Schladming" },
-    { id: "s5", day: day(2), start: h(8, 30), end: h(12, 30), art: art[2], title: "Schulung Versicherungsrecht", ort: "WIFI Salzburg" },
-    { id: "s6", day: day(2), start: h(14), end: h(15), art: art[1], title: "Ashley Johnson", ort: "Telefontermin" },
-    { id: "s7", day: day(3), start: h(10), end: h(11, 30), art: art[0], title: "Lunixo Holding", ort: "Mirabellplatz 4, A-5020 Salzburg", abfahrt: h(9), ankunft: h(12, 30), abfahrtOrt: "Büro", ankunftOrt: "Büro" },
-    { id: "s8", day: day(3), start: h(16), end: h(17), art: art[4], title: "Projekt Wino 2", ort: "Büro Schladming" },
-    { id: "s9", day: day(4), start: h(8), end: h(9), art: art[3], title: "Jour fixe Unternehmensleitung", ort: "Büro Schladming" },
-    { id: "s10", day: day(4), start: h(11), end: h(12), art: art[7], title: "Zahnarzt", ort: "Schladming" },
+    {
+      id: "s1", day: day(0), start: h(9), end: h(10), art: art[3], title: "Wochenstart Team Beratung", ort: "Büro Schladming, Salzburgerstraße 304",
+      beschreibung: "Wochenplanung, offene Anträge und die Termine der Woche durchgehen.", teams: true,
+      winter: [lucy, { name: "Tamara Auer", status: "ja" }, { name: "Alexander Doppler", status: "offen" }],
+    },
+    {
+      id: "s2", day: day(0), start: h(13, 30), end: h(15), art: art[0], title: "Julia Atkinson", ort: "Mondseestrasse 32, A-5310 Mondsee",
+      abfahrt: h(12, 30), ankunft: h(16), abfahrtOrt: "Büro", ankunftOrt: "Büro", dokuOffen: true,
+      winter: [lucy], extern: [{ name: "Julia Atkinson", status: "ja" }],
+    },
+    {
+      id: "s3", day: day(1), start: h(9), end: h(11), art: art[0], title: "Lunixo AG", ort: "Getreidegasse 12, A-5020 Salzburg",
+      abfahrt: h(7), ankunft: h(14, 30), abfahrtOrt: "zu Hause", ankunftOrt: "Büro", teams: true,
+      winter: [lucy, { name: "Christine Auer Hammer-schmidt", status: "offen" }], extern: [{ name: "Lunixo AG", status: "nein" }, { name: "Julia Atkinson", status: "ja" }],
+    },
+    {
+      id: "s4", day: day(1), start: h(15), end: h(16), art: art[5], title: "Tamara Auer", ort: "Büro Schladming, Besprechungszimmer 01",
+      beschreibung: "Jahresgespräch: Ziele 2027 und Weiterbildungswünsche.", winter: [lucy, { name: "Tamara Auer", status: "ja" }],
+    },
+    {
+      id: "s5", day: day(2), start: h(8, 30), end: h(12, 30), art: art[2], title: "Schulung Versicherungsrecht", ort: "WIFI Salzburg, Julius-Raab-Platz 2",
+      beschreibung: "IDD-Weiterbildung: Neuerungen im Versicherungsvertragsrecht.",
+    },
+    {
+      id: "s6", day: day(2), start: h(14), end: h(15), art: art[1], title: "Ashley Johnson", ort: "Telefontermin",
+      beschreibung: "Rückruf wegen KFZ-Kennzeichen.", winter: [lucy], extern: [{ name: "Ashley Johnson", status: "offen" }],
+    },
+    {
+      id: "s7", day: day(3), start: h(10), end: h(11, 30), art: art[0], title: "Lunixo Holding", ort: "Mirabellplatz 4, A-5020 Salzburg",
+      abfahrt: h(9), ankunft: h(12, 30), abfahrtOrt: "Büro", ankunftOrt: "Büro",
+      winter: [lucy, { name: "Peter Moser", status: "ja" }], extern: [{ name: "Lunixo Holding", status: "ja" }],
+    },
+    {
+      id: "s8", day: day(3), start: h(16), end: h(17), art: art[4], title: "Projekt Wino 2", ort: "Büro Schladming", teams: true,
+      beschreibung: "Abstimmung zum neuen Kalender und zur mobilen Version.", winter: [lucy, { name: "Jasmin Gratzinger", status: "offen" }],
+    },
+    {
+      id: "s9", day: day(4), start: h(8), end: h(9), art: art[3], title: "Jour fixe Unternehmensleitung", ort: "Büro Schladming", teams: true,
+      winter: [{ name: "Peter Moser", status: "ja", host: true }, { name: "Lucy Dallon", status: "ja" }, { name: "Adams Anna", status: "nein" }],
+    },
+    { id: "s10", day: day(4), start: h(11), end: h(12), art: art[7], title: "Zahnarzt", ort: "Dr. Huber, Hauptplatz 5, Schladming" },
+    {
+      id: "s11", day: day(4), start: h(17), end: h(21), art: art[8], title: "Firmenfeier Makler Winter", ort: "Hotel Post, Schladming",
+      beschreibung: "Jahresabschlussfeier mit dem ganzen Team.", winter: [{ name: "Peter Moser", status: "ja", host: true }, lucy, { name: "Tamara Auer", status: "offen" }],
+    },
   ];
 }
 
