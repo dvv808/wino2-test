@@ -25706,3 +25706,206 @@ button.dept-tab-copy {
 .m-kon-az button:disabled {
   color: var(--wino-black-lighter, #afc0cc);
 }
+
+/* Mobile: month picker large enough to tap (Figma 22757:333933). Also inside the forms. */
+.m-pop-monat {
+  padding: 16px 16px 20px;
+}
+
+.m-pop-monat .kal-mini-head {
+  margin-bottom: 14px;
+}
+
+.m-pop-monat .kal-mini-head strong {
+  font-size: 17px;
+}
+
+.m-pop-monat .kal-mini-head button {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border-color: var(--wino-bg-darker);
+}
+
+.m-pop-monat .kal-mini-grid {
+  grid-template-columns: 24px repeat(7, 1fr);
+  row-gap: 6px;
+  padding-bottom: 6px;
+  border-radius: 6px;
+  font-size: 15px;
+}
+
+.m-pop-monat .kal-mini-wd {
+  height: 32px;
+  font-size: 13px;
+}
+
+.m-pop-monat .kal-mini-kw {
+  font-size: 13px;
+}
+
+.m-pop-monat .kal-mini-day {
+  height: 40px;
+  font-size: 15px;
+}
+
+.m-pop-monat .kal-mini-day.today::before,
+.m-pop-monat .kal-mini-day.selected::before,
+.m-pop-monat .kal-mini-day:hover:not(.today)::after {
+  width: 36px;
+  height: 36px;
+}
+
+/* Header: name with chevron opens the Kalender side nav. */
+button.m-header-title {
+  border: 0;
+  padding: 0 0 0 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.m-chev {
+  display: block;
+  width: 14px;
+  height: 7px;
+  margin-top: 3px;
+  transition: transform 0.2s ease;
+}
+
+.m-chev.open {
+  transform: rotate(180deg);
+}
+
+.m-drawer-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 520;
+}
+
+.m-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(49, 53, 55, 0.45);
+}
+
+.m-drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  width: min(320px, 86vw);
+  animation: m-drawer-in 0.22s ease;
+}
+
+.m-drawer .kal-side {
+  flex: 1;
+  border-radius: 0 16px 16px 0;
+}
+
+@keyframes m-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+/* Homeoffice request: the desktop form, full screen on the phone. */
+.m-ho .prompt-modal {
+  z-index: 540;
+  padding: 0;
+}
+
+.m-ho .prompt-body.kal-hom {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+}
+
+.m-ho .kal-hom-main {
+  padding: 16px 12px 24px;
+}
+
+.m-ho .kal-hom-col {
+  width: 100%;
+}
+
+.m-ho .kal-hom-foot {
+  gap: 8px;
+  padding: 12px;
+}
+
+/* Swiping through the days. */
+.m-day.slide-next {
+  animation: m-slide-next 0.22s ease;
+}
+
+.m-day.slide-prev {
+  animation: m-slide-prev 0.22s ease;
+}
+
+@keyframes m-slide-next {
+  from {
+    transform: translateX(40%);
+    opacity: 0;
+  }
+}
+
+@keyframes m-slide-prev {
+  from {
+    transform: translateX(-40%);
+    opacity: 0;
+  }
+}
+
+.m-day {
+  touch-action: pan-y;
+}
+
+.m-card small {
+  margin-top: 2px;
+  color: var(--wino-black-medium);
+}
+
+.m-ho .kal-hom-foot button {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Mobile: sticky date + day strip; the bottom nav slides away while scrolling down. */
+.m-kal-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  background: var(--wino-white);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 6px 10px -10px rgba(49, 53, 55, 0.35);
+}
+
+.m-strip {
+  padding-bottom: 6px;
+}
+
+.m-nav {
+  transition: transform 0.25s ease;
+}
+
+.m-app.nav-hidden .m-nav {
+  transform: translateY(100%);
+}
+
+.m-fab {
+  transition: bottom 0.25s ease;
+}
+
+.m-app.nav-hidden .m-fab {
+  bottom: 19px;
+}

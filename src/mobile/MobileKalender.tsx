@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { addDays, duration, headerDate, hhmm, parseIso, seedWeek, weekStart } from "../home/calendar/calendarData";
 import { loadArbeitszeiten, onArbeitszeitenChange } from "../home/calendar/arbeitszeit";
@@ -22,13 +22,18 @@ export function MobileKalender({
   today,
   onDay,
   onArbeitszeit,
+  onHomeoffice,
   onTermin,
   onToast,
+  visible,
 }: {
   day: string;
   today: string;
   onDay: (day: string) => void;
   onArbeitszeit: () => void;
+  onHomeoffice: () => void;
+  /** Calendars ticked in the side nav: Lucy's own entries only show while "lucy" is ticked. */
+  visible: Set<string>;
   onTermin: (art: string) => void;
   onToast: (message: string) => void;
 }) {
@@ -49,12 +54,32 @@ export function MobileKalender({
     if (el) el.scrollLeft = WEEKS_AROUND * el.clientWidth;
   }, [monday]);
 
-  const seed = seedWeek(day);
+  const seed = seedWeek(today);
   const holiday = seed.holidays.has(day);
   const allDay = seed.allDay.filter((x) => x.day === day);
-  const worked = arbeitszeiten[day] ?? [];
-  const homeoffice = inCalendar(antraege, day);
-  const dayTermine = termine.filter((t) => t.day === day).sort((x, y) => x.start - y.start);
+  const mine = visible.has("lucy");
+  const worked = mine ? arbeitszeiten[day] ?? [] : [];
+  const homeoffice = mine ? inCalendar(antraege, day) : [];
+  const dayTermine = mine ? termine.filter((t) => t.day === day).sort((x, y) => x.start - y.start) : [];
+
+  /* Swipe on the day view: left = next day, right = previous day (only a clear sideways move counts). */
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const [slide, setSlide] = useState<"" | "next" | "prev">("");
+  const onTouchStart = (event: React.TouchEvent) => {
+    const t = event.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (event: React.TouchEvent) => {
+    const start = touch.current;
+    touch.current = null;
+    if (!start) return;
+    const t = event.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    setSlide(dx < 0 ? "next" : "prev");
+    onDay(addDays(day, dx < 0 ? 1 : -1));
+  };
   const soll = holiday ? 0 : sollzeit(day);
   const ist = workMinutes(worked);
 
@@ -72,6 +97,8 @@ export function MobileKalender({
 
   return (
     <div className="m-kal">
+      {/* Date, actions and the day strip stay at the top while the day scrolls. */}
+      <div className="m-kal-sticky">
       <div className="m-kal-top">
         <h1>{headerDate(day)}</h1>
         <div className="m-kal-actions">
@@ -129,10 +156,11 @@ export function MobileKalender({
                 onClick={() => {
                   setPopup(null);
                   if (item.label === "Arbeitszeit") onArbeitszeit();
+                  else if (item.label === "Homeoffice") onHomeoffice();
                   else onToast(`${item.label} folgt in der mobilen Version.`);
                 }}
               >
-                <i className={`m-dot ${item.tone}`} />
+                {item.tone === "homeoffice" ? <img src={a.hoDot} alt="" width={10} height={10} /> : <i className={`m-dot ${item.tone}`} />}
                 {item.label}
               </button>
             ))}
@@ -158,8 +186,9 @@ export function MobileKalender({
           </div>
         ))}
       </div>
+      </div>
 
-      <div className="m-day">
+      <div className={slide ? `m-day slide-${slide}` : "m-day"} key={day} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} onAnimationEnd={() => setSlide("")}>
         <div className="m-day-allday">
           {allDay.map((item) => (
             <span key={item.id} className={item.office ? "office" : ""}>
@@ -205,6 +234,7 @@ export function MobileKalender({
                   <b>{hhmm(t.start)}</b>
                   <b>{t.title}</b>
                   <span>{t.art}</span>
+                  {t.ort ? <small>{t.ort}</small> : null}
                 </div>
                 {t.ankunft !== undefined ? (
                   <>

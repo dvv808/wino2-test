@@ -56,7 +56,7 @@ export function MobileArbeitszeit({ day: startDay, today, onBack, onSaved }: { d
 
   const update = (key: string, patch: Partial<Block>) => setBlocks((list) => list.map((b) => (b.key === key ? { ...b, ...patch } : b)));
   const { weekday, date } = longDate(day);
-  const holiday = seedWeek(day).holidays.has(day);
+  const holiday = seedWeek(today).holidays.has(day);
   const soll = holiday ? 0 : sollzeit(day);
   const ist = workMinutes(blocks);
 

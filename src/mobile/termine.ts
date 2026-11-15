@@ -19,15 +19,50 @@ export type MobileTermin = {
   ankunftOrt?: string;
 };
 
-const KEY = "wino.mobile.termine.v1";
+const KEY = "wino.mobile.termine.v2";
 const EVENT = "wino:mobile-termine";
+
+const h = (hours: number, minutes = 0) => hours * 60 + minutes;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+const isoDay = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+/** Demo Termine for the week after today (Mo–Fr), so the mobile day view is not empty. */
+export function seedTermine(today: string): MobileTermin[] {
+  const [y, m, d] = today.split("-").map(Number);
+  const base = new Date(y, m - 1, d);
+  base.setDate(base.getDate() + ((8 - base.getDay()) % 7 || 7)); // next Monday
+  const day = (offset: number) => {
+    const x = new Date(base);
+    x.setDate(base.getDate() + offset);
+    return isoDay(x);
+  };
+  const art = TERMINARTEN.map((t) => t.label);
+  return [
+    { id: "s1", day: day(0), start: h(9), end: h(10), art: art[3], title: "Wochenstart Team Beratung", ort: "Büro Schladming" },
+    { id: "s2", day: day(0), start: h(13, 30), end: h(15), art: art[0], title: "Julia Atkinson", ort: "Mondseestrasse 32, A-5310 Mondsee", abfahrt: h(12, 30), ankunft: h(16), abfahrtOrt: "Büro", ankunftOrt: "Büro" },
+    { id: "s3", day: day(1), start: h(9), end: h(11), art: art[0], title: "Lunixo AG", ort: "Getreidegasse 12, A-5020 Salzburg", abfahrt: h(7), ankunft: h(14, 30), abfahrtOrt: "zu Hause", ankunftOrt: "Büro" },
+    { id: "s4", day: day(1), start: h(15), end: h(16), art: art[5], title: "Tamara Auer", ort: "Büro Schladming" },
+    { id: "s5", day: day(2), start: h(8, 30), end: h(12, 30), art: art[2], title: "Schulung Versicherungsrecht", ort: "WIFI Salzburg" },
+    { id: "s6", day: day(2), start: h(14), end: h(15), art: art[1], title: "Ashley Johnson", ort: "Telefontermin" },
+    { id: "s7", day: day(3), start: h(10), end: h(11, 30), art: art[0], title: "Lunixo Holding", ort: "Mirabellplatz 4, A-5020 Salzburg", abfahrt: h(9), ankunft: h(12, 30), abfahrtOrt: "Büro", ankunftOrt: "Büro" },
+    { id: "s8", day: day(3), start: h(16), end: h(17), art: art[4], title: "Projekt Wino 2", ort: "Büro Schladming" },
+    { id: "s9", day: day(4), start: h(8), end: h(9), art: art[3], title: "Jour fixe Unternehmensleitung", ort: "Büro Schladming" },
+    { id: "s10", day: day(4), start: h(11), end: h(12), art: art[7], title: "Zahnarzt", ort: "Schladming" },
+  ];
+}
 
 export function loadTermine(): MobileTermin[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const raw = localStorage.getItem(KEY);
+    if (raw === null) {
+      const seeded = seedTermine(isoDay(new Date()));
+      localStorage.setItem(KEY, JSON.stringify(seeded));
+      return seeded;
+    }
+    const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [];
+    return seedTermine(isoDay(new Date()));
   }
 }
 
@@ -60,8 +95,9 @@ export const TERMINARTEN: { label: string; tone: "termin" | "reise" | "privat" |
 ];
 
 /** Zeiterfassung menu (Figma 22757:333933). Only Arbeitszeit has a mobile form so far. */
-export const ZEITARTEN: { label: string; tone: "arbeit" | "urlaub" | "zeitausgleich" | "krank" }[] = [
+export const ZEITARTEN: { label: string; tone: "arbeit" | "homeoffice" | "urlaub" | "zeitausgleich" | "krank" }[] = [
   { label: "Arbeitszeit", tone: "arbeit" },
+  { label: "Homeoffice", tone: "homeoffice" },
   { label: "Urlaub", tone: "urlaub" },
   { label: "Zeitausgleich", tone: "zeitausgleich" },
   { label: "Krank", tone: "krank" },

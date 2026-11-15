@@ -62,7 +62,8 @@ function Tick({ on, onChange, label }: { on: boolean; onChange: () => void; labe
 
 type SidePanel = "kalender" | "aktivitaeten" | "beantragungen";
 
-function SideNav({
+export type { SidePanel };
+export function SideNav({
   day,
   today,
   onPick,

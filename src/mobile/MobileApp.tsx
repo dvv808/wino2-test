@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { MobileArbeitszeit } from "./MobileArbeitszeit";
 import { MobileKalender } from "./MobileKalender";
 import { MobileKontakte } from "./MobileKontakte";
 import { MobileTerminForm } from "./MobileTermin";
-import { iso } from "../home/calendar/calendarData";
+import { iso, seedWeek } from "../home/calendar/calendarData";
+import { SideNav, type SidePanel } from "../home/calendar/KalenderPage";
+import { HomeofficeModal } from "../home/calendar/HomeofficeUI";
+import { loadAntraege, onAntraegeChange, saveAntraege, saveDay } from "../home/calendar/homeoffice";
+import { loadArbeitszeiten } from "../home/calendar/arbeitszeit";
 
 /**
  * Mobile version of the Kalender (Figma 19075:470560). Shown instead of the desktop Kalender below MOBILE_MAX
@@ -34,6 +38,24 @@ export function MobileApp() {
   const [day, setDay] = useState(today);
   const [screen, setScreen] = useState<Screen>(null);
   const [toast, setToast] = useState<string | null>(null);
+  /* The desktop side nav (Mein Kalender, Aktivitäten, Kalender) as a drawer, opened from the name in the header. */
+  const [drawer, setDrawer] = useState(false);
+  const [panel, setPanel] = useState<SidePanel>("kalender");
+  const [visible, setVisible] = useState<Set<string>>(() => new Set(["lucy", "icloud"]));
+  const [hoDay, setHoDay] = useState<string | null>(null);
+  /* Bottom nav: hides while scrolling down, comes back on scrolling up (or at the top). */
+  const [navHidden, setNavHidden] = useState(false);
+  const lastScroll = useRef(0);
+  const onSheetScroll = (event: React.UIEvent<HTMLElement>) => {
+    const y = event.currentTarget.scrollTop;
+    const delta = y - lastScroll.current;
+    if (y < 24) setNavHidden(false);
+    else if (delta > 6) setNavHidden(true);
+    else if (delta < -6) setNavHidden(false);
+    lastScroll.current = y;
+  };
+  const [antraege, setAntraege] = useState(loadAntraege);
+  useEffect(() => onAntraegeChange(setAntraege), []);
 
   useEffect(() => {
     if (!toast) return;
@@ -42,7 +64,7 @@ export function MobileApp() {
   }, [toast]);
 
   return (
-    <div className="m-app">
+    <div className={navHidden ? "m-app nav-hidden" : "m-app"}>
       {screen?.kind === "arbeitszeit" ? (
         <MobileArbeitszeit
           day={screen.day}
@@ -68,16 +90,22 @@ export function MobileApp() {
       ) : (
         <>
           <header className="m-header" style={{ backgroundImage: `url(${a.mHeaderBg})` }}>
-            <span className="m-header-title">
+            <button
+              type="button"
+              className="m-header-title"
+              aria-expanded={drawer}
+              aria-label={nav === "kalender" ? "Kalender-Navigation öffnen" : "Kontakte"}
+              onClick={() => nav === "kalender" && setDrawer(!drawer)}
+            >
               <img src={nav === "kalender" ? a.mHeaderCalendar : a.contacts} alt="" width={24} height={24} className={nav === "kontakte" ? "m-invert" : ""} />
               <span>
                 <small>{nav === "kalender" ? "Kalender" : "Kontakte"}</small>
                 <strong>
                   Lucy Dallon
-                  <img src={a.chevronDown} alt="" width={12} height={12} className="m-invert" />
+                  <img src={a.chevronDown} alt="" width={14} height={7} className={drawer ? "m-invert m-chev open" : "m-invert m-chev"} />
                 </strong>
               </span>
-            </span>
+            </button>
             <span className="m-header-avatar">
               <img src={a.empLucy} alt="" />
               <i className="m-header-online" />
@@ -85,13 +113,15 @@ export function MobileApp() {
             </span>
           </header>
 
-          <main className="m-sheet">
+          <main className="m-sheet" onScroll={onSheetScroll}>
             {nav === "kalender" ? (
               <MobileKalender
                 day={day}
                 today={today}
                 onDay={setDay}
                 onArbeitszeit={() => setScreen({ kind: "arbeitszeit", day })}
+                onHomeoffice={() => setHoDay(day < today ? today : day)}
+                visible={visible}
                 onTermin={(art) => setScreen({ kind: "termin", day, art })}
                 onToast={setToast}
               />
@@ -101,17 +131,91 @@ export function MobileApp() {
           </main>
 
           <nav className="m-nav" aria-label="Hauptnavigation">
-            <button type="button" className={nav === "kalender" ? "active" : ""} aria-current={nav === "kalender" ? "page" : undefined} onClick={() => setNav("kalender")}>
+            <button
+              type="button"
+              className={nav === "kalender" ? "active" : ""}
+              aria-current={nav === "kalender" ? "page" : undefined}
+              onClick={() => {
+                setNav("kalender");
+                setNavHidden(false);
+              }}
+            >
               <img src={nav === "kalender" ? a.mNavKalenderDark : a.mNavKalender} alt="" width={21} height={24} />
               Kalender
             </button>
-            <button type="button" className={nav === "kontakte" ? "active" : ""} aria-current={nav === "kontakte" ? "page" : undefined} onClick={() => setNav("kontakte")}>
+            <button
+              type="button"
+              className={nav === "kontakte" ? "active" : ""}
+              aria-current={nav === "kontakte" ? "page" : undefined}
+              onClick={() => {
+                setNav("kontakte");
+                setNavHidden(false);
+              }}
+            >
               <img src={nav === "kontakte" ? a.mNavKontakteDark : a.mNavKontakte} alt="" width={36} height={21} />
               Kontakte
             </button>
           </nav>
         </>
       )}
+
+      {drawer ? (
+        <div className="m-drawer-wrap">
+          <button type="button" className="m-drawer-scrim" aria-label="Navigation schließen" onClick={() => setDrawer(false)} />
+          <div className="m-drawer" role="dialog" aria-label="Kalender-Navigation">
+            <SideNav
+              day={day}
+              today={today}
+              onPick={(d) => {
+                setDay(d);
+                setDrawer(false);
+              }}
+              visible={visible}
+              toggle={(id) =>
+                setVisible((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(id)) next.delete(id);
+                  else next.add(id);
+                  return next;
+                })
+              }
+              panel={panel}
+              setPanel={setPanel}
+              highlight={null}
+              antraege={antraege}
+              onOpenAntrag={(x) => {
+                setDay(x.day);
+                setDrawer(false);
+              }}
+              onEditAntrag={(x) => {
+                setDrawer(false);
+                setHoDay(x.day);
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {hoDay ? (
+        <div className="m-ho">
+          <HomeofficeModal
+            today={today}
+            start={hoDay}
+            antraege={antraege}
+            holidays={seedWeek(today).holidays}
+            arbeitszeiten={loadArbeitszeiten()}
+            onClose={() => setHoDay(null)}
+            onSave={(d, blocks) => {
+              const next = saveDay(antraege, d, blocks, new Date().toISOString());
+              saveAntraege(next);
+              setAntraege(next);
+              setHoDay(null);
+              setDay(d);
+              setToast("Homeoffice beantragt");
+            }}
+          />
+        </div>
+      ) : null}
 
       {toast ? (
         <div className="m-toast" role="status">
