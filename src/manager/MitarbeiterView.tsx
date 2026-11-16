@@ -29,18 +29,33 @@ export function MitarbeiterView() {
 
         <div className="content-shell ma-body">
           {person ? (
+            <>
             <section className="ma-head" aria-label={person.name}>
-              <span className="ma-avatar">
-                <img src={person.photo} alt="" />
-                <img className="ma-dot" src={a.statusDot} alt="" />
+              <span className={person.photo ? "ma-avatar" : "ma-avatar blank"}>
+                <img src={person.photo || a.clientBlank} alt="" />
+                {person.typ && person.typ !== "Mitarbeiter" ? null : <img className="ma-dot" src={a.statusDot} alt="" />}
               </span>
               <div>
+                {person.typ ? <span className={person.typ === "Mitarbeiter" ? "chip" : "chip einfach"}>{person.typ}</span> : null}
                 <h1>{person.name}</h1>
-                <p>
-                  {person.role} · {person.abteilung}
-                </p>
+                <p>{[person.role, person.abteilung].filter(Boolean).join(" · ")}</p>
               </div>
             </section>
+            {/* Created with "Mitarbeiter anlegen": what was entered (the full page design follows). */}
+            {person.angelegt ? (
+              <section className="ma-data">
+                <h2>Erfasste Daten</h2>
+                <dl>
+                  {Object.entries(person.angelegt).map(([label, value]) => (
+                    <div key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ) : null}
+            </>
           ) : (
             <p className="atab-empty center">Mitarbeiter nicht gefunden.</p>
           )}

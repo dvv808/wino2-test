@@ -162,6 +162,9 @@ img {
   width: 10px;
   height: 11px;
   flex-shrink: 0;
+  /* Turned 90°, the 10×11 ear is 10px tall in an 11px box and floats 0.5px above the tab's bottom edge.
+     This puts it flush (no hairline gap on retina screens). */
+  translate: 0 0.5px;
 }
 
 .tab-ear.flip {
@@ -5202,13 +5205,13 @@ input.text-field {
 }
 
 /* The profile is a long record, so the shell has to grow with it. */
+/* Same corners as Home (24px top, 16px bottom); the header carries the top corners because the shell doesn't clip here. */
 .app.person .shell {
   overflow: visible;
-  border-radius: 16px;
 }
 
 .app.person .main-nav {
-  border-radius: 16px 16px 0 0;
+  border-radius: 24px 24px 0 0;
 }
 
 .app.person .pp-body {
@@ -5819,16 +5822,20 @@ span.pp-tree-main {
   overflow: hidden;
 }
 
-/* Cut-off cards fade out over the last rows and offer the full record. */
+/* Cut-off cards fade out over the last rows and offer the full record. The body stops
+   60px above the bottom, so nothing shows between the fade and the link. */
+.pp-card.clamped {
+  padding-bottom: 60px;
+}
+
 .pp-card.clamped::after {
   content: "";
   position: absolute;
   left: 1px;
   right: 1px;
-  bottom: 44px;
+  bottom: 60px;
   height: 96px;
-  border-radius: 0 0 12px 12px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 78%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 85%);
   pointer-events: none;
 }
 
@@ -5836,8 +5843,14 @@ span.pp-tree-main {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 18px;
+  bottom: 22px;
   text-align: center;
+}
+
+/* Opened card: the link sits under the last row instead of over it. */
+.pp-card-more.open {
+  position: static;
+  padding-top: 24px;
 }
 
 .pp-card-more a,
@@ -8674,46 +8687,81 @@ body.historical-version .shell {
   max-height: calc(100vh - 64px);
 }
 
+/* Stepper (Figma 20521:244799 / 20521:245103): 28px light discs in a soft 36px ring, joined by fading lines.
+   Active = dark gradient disc with a double halo, done = full-strength ring with the confirm tick. */
 .pa-steps {
   display: flex;
   justify-content: center;
-  gap: 48px;
   padding: 28px 48px 8px;
 }
 
 .pa-step {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
+  width: 208px;
   border: 0;
   background: none;
   font: inherit;
   font-size: 13px;
+  line-height: normal;
   letter-spacing: 0.13px;
   color: var(--wino-black-dark);
   cursor: pointer;
 }
 
+.pa-step.active {
+  font-weight: 500;
+}
+
+.pa-step + .pa-step::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  right: calc(50% + 28px);
+  width: calc(100% - 52px);
+  height: 1px;
+  background: linear-gradient(90deg, rgba(186, 204, 213, 0) 0%, #baccd5 50%, rgba(186, 204, 213, 0) 100%);
+}
+
 .pa-step-num {
-  width: 30px;
-  height: 30px;
-  border: 1px solid #baccd5;
+  width: 28px;
+  height: 28px;
+  margin: 4px;
   border-radius: 50%;
   display: grid;
   place-items: center;
+  background: #ebf1f5;
+  box-shadow: 0 0 0 2px var(--wino-white), 0 0 0 4px rgba(211, 231, 241, 0.4);
+  font-family: var(--font-display);
   font-size: 13px;
+  font-weight: 400;
 }
 
 .pa-step.active .pa-step-num {
-  border-color: transparent;
-  background: var(--wino-black-dark);
+  width: 26px;
+  height: 26px;
+  margin: 5px;
+  background: linear-gradient(0deg, #6c7a84 0%, #444f56 100%);
+  box-shadow: 0 0 0 2px rgba(211, 231, 241, 0.4), 0 0 0 3px var(--wino-white), 0 0 0 5px rgba(211, 231, 241, 0.4);
   color: var(--wino-white);
 }
 
+/* Done: the green Icon_Confirm (34px) sits inside the full-strength 36px ring. */
 .pa-step.done .pa-step-num {
-  border-color: transparent;
-  background: #e8ffe7;
+  width: 34px;
+  height: 34px;
+  margin: 1px;
+  background: none;
+  box-shadow: 0 0 0 1px #d3e7f1;
+}
+
+.pa-step.done .pa-step-num img {
+  display: block;
+  width: 34px;
+  height: 34px;
 }
 
 .pa-main {
@@ -26604,4 +26652,523 @@ button.m-chip {
   .kal-switch button {
     padding: 0 9px;
   }
+}
+
+/* Management module nav, tidied to the Content Nav pills (Figma 17685:117826): 36px, 12px apart, dark 24px icons. */
+.bestand-body ~ .module-nav,
+.module-nav:has(.module-pick) {
+  gap: 12px;
+}
+
+.module-nav:has(.module-pick) .module-pill {
+  height: 36px;
+  gap: 10px;
+}
+
+.module-nav:has(.module-pick) .module-group .module-pill {
+  height: 32px;
+  padding: 0 16px;
+}
+
+.module-pick {
+  position: relative;
+}
+
+.module-select.open {
+  background: var(--wino-white);
+}
+
+.module-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--wino-white);
+  box-shadow: 0 3px 17px 1px rgba(49, 53, 55, 0.15);
+}
+
+.module-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.module-menu button:hover,
+.module-menu button.active {
+  background: var(--wino-bg-lighter);
+}
+
+/* Mitarbeiter anlegen */
+.ma-error {
+  margin: -4px 0 4px;
+  font-size: 13px;
+  color: #d23552;
+}
+
+.ma-hit-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.ma-hit-avatar img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.ma-avatar.blank > img:first-child,
+.emp-avatar.blank > img:first-child {
+  padding: 18%;
+  box-sizing: border-box;
+  background: linear-gradient(30deg, #ffffff 0%, #baccd5 100%);
+  object-fit: contain;
+}
+
+.ma-head .chip {
+  margin-bottom: 4px;
+}
+
+.ma-data {
+  align-self: stretch;
+  margin-top: 16px;
+  padding: 24px 32px;
+  border-radius: 24px;
+  background: var(--wino-white);
+}
+
+.ma-data h2 {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.ma-data dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px 32px;
+  margin: 0;
+}
+
+.ma-data dt {
+  font-size: 13px;
+  color: var(--wino-black-light);
+}
+
+.ma-data dd {
+  margin: 2px 0 0;
+  font-size: 15px;
+}
+
+/* Management tab: Winter Versicherung area icon (two layers, as in the profile menu). */
+.mgmt-icon.area {
+  width: 26px;
+  height: 26px;
+}
+
+.mgmt-icon.area .layer {
+  position: absolute;
+  display: grid;
+  place-items: center;
+}
+
+.mgmt-icon.area .layer img {
+  position: static;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* Anlegen · Daten step, sized as in Figma 20521:245060: 590px cards with the 354px field column (title 36px further
+   left), rows 40px apart, and the 284px Plausibilitätscheck 86px to the right. Shared by Partner and Mitarbeiter anlegen. */
+.pa-daten {
+  grid-template-columns: 590px 284px;
+  justify-content: center;
+  gap: 86px;
+}
+
+.pa-daten-forms {
+  gap: 29px;
+}
+
+.pa-card {
+  padding: 46px 111px 52px 123px;
+  gap: 40px;
+}
+
+.pa-card h2 {
+  margin: 0 0 0 -36px;
+  font-size: 19px;
+  line-height: 25px;
+  letter-spacing: 0.19px;
+}
+
+/* Kontakt blocks (Telefon / E-Mail / Website) run 400px wide, a little wider than the field column. */
+.pa-card .pa-channel {
+  margin: 0 -23px;
+}
+
+.pa-check h3 {
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .pa-daten {
+    grid-template-columns: minmax(0, 590px) 284px;
+    gap: 32px;
+  }
+
+  .pa-card {
+    padding: 36px 32px 40px;
+  }
+
+  .pa-card h2 {
+    margin-left: 0;
+  }
+
+  .pa-card .pa-channel {
+    margin: 0;
+  }
+}
+
+/* Plausibilitätscheck states: hint / search / no results (Figma 22819:431834).
+   Search: a wave of dots runs over the disc from bottom left to top right.
+   The arcs stay still. CSS only. */
+.pa-plausi {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 15px 28px;
+  border-radius: 8px;
+  background: linear-gradient(30deg, #ffffff 28%, #d3e7f1 91%);
+}
+
+.pa-plausi p {
+  margin: 0;
+  max-width: 253px;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0.13px;
+  text-align: center;
+  color: #313537;
+}
+
+.pa-plausi-art {
+  position: relative;
+  width: 90px;
+  height: 92px;
+  flex: none;
+}
+
+.pa-plausi-art > * {
+  position: absolute;
+}
+
+.pa-plausi-disc {
+  inset: 0 auto auto 0;
+  overflow: visible;
+}
+
+.pa-plausi-disc .face {
+  filter: drop-shadow(0 9px 10px rgba(175, 192, 204, 0.6));
+}
+
+.pa-plausi-orbit {
+  inset: 0 auto auto 0;
+  overflow: visible;
+}
+
+.pa-plausi-orbit path {
+  fill: none;
+  stroke-width: 1;
+}
+
+.pa-plausi-orbit .end {
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.pa-plausi-orbit.inner {
+  opacity: 0.4;
+}
+
+/* Dot wave on the 70px disc (search only): a soft light blue glow (#b7e1f9)
+   drifts from bottom left to top right; the white dots swell as it passes. */
+.pa-plausi-dots {
+  left: 10px;
+  top: 10px;
+  width: 70px;
+  height: 70px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.pa-plausi-dots .glow {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    #b7e1f9 0%,
+    rgba(183, 225, 249, 0.85) 40%,
+    rgba(183, 225, 249, 0.45) 70%,
+    rgba(183, 225, 249, 0) 100%
+  );
+  filter: blur(3px);
+  opacity: 0;
+  animation: pa-plausi-glow 2.4s linear infinite;
+}
+
+.pa-plausi-dots i {
+  position: absolute;
+  width: 2.25px;
+  height: 2.25px;
+  margin: -1.125px 0 0 -1.125px;
+  border-radius: 50%;
+  background: #ffffff;
+  opacity: 0;
+  transform: scale(0.4);
+  animation: pa-plausi-dot 2.4s infinite;
+}
+
+.pa-plausi-icon {
+  left: 28px;
+  top: 28px;
+}
+
+.pa-plausi-icon * {
+  vector-effect: non-scaling-stroke;
+}
+
+/* Centred under the disc, whether it holds one badge (Wino) or two (WICO + Wino). */
+.pa-plausi-badges {
+  left: 50%;
+  top: 69px;
+  display: flex;
+  translate: -50% 0;
+}
+
+.pa-plausi-badges img + img {
+  margin-left: -11.1px;
+}
+
+/* While searching, a light stroke runs around the card's edge (CSS only). */
+@property --pa-plausi-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.pa-plausi {
+  position: relative;
+}
+
+.pa-plausi.search::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--pa-plausi-angle),
+    rgba(183, 225, 249, 0) 0deg,
+    rgba(183, 225, 249, 0) 220deg,
+    #b7e1f9 300deg,
+    #8dc4de 345deg,
+    rgba(183, 225, 249, 0) 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  animation: pa-plausi-trace 2.4s linear infinite;
+}
+
+@keyframes pa-plausi-trace {
+  to {
+    --pa-plausi-angle: 360deg;
+  }
+}
+
+/* --- search animation --- */
+@keyframes pa-plausi-glow {
+  0% {
+    transform: translate(-50px, 50px);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.33, 0, 0.67, 1);
+  }
+  22% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(50px, -50px);
+    opacity: 0;
+  }
+}
+
+@keyframes pa-plausi-dot {
+  0%,
+  18% {
+    transform: scale(0.4);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  40% {
+    transform: scale(1.15);
+    opacity: 0.95;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1);
+  }
+  66%,
+  100% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pa-plausi.search *,
+  .pa-plausi.search::before {
+    animation: none !important;
+  }
+}
+
+/* Bankverbindung: another partner's account (Figma 22828:442698 / 22828:443532). */
+.text-field.locked {
+  border-color: transparent;
+  background: var(--wino-bg-darker);
+  color: var(--wino-black-dark);
+  pointer-events: none;
+}
+
+.bank-pick-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bank-pick-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: none;
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-light);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.bank-pick {
+  position: relative;
+}
+
+.bank-pick-field {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 16px 6px 10px;
+  border: 1px solid var(--wino-black-dark);
+  border-radius: 8px;
+  background: var(--wino-white);
+  text-align: left;
+  cursor: pointer;
+}
+
+.bank-pick-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bank-pick-line .pp-person-avatar {
+  flex: none;
+}
+
+.bank-pick-copy,
+.bank-pick-placeholder {
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: var(--wino-black-dark);
+}
+
+.bank-pick-placeholder {
+  font-size: 15px;
+}
+
+.bank-pick-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+  border: 1px solid var(--wino-black-light);
+  border-radius: 8px;
+  background: var(--wino-white);
+  box-shadow: 0 7px 24px #afc0cc;
+}
+
+.bank-pick-item {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 19px 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bank-pick-item .bank-pick-line {
+  flex: 1;
+}
+
+.bank-pick-item small {
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-dark);
+}
+
+.bank-pick-item:hover,
+.bank-pick-item.picked {
+  background: linear-gradient(16deg, #ffffff 13%, var(--wino-bg-darker) 97%);
 }

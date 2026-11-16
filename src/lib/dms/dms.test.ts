@@ -213,6 +213,8 @@ describe("placeholders with special characters", () => {
       "Dr. Maria Gruber",
       "Julia Atkinson",
       "Lunixo AG",
+      "Lunixo Holding",
+      "Thomas Debrezina",
       "Transporte Steiner ∕ Wels GmbH",
     ]);
     for (const k of partner.children) {
@@ -225,10 +227,10 @@ describe("automatic Abgelaufen", () => {
   it("expires an Aktiv agreement once gueltig_bis lies before today", () => {
     const state = fresh();
     const status = (name: string) => state.documents.find((d) => d.name === `Maklervereinbarung ${name}`)?.status;
-    expect(status("Julia Atkinson 2023")).toBe("Abgelaufen");
-    expect(status("Julia Atkinson 2026")).toBe("Aktiv");
-    expect(status("Ashley Johnson 2022")).toBe("Gekündigt");
-    expect(status("Ashley Johnson 2027")).toBe("In Freigabe");
+    expect(status("Thomas Debrezina 2023")).toBe("Abgelaufen");
+    expect(status("Thomas Debrezina 2026")).toBe("Aktiv");
+    expect(status("Lunixo Holding 2022")).toBe("Gekündigt");
+    expect(status("Lunixo Holding 2027")).toBe("In Freigabe");
   });
 
   it("does not expire on the last valid day", () => {
@@ -264,8 +266,8 @@ describe("automatic Abgelaufen", () => {
 describe("views", () => {
   it("Partner folders hold the agreements of that partner only", () => {
     const view = buildView(fresh(), "Verwaltung");
-    const vereinbarungen = findFolder(view, ["Partner", "Ashley Johnson", "Vereinbarungen"])!;
-    expect(vereinbarungen.docs.map((d) => d.name).sort()).toEqual(["Maklervereinbarung Ashley Johnson 2022", "Maklervereinbarung Ashley Johnson 2027"]);
+    const vereinbarungen = findFolder(view, ["Partner", "Lunixo Holding", "Vereinbarungen"])!;
+    expect(vereinbarungen.docs.map((d) => d.name).sort()).toEqual(["Maklervereinbarung Lunixo Holding 2022", "Maklervereinbarung Lunixo Holding 2027"]);
     expect(findFolder(view, ["Partner"])!.count).toBe(22);
   });
 

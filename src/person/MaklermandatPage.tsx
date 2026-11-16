@@ -5,7 +5,12 @@ import { Icon } from "../ui";
 import { FileIdentity } from "../chrome";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
-import { getPartner, type FileContact, type FilePartner, type PartnerKind } from "./partners";
+import {
+  getPartner,
+  type FileContact,
+  type FilePartner,
+  type PartnerKind,
+} from "./partners";
 import { liveFileIdentity, type Card, type Section } from "./stammdaten";
 import { useHonorar } from "../honorar/store";
 import { agreementLines } from "../honorar/invoiceCells";
@@ -13,7 +18,10 @@ import type { Fee, Partner } from "../types/honorar";
 import { useDms } from "../dms/store";
 import { setDmsFocus } from "../dms/focus";
 import { formatDate, formatSize, StatusChip } from "../dms/ui";
-import { partnerAgreements, type AgreementSection } from "../lib/dms/agreements";
+import {
+  partnerAgreements,
+  type AgreementSection,
+} from "../lib/dms/agreements";
 import { formatPath } from "../lib/dms/placeholders";
 import { buildView, locateDocument } from "../lib/dms/views";
 import { nextStates, setStatus } from "../lib/dms/workflow";
@@ -54,7 +62,13 @@ const SIDE_SUBS = [
   { id: "kurzfristig", icon: a.history, label: "Kurzfristige Vereinb." },
 ] as const;
 
-const FEATURES = ["Risikomanagement", "Maklervereinbarungen", "Vollmachten", "Angebote", "und mehr"];
+const FEATURES = [
+  "Risikomanagement",
+  "Maklervereinbarungen",
+  "Vollmachten",
+  "Angebote",
+  "und mehr",
+];
 
 const OVERVIEW = [
   {
@@ -80,7 +94,11 @@ const CREATE_OPTIONS = [
     title: "Interessentenvereinbarung",
     enabled: false,
     tree: [
-      { icon: a.iconInteressent, label: "Interessentenvereinbarung", state: "Offen" },
+      {
+        icon: a.iconInteressent,
+        label: "Interessentenvereinbarung",
+        state: "Offen",
+      },
       { icon: a.iconMandate, label: "AV Vollmacht", state: "Offen" },
     ],
   },
@@ -89,7 +107,11 @@ const CREATE_OPTIONS = [
     title: "Kurzfristige Vereinbarung",
     enabled: false,
     tree: [
-      { icon: a.iconLimitKm, label: "Kurzfristige Vereinbarungen", state: "Optional" },
+      {
+        icon: a.iconLimitKm,
+        label: "Kurzfristige Vereinbarungen",
+        state: "Optional",
+      },
       { icon: a.iconDamage, label: "Schadenvollmacht", state: "Optional" },
     ],
   },
@@ -98,8 +120,16 @@ const CREATE_OPTIONS = [
     title: "Maklervereinbarung",
     enabled: true,
     tree: [
-      { icon: a.iconBrokerContract, label: "Maklervereinbarung", state: "Offen" },
-      { icon: a.iconInsurance, label: "Vollmacht: Versicherungsmakler", state: "Offen" },
+      {
+        icon: a.iconBrokerContract,
+        label: "Maklervereinbarung",
+        state: "Offen",
+      },
+      {
+        icon: a.iconInsurance,
+        label: "Vollmacht: Versicherungsmakler",
+        state: "Offen",
+      },
       { icon: a.iconMandate, label: "AV Vollmacht", state: "Offen" },
     ],
   },
@@ -111,17 +141,30 @@ function agreementKindLabel(kind?: PartnerKind) {
   return "Kunde";
 }
 
-function agreementContacts(file: FilePartner, live: ReturnType<typeof liveFileIdentity>): FileContact[] {
+function agreementContacts(
+  file: FilePartner,
+  live: ReturnType<typeof liveFileIdentity>,
+): FileContact[] {
   if (live.contacts.length) return live.contacts;
   if (file.contacts.length) return file.contacts;
   const fallback: FileContact[] = [];
-  if (file.phone) fallback.push({ kind: "phone", caption: "Mobil Privat", value: file.phone });
-  if (file.email) fallback.push({ kind: "mail", caption: "Mail Privat", value: file.email });
+  if (file.phone)
+    fallback.push({
+      kind: "phone",
+      caption: "Mobil Privat",
+      value: file.phone,
+    });
+  if (file.email)
+    fallback.push({ kind: "mail", caption: "Mail Privat", value: file.email });
   return fallback;
 }
 
 function feeLine(amount: string) {
-  const value = amount.replace("EUR", "€").replace(",00", "").replace(/\s+/g, " ").trim();
+  const value = amount
+    .replace("EUR", "€")
+    .replace(",00", "")
+    .replace(/\s+/g, " ")
+    .trim();
   return `${value} /Jahr`;
 }
 
@@ -134,7 +177,12 @@ function maklerAgreementCard(
   const live = liveFileIdentity(sections);
   const contacts = agreementContacts(file, live);
   const address = live.address ?? file.address;
-  const aboName = model === "partner" ? "bei anderem Partner mit umfasst" : model === "custom" ? "Individuell" : "Privatkunden";
+  const aboName =
+    model === "partner"
+      ? "bei anderem Partner mit umfasst"
+      : model === "custom"
+        ? "Individuell"
+        : "Privatkunden";
   const blocks: Card["blocks"] = [];
 
   if (contacts.length) {
@@ -144,7 +192,12 @@ function maklerAgreementCard(
       rows: contacts.map((contact) => ({
         label: contact.caption,
         value: contact.value,
-        icon: contact.kind === "phone" ? a.phone : contact.kind === "web" ? a.globe : a.mail,
+        icon:
+          contact.kind === "phone"
+            ? a.phone
+            : contact.kind === "web"
+              ? a.globe
+              : a.mail,
       })),
     });
   }
@@ -205,7 +258,15 @@ function honorarAgreementCard(partner: Partner, fee: Fee): Card {
       {
         kind: "rows",
         caption: "Adressdaten",
-        rows: [{ label: "Postadresse", value: { kind: "link", text: partner.address.split(", ").join("\n") } }],
+        rows: [
+          {
+            label: "Postadresse",
+            value: {
+              kind: "link",
+              text: partner.address.split(", ").join("\n"),
+            },
+          },
+        ],
       },
       {
         kind: "person",
@@ -217,8 +278,120 @@ function honorarAgreementCard(partner: Partner, fee: Fee): Card {
         kind: "rows",
         caption: "Vereinbarung",
         rows: [
-          { label: makler ? "Laufzeit" : "Gültig seit", value: makler ? since.replace(/^LZ /, "") : since },
+          {
+            label: makler ? "Laufzeit" : "Gültig seit",
+            value: makler ? since.replace(/^LZ /, "") : since,
+          },
           { label: "Kundenberater", value: partner.advisor },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * The Maklervereinbarung bundle: every Maklervereinbarung comes with these three documents.
+ * Entwurf → yellow clock and empty values; Gültig → green tick and filled in.
+ */
+const MANDATE_DOCS = [
+  {
+    id: "vollmacht-vm",
+    title: "Vollmacht: Versicherungsmakler",
+    file: "Vollmacht_Versicherungsmakler.pdf",
+  },
+  { id: "av-vollmacht", title: "AV Vollmacht", file: "AV_Vollmacht.pdf" },
+  {
+    id: "sepa",
+    title: "SEPA Vereinbarung",
+    file: "SEPA_Lastschriftmandat.pdf",
+  },
+] as const;
+
+const EMPTY = "–";
+
+function mandateDocCard(
+  doc: (typeof MANDATE_DOCS)[number],
+  done: boolean,
+): Card {
+  return {
+    id: `mandat-${doc.id}`,
+    icon: done ? a.hoStatusGenehmigt : a.onhold,
+    title: doc.title,
+    blocks: [
+      {
+        kind: "rows",
+        caption: "Anhänge",
+        rows: [
+          {
+            label: "Vereinbarung",
+            value: done ? { kind: "file", text: doc.file } : EMPTY,
+          },
+        ],
+      },
+      {
+        kind: "rows",
+        caption: "Details",
+        rows: [
+          { label: "Gültig ab", value: done ? "12.12.2025" : EMPTY },
+          { label: "Gültig bis", value: done ? "12.12.2028" : EMPTY },
+          { label: "Autor", value: done ? "Lucy Dullon" : EMPTY },
+        ],
+      },
+    ],
+  };
+}
+
+/** While the Maklervereinbarung is a draft its card keeps the captions but shows no values yet. */
+function asDraft(card: Card): Card {
+  return {
+    ...card,
+    icon: a.onhold,
+    blocks: (card.blocks ?? []).map((block) =>
+      block.kind === "rows"
+        ? {
+            ...block,
+            rows: block.rows.map((row) => ({
+              ...row,
+              icon: undefined,
+              value: EMPTY,
+            })),
+          }
+        : block.kind === "person"
+          ? {
+              kind: "rows",
+              caption: block.caption,
+              rows: [{ label: "Modell", value: EMPTY }],
+            }
+          : block,
+    ),
+  };
+}
+
+/** Kunde: the Interessentenvereinbarung that came before the Maklervereinbarung, now expired. */
+function interessentAgreementCard(): Card {
+  return {
+    id: "mandat-interessent",
+    icon: a.iconInteressent,
+    title: "Interessentenvereinbarung",
+    blocks: [
+      {
+        kind: "rows",
+        caption: "Anhänge",
+        rows: [
+          {
+            label: "Vereinbarung",
+            value: { kind: "file", text: "Interessentenvereinbarung.pdf" },
+          },
+        ],
+      },
+      {
+        kind: "rows",
+        caption: "Details",
+        rows: [
+          { label: "Gültig ab", value: "01.03.2025" },
+          { label: "Gültig bis", value: "11.12.2025" },
+          { label: "Abgelöst durch", value: "Maklervereinbarung" },
+          { label: "Autor", value: "Lucy Dullon" },
         ],
       },
     ],
@@ -237,17 +410,38 @@ function dmsAgreementCard(doc: Dokument, place: string[] | null): Card {
         kind: "rows",
         caption: "Vereinbarung",
         rows: [
-          { label: "Laufzeit", value: `${formatDate(doc.meta.gueltig_von)} – ${formatDate(doc.meta.gueltig_bis)}` },
-          { label: "Datei", value: version ? `${version.fileName} · ${formatSize(version.size)}` : "–" },
-          { label: "Hochgeladen", value: formatDate(version?.uploadedAt ?? doc.createdAt) },
+          {
+            label: "Laufzeit",
+            value: `${formatDate(doc.meta.gueltig_von)} – ${formatDate(doc.meta.gueltig_bis)}`,
+          },
+          {
+            label: "Datei",
+            value: version
+              ? `${version.fileName} · ${formatSize(version.size)}`
+              : "–",
+          },
+          {
+            label: "Hochgeladen",
+            value: formatDate(version?.uploadedAt ?? doc.createdAt),
+          },
         ],
       },
-      { kind: "rows", caption: "Ablage im DMS", rows: [{ label: "Ordner", value: place ? formatPath(place) : "–" }] },
+      {
+        kind: "rows",
+        caption: "Ablage im DMS",
+        rows: [{ label: "Ordner", value: place ? formatPath(place) : "–" }],
+      },
     ],
   };
 }
 
-function DmsAgreementCards({ docs, state }: { docs: Dokument[]; state: DmsState }) {
+function DmsAgreementCards({
+  docs,
+  state,
+}: {
+  docs: Dokument[];
+  state: DmsState;
+}) {
   const { apply } = useDms();
   const { setMeinBereichNav, openMeinBereich } = useWorkflow();
   const view = buildView(state, "Standard");
@@ -261,29 +455,37 @@ function DmsAgreementCards({ docs, state }: { docs: Dokument[]; state: DmsState 
             key={doc.id}
             card={dmsAgreementCard(doc, place)}
             headerExtra={
-              <span className="mm-dms-head" onClick={(event) => event.stopPropagation()}>
+              <span
+                className="mm-dms-head"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <StatusChip status={doc.status} />
-                {nextStates(typ, doc.status).map((to) => (
-                  <button type="button" key={to} className="dms-next-btn" onClick={() => apply((s) => setStatus(s, doc.id, to))}>
-                    → {to}
-                  </button>
-                ))}
-                {place ? (
-                  <button
-                    type="button"
-                    className="btn-secondary fg-verlauf-btn"
-                    onClick={() => {
-                      setDmsFocus({ path: place, docId: doc.id });
-                      setMeinBereichNav({ area: "Mein Bereich", page: "Dokumente" });
-                      openMeinBereich();
-                    }}
-                  >
-                    <Icon src={a.folder} size={18} />
-                    Im DMS
-                  </button>
-                ) : null}
               </span>
             }
+            // Figma 22742:254126: the card header only has the status and the ⋮ menu.
+            menuItems={[
+              ...nextStates(typ, doc.status).map((to) => ({
+                label: `Als ${to.toLowerCase()} markieren`,
+                icon: to === "Abgelaufen" ? a.docList : a.tarifCancelled,
+                onSelect: () => apply((s) => setStatus(s, doc.id, to)),
+              })),
+              ...(place
+                ? [
+                    {
+                      label: "Im DMS öffnen",
+                      icon: a.folder,
+                      onSelect: () => {
+                        setDmsFocus({ path: place, docId: doc.id });
+                        setMeinBereichNav({
+                          area: "Mein Bereich",
+                          page: "Dokumente",
+                        });
+                        openMeinBereich();
+                      },
+                    },
+                  ]
+                : []),
+            ]}
           />
         );
       })}
@@ -292,7 +494,9 @@ function DmsAgreementCards({ docs, state }: { docs: Dokument[]; state: DmsState 
 }
 
 function scrollTo(id: string) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  document
+    .getElementById(id)
+    ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function Halo({ size = 130, icon = 54 }: { size?: number; icon?: number }) {
@@ -316,8 +520,15 @@ function ConvertCard({ onStart }: { onStart: () => void }) {
         <br />
         umwandeln
       </strong>
-      <p>Als Interessent stehen weitere Funktionen und Möglichkeiten zur Verfügung.</p>
-      <button type="button" className="btn-secondary mm-start" onClick={onStart}>
+      <p>
+        Als Interessent stehen weitere Funktionen und Möglichkeiten zur
+        Verfügung.
+      </p>
+      <button
+        type="button"
+        className="btn-secondary mm-start"
+        onClick={onStart}
+      >
         Umwandlung starten
       </button>
     </div>
@@ -359,7 +570,15 @@ function OverviewCard() {
   );
 }
 
-function EmptyArt({ icon, title, children }: { icon: string; title: string; children?: ReactNode }) {
+function EmptyArt({
+  icon,
+  title,
+  children,
+}: {
+  icon: string;
+  title: string;
+  children?: ReactNode;
+}) {
   return (
     <article className="pp-card empty">
       <div className="pp-empty-art">
@@ -376,7 +595,13 @@ function EmptyArt({ icon, title, children }: { icon: string; title: string; chil
   );
 }
 
-function Sidebar({ converted, counts }: { converted: boolean; counts: Record<AgreementSection, number> }) {
+function Sidebar({
+  converted,
+  counts,
+}: {
+  converted: boolean;
+  counts: Record<AgreementSection, number>;
+}) {
   const { personName, openPersonArea } = useWorkflow();
   return (
     <aside className="pp-side">
@@ -395,7 +620,11 @@ function Sidebar({ converted, counts }: { converted: boolean; counts: Record<Agr
         Suchen...
       </div>
 
-      <button type="button" className="pp-area" onClick={() => openPersonArea("stammdaten")}>
+      <button
+        type="button"
+        className="pp-area"
+        onClick={() => openPersonArea("stammdaten")}
+      >
         <span className="pp-area-label">
           <Icon src={a.stammdaten} size={18} />
           Stammdaten
@@ -414,13 +643,22 @@ function Sidebar({ converted, counts }: { converted: boolean; counts: Record<Agr
           <Icon src={a.iconBrokerContract} size={18} />
           Maklermandat
         </span>
-        <Icon src={converted ? a.chevronDown : a.chevronDark} size={18} className={converted ? undefined : "caret-side"} />
+        <Icon
+          src={converted ? a.chevronDown : a.chevronDark}
+          size={18}
+          className={converted ? undefined : "caret-side"}
+        />
       </button>
 
       {converted ? (
         <div className="pp-tree mm-tree">
           {SIDE_SUBS.map((item) => (
-            <button type="button" className="pp-tree-item" key={item.id} onClick={() => scrollTo(item.id)}>
+            <button
+              type="button"
+              className="pp-tree-item"
+              key={item.id}
+              onClick={() => scrollTo(item.id)}
+            >
               <span className="pp-tree-name">
                 <Icon src={item.icon} size={18} />
                 {item.id === "gueltig"
@@ -431,13 +669,21 @@ function Sidebar({ converted, counts }: { converted: boolean; counts: Record<Agr
                       ? `Abgelaufen (${counts.abgelaufen})`
                       : item.label}
               </span>
-              <Icon src={a.chevronDark} size={18} className="pp-tree-caret caret-side" />
+              <Icon
+                src={a.chevronDark}
+                size={18}
+                className="pp-tree-caret caret-side"
+              />
             </button>
           ))}
         </div>
       ) : null}
 
-      <button type="button" className="pp-area" onClick={() => openPersonArea("inkasso")}>
+      <button
+        type="button"
+        className="pp-area"
+        onClick={() => openPersonArea("inkasso")}
+      >
         <span className="pp-area-label">
           <Icon src={a.tickList} size={18} />
           Inkasso
@@ -455,14 +701,36 @@ function Sidebar({ converted, counts }: { converted: boolean; counts: Record<Agr
   );
 }
 
-function Overlay({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
+function Overlay({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
   return (
-    <div className="umw-modal" role="dialog" aria-label="Umwandlung zu Interessenten">
-      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onCancel} />
+    <div
+      className="umw-modal"
+      role="dialog"
+      aria-label="Umwandlung zu Interessenten"
+    >
+      <button
+        type="button"
+        className="wmodal-scrim"
+        aria-label="Schließen"
+        onClick={onCancel}
+      />
       <div className="umw-body">
         <header className="review-titlebar">
-          <span className="review-titlebar-label">Umwandlung zu Interessenten</span>
-          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onCancel}>
+          <span className="review-titlebar-label">
+            Umwandlung zu Interessenten
+          </span>
+          <button
+            type="button"
+            className="review-titlebar-close"
+            aria-label="Schließen"
+            onClick={onCancel}
+          >
             <Icon src={a.iconCloseDark} size={12} />
           </button>
         </header>
@@ -476,9 +744,15 @@ function Overlay({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () 
           </h2>
 
           <div className="umw-panel">
-            <FileIdentity className="pp-id mm-id compact umw-id" forceInteressent />
+            <FileIdentity
+              className="pp-id mm-id compact umw-id"
+              forceInteressent
+            />
 
-            <p>Als Interessent bekommt diese Person Zugang zu weiteren Funktionen:</p>
+            <p>
+              Als Interessent bekommt diese Person Zugang zu weiteren
+              Funktionen:
+            </p>
             <ul className="umw-features">
               {FEATURES.map((feature) => (
                 <li key={feature}>
@@ -503,14 +777,34 @@ function Overlay({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () 
   );
 }
 
-function CreateModal({ onClose, onCreateMakler }: { onClose: () => void; onCreateMakler: () => void }) {
+function CreateModal({
+  onClose,
+  onCreateMakler,
+}: {
+  onClose: () => void;
+  onCreateMakler: () => void;
+}) {
   return (
-    <div className="umw-modal" role="dialog" aria-label="Vereinbarung erstellen">
-      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onClose} />
+    <div
+      className="umw-modal"
+      role="dialog"
+      aria-label="Vereinbarung erstellen"
+    >
+      <button
+        type="button"
+        className="wmodal-scrim"
+        aria-label="Schließen"
+        onClick={onClose}
+      />
       <div className="umw-body mm-create-body">
         <header className="review-titlebar">
           <span className="review-titlebar-label">Vereinbarung erstellen</span>
-          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onClose}>
+          <button
+            type="button"
+            className="review-titlebar-close"
+            aria-label="Schließen"
+            onClick={onClose}
+          >
             <Icon src={a.iconCloseDark} size={12} />
           </button>
         </header>
@@ -522,7 +816,10 @@ function CreateModal({ onClose, onCreateMakler }: { onClose: () => void; onCreat
               <article className="mm-create-card" key={option.id}>
                 <div className="mm-ov-group">
                   {option.tree.map((entry, index) => (
-                    <div className={index === 0 ? "mm-ov-row" : "mm-ov-row nested"} key={entry.label}>
+                    <div
+                      className={index === 0 ? "mm-ov-row" : "mm-ov-row nested"}
+                      key={entry.label}
+                    >
                       <span className="mm-contact-icon">
                         <Icon src={entry.icon} size={18} />
                       </span>
@@ -563,6 +860,7 @@ export function MaklermandatPage() {
     openMakler,
     markMaklerCreated,
     maklerCreated,
+    maklerFinished,
     displaySections,
     model,
     amount,
@@ -574,22 +872,44 @@ export function MaklermandatPage() {
   const info = file.info;
   const { personName } = useWorkflow();
   const { state } = useHonorar();
-  const honorarPartner = state.partners.find((partner) => partner.name === personName);
+  const honorarPartner = state.partners.find(
+    (partner) => partner.name === personName,
+  );
   const honorarFee = honorarPartner
-    ? state.fees.filter((fee) => fee.partnerId === honorarPartner.id).sort((x, y) => y.month.localeCompare(x.month))[0]
+    ? state.fees
+        .filter((fee) => fee.partnerId === honorarPartner.id)
+        .sort((x, y) => y.month.localeCompare(x.month))[0]
     : undefined;
-  const agreement = maklerCreated
-    ? maklerAgreementCard(file, displaySections, model, amount)
-    : honorarPartner && honorarFee
+  // Kunde: everything signed and valid, the old Interessentenvereinbarung expired.
+  // Interessent: Erstellen puts the four agreements into Entwürfe until the Signaturen step is approved.
+  const kunde = file.kind === "kunde";
+  const stage: "none" | "draft" | "done" =
+    kunde || maklerFinished ? "done" : maklerCreated ? "draft" : "none";
+  const maklerCard =
+    honorarPartner && honorarFee && !maklerCreated
       ? honorarAgreementCard(honorarPartner, honorarFee)
-      : null;
-  // Maklervereinbarungen stored in the DMS: the same records, grouped by status.
+      : maklerAgreementCard(file, displaySections, model, amount);
   const dms = useDms().state;
   const dmsDocs = partnerAgreements(dms, filePartnerId, dms.activePerson);
+  // A running Maklervereinbarung filed in the DMS is that agreement: show it instead of a second card.
+  const fromDms = stage === "done" && dmsDocs.gueltig.length > 0;
+  const bundle: Card[] =
+    stage === "none"
+      ? []
+      : [
+          ...(fromDms ? [] : [stage === "done" ? maklerCard : asDraft(maklerCard)]),
+          ...MANDATE_DOCS.map((doc) => mandateDocCard(doc, stage === "done")),
+        ];
+  const mandateCards: Record<AgreementSection, Card[]> = {
+    gueltig: stage === "done" ? bundle : [],
+    entwuerfe: stage === "draft" ? bundle : [],
+    abgelaufen: kunde ? [interessentAgreementCard()] : [],
+  };
+  // Maklervereinbarungen stored in the DMS: the same records, grouped by status.
   const counts: Record<AgreementSection, number> = {
-    gueltig: dmsDocs.gueltig.length + (agreement ? 1 : 0),
-    entwuerfe: dmsDocs.entwuerfe.length,
-    abgelaufen: dmsDocs.abgelaufen.length,
+    gueltig: dmsDocs.gueltig.length + mandateCards.gueltig.length,
+    entwuerfe: dmsDocs.entwuerfe.length + mandateCards.entwuerfe.length,
+    abgelaufen: dmsDocs.abgelaufen.length + mandateCards.abgelaufen.length,
   };
 
   return (
@@ -600,7 +920,11 @@ export function MaklermandatPage() {
           <header className="fg-head pp-main-head">
             <ShelfTitle icon={a.iconBrokerContract}>Maklermandat</ShelfTitle>
             <span className="fg-head-actions">
-              <button type="button" className="fg-head-search" aria-label="Suche">
+              <button
+                type="button"
+                className="fg-head-search"
+                aria-label="Suche"
+              >
                 <Icon src={a.searchDark} size={18} />
               </button>
             </span>
@@ -616,7 +940,11 @@ export function MaklermandatPage() {
                 </div>
               ) : null}
             </div>
-            {ready ? <OverviewCard /> : <ConvertCard onStart={() => setOverlay(true)} />}
+            {ready ? (
+              <OverviewCard />
+            ) : (
+              <ConvertCard onStart={() => setOverlay(true)} />
+            )}
           </div>
 
           {ready ? (
@@ -634,27 +962,52 @@ export function MaklermandatPage() {
                           : section.title}
                   </span>
                   {"create" in section && section.create ? (
-                    <button type="button" className="btn-primary pp-edit" onClick={() => setCreateOpen(true)}>
+                    <button
+                      type="button"
+                      className="btn-primary pp-edit"
+                      onClick={() => setCreateOpen(true)}
+                    >
                       Erstellen
                     </button>
                   ) : null}
                 </header>
-                {(section.id === "gueltig" && agreement) || (section.id !== "kurzfristig" && dmsDocs[section.id].length) ? (
+                {section.id !== "kurzfristig" &&
+                (mandateCards[section.id].length ||
+                  dmsDocs[section.id].length) ? (
                   <div className="pp-cards">
-                    {section.id === "gueltig" && agreement ? (
-                      <DataCard
-                        card={agreement}
-                        onSelect={openMakler}
-                        onEdit={openMakler}
-                        headerExtra={
-                          <button type="button" className="btn-secondary fg-verlauf-btn" onClick={openMakler}>
-                            <Icon src={a.history} size={18} />
-                            Version 1
-                          </button>
-                        }
-                      />
-                    ) : null}
-                    <DmsAgreementCards docs={dmsDocs[section.id as AgreementSection]} state={dms} />
+                    {/* The Maklervereinbarung (from the DMS when filed there) leads, the other agreements follow. */}
+                    <DmsAgreementCards docs={dmsDocs[section.id]} state={dms} />
+                    {mandateCards[section.id].map((card) =>
+                      card.id === "makler-vereinbarung" ||
+                      card.id === "honorar-vereinbarung" ? (
+                        <DataCard
+                          key={card.id}
+                          card={card}
+                          onSelect={openMakler}
+                          onEdit={openMakler}
+                          headerExtra={
+                            stage === "done" ? (
+                              <button
+                                type="button"
+                                className="btn-secondary fg-verlauf-btn"
+                                onClick={openMakler}
+                              >
+                                <Icon src={a.history} size={18} />
+                                Version 1
+                              </button>
+                            ) : null
+                          }
+                        />
+                      ) : (
+                        <DataCard
+                          key={card.id}
+                          card={card}
+                          onSelect={
+                            section.id === "entwuerfe" ? openMakler : undefined
+                          }
+                        />
+                      ),
+                    )}
                   </div>
                 ) : (
                   <div className="pp-cards center mm-empty">
@@ -668,9 +1021,14 @@ export function MaklermandatPage() {
               <div className="pp-cards center">
                 <EmptyArt icon={a.docList} title="Maklermandat nicht verfügbar">
                   <p>
-                    Ein Maklermandat kann nur für Interessenten &amp; Kunden erstellt werden.
+                    Ein Maklermandat kann nur für Interessenten &amp; Kunden
+                    erstellt werden.
                     <br />
-                    <button type="button" className="pp-empty-link" onClick={() => setOverlay(true)}>
+                    <button
+                      type="button"
+                      className="pp-empty-link"
+                      onClick={() => setOverlay(true)}
+                    >
                       Wandle diese Person zuerst in einen Interessenten um.
                     </button>
                   </p>

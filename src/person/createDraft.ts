@@ -167,7 +167,20 @@ const WICO_PEOPLE: CheckHit[] = [
     plz: "5310",
     ort: "Mondsee",
   },
+  // Made-up WICO people that look like the Wino partners, so a search
+  // shows a mix of WICO and Wino hits.
+  wicoPerson("wico-julia-atkins", "Julia Atkins", "12.03.1984", "Linzer Gasse", "14", "5020", "Salzburg"),
+  wicoPerson("wico-julia-atkinson-weber", "Julia Atkinson-Weber", "27.09.1979", "Seestraße", "5", "5310", "Mondsee"),
+  wicoPerson("wico-julia-adler", "Julia Adler", "08.01.1992", "Kaigasse", "3", "5020", "Salzburg"),
+  wicoPerson("wico-ashley-johnston", "Ashley Johnston", "02.11.1989", "Landstraße", "41", "4020", "Linz"),
+  wicoPerson("wico-ashley-jonas", "Ashley Jonas", "21.05.1995", "Mariahilfer Straße", "88", "1060", "Wien"),
+  wicoPerson("wico-mark-johnson", "Mark Johnson", "14.08.1987", "Herrengasse", "7", "8010", "Graz"),
+  wicoPerson("wico-lena-johnson", "Lena Johnson", "30.06.1998", "Ignaz-Harrer-Straße", "22", "5020", "Salzburg"),
 ];
+
+function wicoPerson(id: string, name: string, born: string, strasse: string, nummer: string, plz: string, ort: string): CheckHit {
+  return { id, source: "wico", name, sub: born, born, address: `${strasse} ${nummer},\nA-${plz} ${ort}`, party: "person", strasse, nummer, plz, ort };
+}
 
 const WICO_COMPANIES: CheckHit[] = [
   {
@@ -268,13 +281,59 @@ function queryOf(draft: PartnerDraft) {
 }
 
 function matches(name: string, query: string, min = 3) {
-  const q = query.toLowerCase();
-  return q.length >= min && name.toLowerCase().includes(q);
+  const q = query.toLowerCase().trim();
+  if (q.length < min) return false;
+  const n = name.toLowerCase();
+  if (n.includes(q)) return true;
+  // "Julia Atk" also finds "Julia Atkins": every typed word must appear in the name.
+  const words = q.split(/\s+/).filter(Boolean);
+  return words.length > 1 && words.every((word) => n.includes(word));
 }
 
 function existingPartner(name: string) {
   const needle = name.trim().toLowerCase();
   return listedPartners().find((partner) => partner.name.trim().toLowerCase() === needle);
+}
+
+const WICO_SURNAMES = ["Berger", "Huber", "Wagner", "Steiner", "Moser", "Hofer", "Leitner", "Pichler", "Gruber", "Eder"];
+const WICO_FIRSTNAMES = ["Anna", "Lukas", "Sophie", "David", "Laura", "Florian", "Katharina", "Michael"];
+const WICO_PLACES: [string, string, string, string][] = [
+  ["Linzer Gasse", "14", "5020", "Salzburg"],
+  ["Landstraße", "41", "4020", "Linz"],
+  ["Herrengasse", "7", "8010", "Graz"],
+  ["Mariahilfer Straße", "88", "1060", "Wien"],
+  ["Maria-Theresien-Straße", "12", "6020", "Innsbruck"],
+  ["Seestraße", "5", "5310", "Mondsee"],
+];
+
+function cap(word: string) {
+  return word ? word[0].toUpperCase() + word.slice(1) : word;
+}
+
+function seedOf(text: string) {
+  return [...text.toLowerCase()].reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) % 100003, 7);
+}
+
+/** Two or three made-up WICO people that share the typed first (or last) name. */
+function madeUpWicoPeople(draft: PartnerDraft): CheckHit[] {
+  const vor = cap(draft.vorname.trim());
+  const nach = cap(draft.nachname.trim());
+  const seed = seedOf(`${vor} ${nach}`);
+  const names: string[] = [];
+  if (vor && nach.length >= 2) {
+    names.push(`${vor} ${nach}`, `${vor} ${nach}-${WICO_SURNAMES[seed % WICO_SURNAMES.length]}`);
+    names.push(`${vor} ${WICO_SURNAMES[(seed + 3) % WICO_SURNAMES.length]}`);
+  } else if (vor) {
+    names.push(`${vor} ${WICO_SURNAMES[seed % WICO_SURNAMES.length]}`, `${vor} ${WICO_SURNAMES[(seed + 4) % WICO_SURNAMES.length]}`);
+  } else if (nach) {
+    names.push(`${WICO_FIRSTNAMES[seed % WICO_FIRSTNAMES.length]} ${nach}`, `${WICO_FIRSTNAMES[(seed + 3) % WICO_FIRSTNAMES.length]} ${nach}`);
+  }
+  return names.map((name, index) => {
+    const n = seed + index * 17;
+    const [strasse, nummer, plz, ort] = WICO_PLACES[n % WICO_PLACES.length];
+    const born = `${String((n % 28) + 1).padStart(2, "0")}.${String((n % 12) + 1).padStart(2, "0")}.${1960 + (n % 40)}`;
+    return wicoPerson(`wico-gen-${slugify(name)}`, name, born, strasse, nummer, plz, ort);
+  });
 }
 
 export function searchHits(draft: PartnerDraft): CheckHit[] {
@@ -289,7 +348,20 @@ export function searchHits(draft: PartnerDraft): CheckHit[] {
       const existing = existingPartner(hit.name);
       return existing ? { ...hit, alreadyInWino: true, partnerId: existing.id, tag: partnerKindText(existing.kind) } : hit;
     });
-  if (wico.length === 0) {
+  // People: WICO always answers with a few look-alikes built from the typed name.
+  if (!company) {
+    const known = new Set(wico.map((hit) => hit.name.toLowerCase()));
+    // With real catalog matches, one extra look-alike is enough.
+    const extra = madeUpWicoPeople(draft);
+    for (const hit of wico.length > 0 ? extra.slice(-1) : extra) {
+      if (known.has(hit.name.toLowerCase())) continue;
+      known.add(hit.name.toLowerCase());
+      const existing = existingPartner(hit.name);
+      wico.push(existing ? { ...hit, alreadyInWino: true, partnerId: existing.id, tag: partnerKindText(existing.kind) } : hit);
+    }
+  }
+  // Companies always get a WICO hit so any name can run the WICO Daten zuweisen step.
+  if (wico.length === 0 && company) {
     const existing = existingPartner(query);
     wico.push({
       id: `wico-typed-${query.toLowerCase()}`,
@@ -319,7 +391,11 @@ export function searchHits(draft: PartnerDraft): CheckHit[] {
       partnerId: partner.id,
       alreadyInWino: true,
     }));
-  return [...wico, ...wino];
+  // Mix both sources: the exact name first, then alphabetical.
+  const exact = query.toLowerCase();
+  return [...wico, ...wino].sort(
+    (x, y) => Number(y.name.toLowerCase() === exact) - Number(x.name.toLowerCase() === exact) || x.name.localeCompare(y.name, "de"),
+  );
 }
 
 export function applyHit(draft: PartnerDraft, hit: CheckHit): PartnerDraft {

@@ -53,6 +53,8 @@ const entities: DmsEntity[] = [
   { id: "julia", type: "Partner", name: "Julia Atkinson" },
   { id: "ashley", type: "Partner", name: "Ashley Johnson" },
   { id: "lunixo", type: "Partner", name: "Lunixo AG" },
+  { id: "thomas", type: "Partner", name: "Thomas Debrezina" },
+  { id: "lunixo-holding", type: "Partner", name: "Lunixo Holding" },
   { id: "k-hoeller", type: "Partner", name: "Bäckerei Höller & Söhne OG" },
   { id: "k-gruber", type: "Partner", name: "Dr. Maria Gruber" },
   { id: "k-steiner", type: "Partner", name: "Transporte Steiner / Wels GmbH" },
@@ -395,12 +397,14 @@ function maklervereinbarung(partner: string, label: string, status: string, von:
 
 function partnerDocuments(): Dokument[] {
   return [
-    // Julia: one running agreement, one that ran out on 31.12.2025 (seeded as Aktiv → set to Abgelaufen automatically).
-    maklervereinbarung("julia", "Julia Atkinson 2023", "Aktiv", "2023-01-01", "2025-12-31", "2022-12-12T13:55:00"),
-    maklervereinbarung("julia", "Julia Atkinson 2026", "Aktiv", "2026-01-01", "2028-12-31", "2025-12-12T13:55:00"),
-    // Ashley: one waiting for Freigabe, one terminated.
-    maklervereinbarung("ashley", "Ashley Johnson 2027", "In Freigabe", "2027-01-01", "2029-12-31", "2026-10-28T09:12:00"),
-    maklervereinbarung("ashley", "Ashley Johnson 2022", "Gekündigt", "2022-01-01", "2027-12-31", "2021-11-30T10:40:00"),
+    // Maklervereinbarungen only for partners whose status allows one: Julia (Interessent) and Ashley
+    // (Einfache Person) have none until a Maklervereinbarung is created in Wino.
+    // Thomas (Kunde): one running agreement, one that ran out on 31.12.2025 (seeded as Aktiv → set to Abgelaufen automatically).
+    maklervereinbarung("thomas", "Thomas Debrezina 2023", "Aktiv", "2023-01-01", "2025-12-31", "2022-12-12T13:55:00"),
+    maklervereinbarung("thomas", "Thomas Debrezina 2026", "Aktiv", "2026-01-01", "2028-12-31", "2025-12-12T13:55:00"),
+    // Lunixo Holding (Kunde): a renewal waiting for Freigabe, one terminated.
+    maklervereinbarung("lunixo-holding", "Lunixo Holding 2027", "In Freigabe", "2027-01-01", "2029-12-31", "2026-10-28T09:12:00"),
+    maklervereinbarung("lunixo-holding", "Lunixo Holding 2022", "Gekündigt", "2022-01-01", "2027-12-31", "2021-11-30T10:40:00"),
     // Lunixo: a draft, a running Kooperationsvertrag and a confidential NDA.
     maklervereinbarung("lunixo", "Lunixo AG 2027", "Entwurf", "2027-01-01", "2029-12-31", "2026-11-02T15:05:00"),
     doc({
@@ -580,7 +584,7 @@ function eingangDocuments(): Dokument[] {
 export function createDmsSeed(today = DMS_TODAY): DmsState {
   counter = 0;
   return {
-    version: 3,
+    version: 4, // 4: Maklervereinbarungen only for Kunden / Interessenten (moved off Julia and Ashley)
     today,
     activePerson: "lucy",
     people,

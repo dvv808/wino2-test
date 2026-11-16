@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as a from "../assets/index";
 import { DateField, Icon, InfoBox } from "../ui";
+import { partnerDashboardHash } from "../routing";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
+import { PlausiState } from "./PlausiState";
 import { CreateContactFields, Field, Select, Text } from "./forms";
 import {
   applyHit,
@@ -75,16 +77,17 @@ function CheckCard({
           </button>
         )}
       </header>
-      {hit.alreadyInWino ? (
-        <p className="pa-hit-warn">
-          <Icon src={a.attention} size={16} />
-          Bereits in Wino angelegt. Dieser Partner kann nicht neu zugewiesen werden.
-        </p>
-      ) : null}
       <div className="pa-hit-person">
         <span className="pp-person-avatar">
-          <img src={a.avatarBg} alt="" width={32} height={32} />
-          <img className="glyph" src={hit.party === "company" ? a.companyBlank : a.personSmall} alt="" width={21} height={21} />
+          {/* Figma 22809:411168: partners already in Wino get the dark avatar. */}
+          <img src={blocked ? a.avatarBgDark : a.avatarBg} alt="" width={32} height={32} />
+          <img
+            className="glyph"
+            src={hit.party === "company" ? a.companyBlank : blocked ? a.personSmallWhite : a.personSmall}
+            alt=""
+            width={21}
+            height={21}
+          />
         </span>
         <span>
           {hit.tag ? <span className={hit.tag === "Kunde" ? "chip kunde" : "chip"}>{hit.tag}</span> : null}
@@ -94,12 +97,17 @@ function CheckCard({
       </div>
       {hit.address ? <p className="pa-hit-address">{hit.address}</p> : null}
       <footer>
-        <Icon
-          src={hit.source === "wico" ? a.iconWico : a.logoMark}
-          size={16}
-          className={hit.source === "wino" ? "mm-wino" : undefined}
-        />
-        {hit.source === "wico" ? "Treffer aus dem WICO" : "Treffer aus dem Wino"}
+        {blocked ? (
+          <>
+            <Icon src={a.infoRing20} size={20} />
+            Partner gibt es bereits in Wino
+          </>
+        ) : (
+          <>
+            <Icon src={a.iconWico} size={16} />
+            Treffer aus dem WICO
+          </>
+        )}
       </footer>
     </article>
   );
@@ -109,31 +117,6 @@ function checkQuery(draft: PartnerDraft) {
   return draft.personTyp === "Unternehmen"
     ? draft.firmenwortlaut.trim()
     : `${draft.vorname} ${draft.nachname}`.trim();
-}
-
-function CheckSkeleton() {
-  return (
-    <article className="pa-hit pa-hit-skel" aria-hidden>
-      <header>
-        <span className="pa-skel-bar short" />
-        <span className="pa-skel-bar short" />
-      </header>
-      <div className="pa-hit-person">
-        <span className="pa-skel-avatar" />
-        <span className="pa-skel-copy">
-          <span className="pa-skel-bar chip" />
-          <span className="pa-skel-bar name" />
-          <span className="pa-skel-bar sub" />
-        </span>
-      </div>
-      <p className="pa-hit-address">
-        <span className="pa-skel-bar addr" />
-      </p>
-      <footer>
-        <span className="pa-skel-bar foot" />
-      </footer>
-    </article>
-  );
 }
 
 function CheckPanel({
@@ -170,7 +153,7 @@ function CheckPanel({
     const timer = window.setTimeout(() => {
       setHits(searchHits(draftRef.current));
       setLoading(false);
-    }, 1100);
+    }, 3000);
     return () => window.clearTimeout(timer);
   }, [assignedId, queryKey, ready]);
 
@@ -178,14 +161,17 @@ function CheckPanel({
     <aside className="pa-check" aria-busy={loading}>
       <h3>Plausibilitätscheck</h3>
       {loading ? (
-        <>
-          <p className="pa-check-status">WICO und Wino werden geprüft…</p>
-          <CheckSkeleton />
-          <CheckSkeleton />
-          <CheckSkeleton />
-        </>
+        <PlausiState mode="search" sources={["wico", "wino"]}>
+          Suche in Wino und WICO…
+        </PlausiState>
+      ) : !ready ? (
+        <PlausiState mode="hint" sources={["wico", "wino"]}>
+          Durch Dateneingabe erscheinen hier Treffer aus dem Wino oder WICO.
+        </PlausiState>
       ) : hits.length === 0 ? (
-        <p className="pa-check-empty">Sobald ein Name eingegeben wird, prüfen wir WICO und Wino.</p>
+        <PlausiState mode="empty" sources={["wico", "wino"]}>
+          Keine Treffer im Wino oder WICO.
+        </PlausiState>
       ) : (
         hits.map((hit) => (
           <CheckCard
@@ -285,7 +271,7 @@ function WicoLinks({ draft, onToggle }: { draft: PartnerDraft; onToggle: (id: st
 }
 
 export function PartnerCreate() {
-  const { partnerCreateOpen, closePartnerCreate, createPartner, openPartner } = useWorkflow();
+  const { partnerCreateOpen, closePartnerCreate, createPartner } = useWorkflow();
   const [step, setStep] = useState<CreateStep>("typ");
   const [draft, setDraft] = useState<PartnerDraft>(EMPTY_DRAFT);
   const steps = stepsFor(draft);
@@ -347,7 +333,7 @@ export function PartnerCreate() {
                   setStep(entry.id);
                 }}
               >
-                <span className="pa-step-num">{done ? <Icon src={a.confirm} size={18} /> : index + 1}</span>
+                <span className="pa-step-num">{done ? <img src={a.snackConfirm} alt="" width={34} height={34} /> : index + 1}</span>
                 {entry.label.split("\n").map((line) => (
                   <span key={line}>{line}</span>
                 ))}
@@ -505,8 +491,8 @@ export function PartnerCreate() {
                   )
                 }
                 onOpen={(id) => {
-                  close();
-                  openPartner(id);
+                  // Always a new browser tab, so the Partner anlegen draft stays open here.
+                  window.open(`${location.pathname}${partnerDashboardHash(id)}`, "_blank", "noopener");
                 }}
               />
             </div>

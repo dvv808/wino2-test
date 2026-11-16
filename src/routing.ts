@@ -29,6 +29,11 @@ function personRoot(partnerId: PartnerId = "julia") {
   return `person/${getPartner(partnerId).slug}`;
 }
 
+/** Link to a partner's Dashboard, e.g. for opening it in a new browser tab. */
+export function partnerDashboardHash(partnerId: PartnerId) {
+  return `#/${personRoot(partnerId)}/dashboard`;
+}
+
 const STEP_SLUGS: Record<StepId, string> = {
   tasks: "offene-aufgaben",
   comms: "kommunikationsdaten",

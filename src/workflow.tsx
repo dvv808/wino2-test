@@ -36,6 +36,10 @@ import {
   type StammdatenAreaId,
   bankForm,
   contactForm,
+  linkBankOwners,
+  ownBankAccounts,
+  withOwnBank,
+  type BankForm,
   type ContactForm,
 } from "./person/stammdaten";
 import {
@@ -232,6 +236,8 @@ type PartnerFile = {
   stammdatenPublished: Section[] | null;
   /** A Maklervereinbarung was created for this partner — stays after the tab closes. */
   maklerCreated?: boolean;
+  /** Its Signaturen step was approved: the four agreements move from Entwürfe to Gültig. */
+  maklerFinished?: boolean;
 };
 
 const FAMILY_FILES: [PartnerId, string, string][] = [
@@ -241,9 +247,30 @@ const FAMILY_FILES: [PartnerId, string, string][] = [
   ["marcus", "Marcus", "Atkinson-Sullivan"],
   ["sophie", "Sophie", "Lang"],
   ["udo", "Udo", "Ladraida"],
+  ["thomas-atkinson", "Thomas", "Atkinson"],
 ];
 
+/** Every Atkinson (and Ashley) has an account of their own; Julia and Thomas already have theirs in the seed. */
+const FAMILY_BANKS: Partial<Record<PartnerId, { institut: string; iban: string; bic: string }>> = {
+  karl: { institut: "Raiffeisenbank Mondseeland", iban: "AT 3234 5000 0412 7788 01", bic: "RZOOAT2L345" },
+  johanna: { institut: "Oberbank", iban: "AT 8115 0000 0721 0456 12", bic: "OBKLAT2L" },
+  ash: { institut: "Sparkasse Mondsee", iban: "AT 2120 2050 0000 3311 45", bic: "SPMOAT21XXX" },
+  marcus: { institut: "Bank Austria", iban: "AT 6112 0000 1043 5566 70", bic: "BKAUATWW" },
+  ashley: { institut: "Salzburger Sparkasse", iban: "AT 4820 4040 0000 5871 23", bic: "SBGSAT2SXXX" },
+};
+
 function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
+  // Accounts linked from another partner (e.g. Thomas Atkinson's Sparkasse in Julia's file) also sit in the owner's profile.
+  return linkBankOwners(seedPartnerFiles(), Object.values(FILE_PARTNERS)) as Record<PartnerId, PartnerFile>;
+}
+
+function withFamilyBank(id: PartnerId, name: string, sections: Section[]): Section[] {
+  const bank = FAMILY_BANKS[id];
+  if (!bank) return sections;
+  return withOwnBank(sections, `bank-${id}`, { person: name, ...bank, notiz: "", files: [] });
+}
+
+function seedPartnerFiles(): Record<PartnerId, PartnerFile> {
   return {
     julia: {
       sections: cloneSections(),
@@ -253,7 +280,7 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
       stammdatenPublished: null,
     },
     ashley: {
-      sections: cloneAshleySections(),
+      sections: withFamilyBank("ashley", "Ashley Johnson", cloneAshleySections()),
       versions: ASHLEY_VERSIONS,
       viewingVersionId: ASHLEY_VERSIONS[0].id,
       stammdatenBaseline: null,
@@ -300,7 +327,11 @@ function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
       FAMILY_FILES.map(([id, vorname, nachname]) => [
         id,
         {
-          sections: id === "udo" ? cloneUdoSections() : cloneAshleySections(vorname, nachname, `partner-${id}`),
+          sections: withFamilyBank(
+            id,
+            `${vorname} ${nachname}`,
+            id === "udo" ? cloneUdoSections() : cloneAshleySections(vorname, nachname, `partner-${id}`),
+          ),
           versions: blankFileVersions(vorname, nachname, `partner-${id}`, `${id}-v1`),
           viewingVersionId: `${id}-v1`,
           stammdatenBaseline: null,
@@ -773,6 +804,7 @@ function useWorkflowState() {
     setApprovalOf(step, "granted");
     setGrantedBy((current) => ({ ...current, [step]: "self" }));
     markDone(step);
+    if (step === "sign") markMaklerFinished();
   }
 
   function addComment(step: ApprovalStep, person: PostedComment["person"], text: string) {
@@ -802,6 +834,7 @@ function useWorkflowState() {
     if (decision === "granted") {
       setGrantedBy((current) => ({ ...current, [step]: "manager" }));
       markDone(step);
+      if (step === "sign") markMaklerFinished();
     }
     setReviewStep(null);
     leaveManager(step);
@@ -863,6 +896,17 @@ function useWorkflowState() {
       const at = ids.indexOf(filePartnerId);
       return at < 0 ? [...ids, id] : [...ids.slice(0, at + 1), id, ...ids.slice(at + 1)];
     });
+  }
+
+  /**
+   * Bankverbindung: a Wino partner other than the current file and the accounts in their own profile.
+   * Null when the name is no Wino partner (their bank data has to be added in their own file first).
+   */
+  function bankAccountsOf(name: string): { partner: FilePartner; accounts: BankForm[] } | null {
+    const key = name.trim().toLowerCase();
+    const partner = [...Object.values(FILE_PARTNERS), ...extraPartners].find((entry) => entry.name.toLowerCase() === key);
+    if (!partner) return null;
+    return { partner, accounts: ownBankAccounts(partnerFiles[partner.id]?.sections ?? [], partner.name) };
   }
 
   /** Opens a partner as a tab. A freshly opened partner starts on its Dashboard. */
@@ -1209,6 +1253,13 @@ function useWorkflowState() {
     setPartnerFiles((all) => ({
       ...all,
       [filePartnerId]: { ...all[filePartnerId], maklerCreated: true },
+    }));
+  }
+
+  function markMaklerFinished() {
+    setPartnerFiles((all) => ({
+      ...all,
+      [filePartnerId]: { ...all[filePartnerId], maklerCreated: true, maklerFinished: true },
     }));
   }
 
@@ -1828,6 +1879,7 @@ function useWorkflowState() {
     openMeinBereich,
     adminOpen,
     openAdmin,
+    bankAccountsOf,
     closeAdmin,
     mitarbeiterTabs,
     mitarbeiterId,
@@ -1890,6 +1942,7 @@ function useWorkflowState() {
     openPersonArea,
     maklerOpen,
     maklerCreated: Boolean(file.maklerCreated),
+    maklerFinished: Boolean(file.maklerFinished),
     markMaklerCreated,
     openMakler,
     closeMakler,

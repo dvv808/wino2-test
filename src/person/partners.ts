@@ -7,6 +7,7 @@ export type PartnerId =
   | "marcus"
   | "sophie"
   | "udo"
+  | "thomas-atkinson"
   | "lunixo"
   | "lunixo-holding"
   | "lunixo-immobilien"
@@ -114,6 +115,17 @@ export const UDO = familyPartner("udo", "udo-ladraida", "Udo Ladraida", "12.09.1
   "A-5310 Mondsee",
 ]);
 
+/** Julia's father-in-law: pays her Haftpflicht from his Sparkasse account (linked into her Bankverbindungen). */
+export const THOMAS_ATKINSON = familyPartner(
+  "thomas-atkinson",
+  "thomas-atkinson",
+  "Thomas Atkinson",
+  "16.11.1968",
+  "3118",
+  "interessent",
+  ["Mondseestrasse 10", "A-5310 Mondsee"],
+);
+
 export const LUNIXO: FilePartner = {
   id: "lunixo",
   slug: "lunixo-ag",
@@ -181,6 +193,7 @@ export const FILE_PARTNERS: Record<PartnerId, FilePartner> = {
   marcus: MARCUS,
   sophie: SOPHIE,
   udo: UDO,
+  "thomas-atkinson": THOMAS_ATKINSON,
   lunixo: LUNIXO,
   "lunixo-holding": LUNIXO_HOLDING,
   "lunixo-immobilien": LUNIXO_IMMOBILIEN,

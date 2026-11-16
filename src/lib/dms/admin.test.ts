@@ -68,7 +68,7 @@ describe("Dokumenttypen editing", () => {
     const state = removeState(fresh(), "maklervereinbarung", "In Freigabe");
     const typ = state.dokumenttypen.find((t) => t.id === "maklervereinbarung")!;
     expect(typ.workflow.transitions.some((t) => t.from === "In Freigabe" || t.to === "In Freigabe")).toBe(false);
-    expect(state.documents.find((d) => d.name === "Maklervereinbarung Ashley Johnson 2027")!.status).toBe("Entwurf");
+    expect(state.documents.find((d) => d.name === "Maklervereinbarung Lunixo Holding 2027")!.status).toBe("Entwurf");
   });
 });
 
@@ -202,9 +202,12 @@ describe("Maklervereinbarung cards = DMS records", () => {
     const { partnerAgreements } = await import("./agreements");
     const { setStatus } = await import("./workflow");
     const base = fresh();
-    const julia = partnerAgreements(base, "julia", "lucy");
-    expect(julia.gueltig.map((d) => d.name)).toEqual(["Maklervereinbarung Julia Atkinson 2026"]);
-    expect(julia.abgelaufen.map((d) => d.name)).toEqual(["Maklervereinbarung Julia Atkinson 2023"]);
+    const thomas = partnerAgreements(base, "thomas", "lucy");
+    expect(thomas.gueltig.map((d) => d.name)).toEqual(["Maklervereinbarung Thomas Debrezina 2026"]);
+    expect(thomas.abgelaufen.map((d) => d.name)).toEqual(["Maklervereinbarung Thomas Debrezina 2023"]);
+    // Interessent / Einfache Person: no Maklervereinbarung in the DMS.
+    expect(Object.values(partnerAgreements(base, "julia", "lucy")).flat()).toHaveLength(0);
+    expect(Object.values(partnerAgreements(base, "ashley", "lucy")).flat()).toHaveLength(0);
     const lunixo = partnerAgreements(base, "lunixo", "lucy");
     expect(lunixo.entwuerfe).toHaveLength(1);
     const draft = lunixo.entwuerfe[0];

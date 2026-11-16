@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ManagementAreaIcon } from "./manager/BestandChrome";
 import * as a from "./assets/index";
 import { getPartner } from "./person/partners";
 import { partyName } from "./person/konzernLinks";
@@ -155,10 +156,7 @@ export function FileTabs() {
         <div className="person-tab inactive" key="management">
           <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
           <span className="person-tab-body mgmt-tab">
-            <span className="mgmt-icon">
-              <img src={a.mgmtAreaShelf} alt="" />
-              <img src={a.mgmtAreaPerson} alt="" />
-            </span>
+            <ManagementAreaIcon />
             <button type="button" className="mgmt-tab-copy person-tab-open" onClick={openManagement}>
               Management
               <br />
@@ -254,8 +252,8 @@ export function MitarbeiterTabs() {
           <div className={active ? "person-tab" : "person-tab inactive"} key={id}>
             <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
             <span className="person-tab-body">
-              <span className="emp-avatar">
-                <img src={person.photo} alt="" />
+              <span className={person.photo ? "emp-avatar" : "emp-avatar blank"}>
+                <img src={person.photo || a.clientBlank} alt="" />
                 <img className="emp-dot" src={a.statusDot} alt="" />
               </span>
               {active ? (

@@ -1,6 +1,6 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import * as a from "../assets/index";
-import { ContextMenu, Icon } from "../ui";
+import { ContextMenu, Icon, type ContextItem } from "../ui";
 import type { Block, Card, Empty, Row, Value } from "./stammdaten";
 import { FILE_PARTNERS, type PartnerId } from "./partners";
 import { useWorkflow } from "../workflow";
@@ -358,6 +358,7 @@ export function DataCard({
   onAdd,
   full,
   headerExtra,
+  menuItems = [],
   deleteLabel = "Löschen",
   deleteIcon = a.trash,
 }: {
@@ -369,14 +370,17 @@ export function DataCard({
   onAdd?: () => void;
   full?: boolean;
   headerExtra?: ReactNode;
+  /** Extra actions for the ⋮ menu (e.g. status changes), listed before Editieren / Löschen. */
+  menuItems?: ContextItem[];
   deleteLabel?: string;
   deleteIcon?: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
   if (card.empty) return <EmptyCard empty={card.empty} onAdd={onAdd} />;
 
   const previous = card.previous;
   const titleChanged = Boolean(previous?.title && previous.title !== card.title);
-  const clamp = Boolean(card.clampTo) && !full;
+  const clamp = Boolean(card.clampTo) && !full && !expanded;
   const className = [
     "pp-card",
     clamp ? "clamped" : "",
@@ -404,9 +408,10 @@ export function DataCard({
         </span>
         <span className="pp-card-actions">
           {headerExtra}
-          {onEdit || onDelete ? (
+          {onEdit || onDelete || menuItems.length > 0 ? (
             <ContextMenu
               items={[
+                ...menuItems,
                 ...(onEdit ? [{ label: "Editieren", icon: a.menuEdit, onSelect: onEdit }] : []),
                 ...(onDelete
                   ? [{ label: deleteLabel, icon: deleteIcon, danger: true, onSelect: onDelete }]
@@ -421,23 +426,25 @@ export function DataCard({
         </span>
       </header>
 
-      <div className="pp-card-body" style={clamp && card.clampTo ? { maxHeight: card.clampTo - 90 } : undefined}>
+      {/* Clamped: the card keeps its height, the body stops above the "Alle Daten anzeigen" footer. */}
+      <div className="pp-card-body" style={clamp && card.clampTo ? { maxHeight: card.clampTo - 150 } : undefined}>
         {(card.blocks ?? []).map((block, index) => (
           <BlockView block={block} previous={previous?.blocks?.[index]} key={index} />
         ))}
       </div>
 
-      {clamp ? (
-        <footer className="pp-card-more">
+      {card.clampTo && !full ? (
+        <footer className={clamp ? "pp-card-more" : "pp-card-more open"}>
+          {/* Opens the whole card in place (it does not start the card's workflow). */}
           <a
             href="#daten"
             onClick={(event) => {
-              if (!onSelect) return;
               event.preventDefault();
-              onSelect();
+              event.stopPropagation();
+              setExpanded((value) => !value);
             }}
           >
-            Alle Daten anzeigen
+            {clamp ? "Alle Daten anzeigen" : "Weniger anzeigen"}
           </a>
         </footer>
       ) : null}

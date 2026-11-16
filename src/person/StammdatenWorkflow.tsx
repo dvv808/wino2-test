@@ -6,7 +6,13 @@ import { WicoDeviationBox } from "../Summary";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { DeleteCard } from "./DeleteCard";
-import { getPartner, type PartnerId } from "./partners";
+import { FILE_PARTNERS, getPartner, type PartnerId } from "./partners";
+import { partnerDashboardHash } from "../routing";
+
+/** Kontoinhaber can only be Wino partners (persons): their accounts are linked, not retyped. */
+const BANK_PEOPLE = Object.values(FILE_PARTNERS)
+  .filter((partner) => partner.fileKind !== "company")
+  .map((partner) => partner.name);
 import { useFamilyLinks } from "./familyLinks";
 import { useKonzernLinks } from "./konzernLinks";
 import { SaveConfirm } from "./SaveConfirm";
@@ -179,6 +185,7 @@ export function StammdatenWorkflow() {
     originContact,
     personName,
     openPartner,
+    bankAccountsOf,
   } = useWorkflow();
   const family = useFamilyLinks();
   const konzern = useKonzernLinks();
@@ -353,11 +360,13 @@ export function StammdatenWorkflow() {
   function updateBank(form: BankForm) {
     if (isHistorical) return;
     setBank(form);
+    // Another Wino partner's account: the card shows that partner as linked Kontoinhaber.
+    const linked = form.person && form.person !== personName ? (bankAccountsOf(form.person)?.partner ?? undefined) : undefined;
     if (selected) {
-      patchStammdatenCard(stammdatenArea, applyBank(selected, form, true));
+      patchStammdatenCard(stammdatenArea, applyBank(selected, form, true, linked));
       return;
     }
-    addStammdatenCard(applyBank({ id: `bankverbindungen-${Date.now()}` }, form, true));
+    addStammdatenCard(applyBank({ id: `bankverbindungen-${Date.now()}` }, form, true, linked));
   }
 
   function updateWirtschaft(form: WirtschaftForm) {
@@ -698,7 +707,17 @@ export function StammdatenWorkflow() {
                     <AddressFields form={address} onChange={updateAddress} />
                   )}
                   {stammdatenArea === "bankverbindungen" && (
-                    <BankFields form={bank} onChange={updateBank} partnerId={filePartnerId} />
+                    <BankFields
+                      form={bank}
+                      onChange={updateBank}
+                      partnerId={filePartnerId}
+                      holder={personName}
+                      people={BANK_PEOPLE.filter((name) => name !== personName)}
+                      lookup={bankAccountsOf}
+                      onOpenOwner={(id) =>
+                        window.open(`${location.pathname}${partnerDashboardHash(id as PartnerId)}`, "_blank", "noopener")
+                      }
+                    />
                   )}
                 </form>
                 </div>

@@ -341,3 +341,8 @@ export { default as mOvDeclined } from "./icons/m-ov-declined.svg";
 export { default as mOvDocMissing } from "./icons/m-ov-docmissing.svg";
 export { default as mOvLocation } from "./icons/m-ov-location.svg";
 export { default as mOvCalendar } from "./icons/m-ov-calendar.svg";
+export { default as plausiBadgeWico } from "./icons/plausi-badge-wico.svg";
+export { default as plausiBadgeWino } from "./icons/plausi-badge-wino.svg";
+export { default as avatarBgDark } from "./icons/avatar-bg-dark.svg";
+export { default as personSmallWhite } from "./icons/person-small-white.svg";
+export { default as infoRing20 } from "./icons/info-ring-20.svg";

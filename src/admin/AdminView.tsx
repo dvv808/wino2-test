@@ -10,6 +10,11 @@ import { Zuordnung } from "../dms/admin/Zuordnung";
 import type { Ansicht } from "../types/dms";
 import { useDms } from "../dms/store";
 import { GlobalSearch } from "../search/GlobalSearch";
+import { ConstructionArt } from "../mein-bereich/MeinBereichView";
+
+/** Admin areas: Spaces (DMS), plus HRM Admin and Rollen & Berechtigungen (content follows). */
+const AREAS = ["Spaces", "HRM Admin", "Rollen & Berechtigungen"] as const;
+type Area = (typeof AREAS)[number];
 
 /** Ordner Zuordnung (build and link) and Spaces (the outcome) belong together, like a pill group in HRM. */
 const PAIR = [
@@ -45,6 +50,7 @@ export function AdminView() {
   const { closeAdmin } = useWorkflow();
   const { state } = useDms();
   const [page, setPage] = useKeptState<Page>("admin.page", "zuordnung");
+  const [area, setArea] = useKeptState<Area>("admin.area", "Spaces");
   // Spaces simulates the real thing: a DMS-Admin gets the Verwaltung structure, everyone else the Standard one.
   // Switch the person in the Spaces header to see the other outcome.
   const viewer = state.people.find((p) => p.id === state.activePerson);
@@ -77,15 +83,30 @@ export function AdminView() {
         </header>
 
         <nav className="area-nav mb-area-nav">
-          <span className="area-tab active">
-            <img className="tab-ear left" src={a.appTabLeft} alt="" width={10} height={10} />
-            <button type="button" className="area-tab-body">
-              Spaces
-            </button>
-            <img className="tab-ear flip" src={a.appTabRight} alt="" width={10} height={10} />
-          </span>
+          {AREAS.map((item) => {
+            const active = item === area;
+            return (
+              <span className={active ? "area-tab active" : "area-tab"} key={item}>
+                {active ? <img className="tab-ear left" src={a.appTabLeft} alt="" width={10} height={10} /> : null}
+                <button type="button" className="area-tab-body" aria-current={active ? "page" : undefined} onClick={() => setArea(item)}>
+                  {item}
+                </button>
+                {active ? <img className="tab-ear flip" src={a.appTabRight} alt="" width={10} height={10} /> : null}
+              </span>
+            );
+          })}
         </nav>
 
+        {area !== "Spaces" ? (
+          <div className="content-shell mb-body">
+            <section className="mb-empty">
+              <ConstructionArt />
+              <h1>Seite noch im Aufbau</h1>
+              <p>Diese Seite wird noch erstellt und wird veröffentlicht sobald sie fertig entwickelt wurde.</p>
+            </section>
+          </div>
+        ) : (
+        <>
         <div className="module-nav">
           <div className="module-group">
             {PAIR.map((item) => (
@@ -134,6 +155,8 @@ export function AdminView() {
             </AdminOnly>
           ) : null}
         </div>
+        </>
+        )}
       </div>
     </div>
   );

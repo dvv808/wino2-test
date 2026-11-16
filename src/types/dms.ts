@@ -188,7 +188,7 @@ export type DmsPerson = { id: PersonId; name: string; rollen: Rolle[]; photo?: s
 export type Gruppe = { id: GroupId; name: string; members: PersonId[] };
 
 export type DmsState = {
-  version: 3;
+  version: 4;
   /** "Today" of the prototype, so automatic transitions and "nicht aktuell" are reproducible. */
   today: string;
   activePerson: PersonId;

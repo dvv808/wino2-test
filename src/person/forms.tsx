@@ -165,6 +165,7 @@ export function PartnerSearch({
   placeholder = "Partner suchen",
   icon = a.personSmall,
   allowCreate = true,
+  emptyText = "Jeder Kontakt muss auch als Partner existieren um ihn als Kontakt hinzuzufügen",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -174,6 +175,8 @@ export function PartnerSearch({
   icon?: string;
   /** When false, typed names that are not in `options` cannot be created. */
   allowCreate?: boolean;
+  /** Hint under "Keine Treffer gefunden!". */
+  emptyText?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
@@ -288,7 +291,7 @@ export function PartnerSearch({
               <Icon src={a.noResults} size={32} />
               <p>
                 <strong>Keine Treffer gefunden!</strong>
-                Jeder Kontakt muss auch als Partner existieren um ihn als Kontakt hinzuzufügen
+                {emptyText}
               </p>
               {allowCreate ? (
                 <button
@@ -1148,41 +1151,207 @@ export function AddressFields({
   );
 }
 
+type BankLookup = (name: string) => { partner: { id: string; name: string }; accounts: BankForm[] } | null;
+
+function hasSepa(account: BankForm) {
+  return /sepa/i.test(account.notiz) && !/kein sepa/i.test(account.notiz);
+}
+
+/** One account in the "Bankverbindung für Abbuchung" picker: bank avatar, owner / institute / IBAN. */
+function BankAccountLine({ owner, account }: { owner: string; account: BankForm }) {
+  return (
+    <span className="bank-pick-line">
+      <span className="pp-person-avatar">
+        <img src={a.avatarBg} alt="" width={32} height={32} />
+        <img className="glyph" src={a.bank} alt="" width={21} height={21} />
+      </span>
+      <span className="bank-pick-copy">
+        {owner}
+        <br />
+        {account.institut}
+        <br />
+        {account.iban}
+      </span>
+    </span>
+  );
+}
+
+/** Figma 22828:443532: picks one of the chosen person's own accounts. */
+function BankAccountPick({
+  owner,
+  accounts,
+  value,
+  onPick,
+}: {
+  owner: string;
+  accounts: BankForm[];
+  value: string;
+  onPick: (account: BankForm) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement | null>(null);
+  const current = accounts.find((account) => account.iban === value);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => {
+      if (!wrap.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
+  return (
+    <div className="bank-pick" ref={wrap}>
+      <button type="button" className={open ? "bank-pick-field open" : "bank-pick-field"} onClick={() => setOpen((v) => !v)}>
+        {current ? (
+          <BankAccountLine owner={owner} account={current} />
+        ) : (
+          <span className="bank-pick-line">
+            <span className="pp-person-avatar">
+              <img src={a.avatarBg} alt="" width={32} height={32} />
+              <img className="glyph" src={a.bank} alt="" width={21} height={21} />
+            </span>
+            <span className="bank-pick-placeholder">Auswählen</span>
+          </span>
+        )}
+        <Icon src={a.selectCaret} size={16} />
+      </button>
+      {open ? (
+        <div className="bank-pick-menu" role="listbox">
+          {accounts.map((account) => {
+            const picked = account.iban === value;
+            return (
+              <button
+                type="button"
+                role="option"
+                aria-selected={picked}
+                key={account.iban}
+                className={picked ? "bank-pick-item picked" : "bank-pick-item"}
+                onClick={() => {
+                  onPick(account);
+                  setOpen(false);
+                }}
+              >
+                <BankAccountLine owner={owner} account={account} />
+                {hasSepa(account) ? null : <small>Kein SEPA</small>}
+                <img src={picked ? a.confirmOn : a.confirmOff} alt="" width={18} height={18} />
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Bankverbindung form. Choosing another person than the partner of this file links one of that person's
+ * own accounts (Figma 22828:442698): only Wino partners can be picked, their bank data comes from their
+ * own profile and stays read-only here.
+ */
 export function BankFields({
   form,
   onChange,
   partnerId,
+  holder,
+  people,
+  lookup,
+  onOpenOwner,
 }: {
   form: BankForm;
   onChange: (form: BankForm) => void;
   /** The file the bank documents belong to (DMS upload context). */
   partnerId: string;
+  /** Name of the partner whose file this is. */
+  holder: string;
+  /** Wino partners that can be picked as Kontoinhaber. */
+  people: string[];
+  lookup: BankLookup;
+  onOpenOwner: (partnerId: string) => void;
 }) {
   const set = <K extends keyof BankForm>(key: K, value: BankForm[K]) =>
     onChange({ ...form, [key]: value });
+  const other = Boolean(form.person) && form.person !== holder;
+  const found = other ? lookup(form.person) : null;
+  const accounts = found?.accounts ?? [];
+
+  function pickPerson(person: string) {
+    if (!person || person === holder) {
+      onChange({ ...form, person, iban: "", bic: "", institut: "" });
+      return;
+    }
+    const own = lookup(person)?.accounts ?? [];
+    const first = own.length === 1 ? own[0] : null;
+    onChange({ ...form, person, iban: first?.iban ?? "", bic: first?.bic ?? "", institut: first?.institut ?? "" });
+  }
+
+  const locked = (label: string, value: string) => (
+    <label className="block">
+      <span className="field-label">{label}</span>
+      <input className="text-field locked" value={value} readOnly tabIndex={-1} />
+    </label>
+  );
 
   return (
     <>
       <h3>Konto Details</h3>
       <Field label="Person auswählen">
-        <Select
+        {/* Same partner search as in Kontakte; only Wino partners, no new names (they need their own profile first). */}
+        <PartnerSearch
           value={form.person}
-          onChange={(value) => set("person", value)}
-          options={[form.person, "Julia Atkinson", "Thomas Atkinson"].filter(
-            (name, index, all) => name && all.indexOf(name) === index,
-          )}
-          placeholder="Person auswählen"
+          onChange={pickPerson}
+          options={[holder, ...people].filter((name, index, all) => name && all.indexOf(name) === index)}
+          placeholder="Person suchen"
+          allowCreate={false}
+          emptyText="Der Kontoinhaber muss als Partner in Wino existieren – lege ihn zuerst mit seiner Bankverbindung an."
         />
       </Field>
-      <Field label="IBAN">
-        <Text value={form.iban} onChange={(value) => set("iban", value)} />
-      </Field>
-      <Field label="BIC">
-        <Text value={form.bic} onChange={(value) => set("bic", value)} />
-      </Field>
-      <Field label="Kreditinstitut">
-        <Text value={form.institut} onChange={(value) => set("institut", value)} />
-      </Field>
+      {other ? (
+        <div className="block">
+          <div className="bank-pick-head">
+            <span className="field-label">Bankverbindung für Abbuchung</span>
+            {found ? (
+              <button type="button" className="bank-pick-edit" onClick={() => onOpenOwner(found.partner.id)}>
+                <Icon src={a.edit} size={20} />
+                anpassen
+              </button>
+            ) : null}
+          </div>
+          {accounts.length ? (
+            <BankAccountPick
+              owner={form.person}
+              accounts={accounts}
+              value={form.iban}
+              onPick={(account) =>
+                onChange({ ...form, iban: account.iban, bic: account.bic, institut: account.institut })
+              }
+            />
+          ) : (
+            <InfoBox>
+              {form.person} hat noch keine eigene Bankverbindung in Wino. Lege sie zuerst in deren Profil an, dann kann
+              sie hier verknüpft werden.
+            </InfoBox>
+          )}
+        </div>
+      ) : null}
+      {other ? (
+        <>
+          {locked("IBAN", form.iban)}
+          {locked("BIC", form.bic)}
+          {locked("Kreditinstitut", form.institut)}
+        </>
+      ) : (
+        <>
+          <Field label="IBAN">
+            <Text value={form.iban} onChange={(value) => set("iban", value)} />
+          </Field>
+          <Field label="BIC">
+            <Text value={form.bic} onChange={(value) => set("bic", value)} />
+          </Field>
+          <Field label="Kreditinstitut">
+            <Text value={form.institut} onChange={(value) => set("institut", value)} />
+          </Field>
+        </>
+      )}
       <Field label="Notiz zur Bankverbindung">
         <Area value={form.notiz} onChange={(value) => set("notiz", value)} />
       </Field>

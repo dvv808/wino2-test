@@ -1,25 +1,35 @@
 import * as a from "../assets/index";
 import { LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { getPartner } from "../person/partners";
-import { Icon } from "../ui";
+import { useState } from "react";
+import { Icon, useClickOutside } from "../ui";
+import { MitarbeiterCreate } from "./MitarbeiterCreate";
 import { useWorkflow } from "../workflow";
 import { GlobalSearch } from "../search/GlobalSearch";
 
 const AREAS = ["Dashboard", "HRM", "Bestand", "Finanzen", "Berichte", "Marketing", "Honorare"];
 
+/** Same dark 24px icon set as the other content navs (Figma Content Nav 17685:117826). */
 const MODULES = [
-  { label: "Dokumente", icon: a.folder },
-  { label: "Notizen", icon: a.notes },
-  { label: "Mail", icon: a.mail },
-  { label: "Aufgaben Übersicht", icon: a.todo },
+  { label: "Dokumente", icon: a.navFolder },
+  { label: "Notizen", icon: a.navNotes },
+  { label: "Mail", icon: a.navMail },
+  { label: "Aufgaben Übersicht", icon: a.navTodo },
 ];
 
-/** The management-area glyph is a shelf over a person, two layers in Figma. */
+/** The Module dropdown: Weiterbildungen and Mitarbeiter anlegen (opens the create flow). */
+const MODULE_ITEMS = ["Weiterbildungen", "Mitarbeiter anlegen"] as const;
+
+/** The Management tab shows the Winter Versicherung area icon from the profile menu: the orbit shelf with the W mark. */
 export function ManagementAreaIcon() {
   return (
-    <span className="mgmt-icon">
-      <img src={a.mgmtAreaShelf} alt="" />
-      <img src={a.mgmtAreaPerson} alt="" />
+    <span className="mgmt-icon area">
+      <span className="layer" style={{ inset: "16.67% 3.25% 23.82% 4.17%" }}>
+        <img src={a.profileAreaShelf} alt="" />
+      </span>
+      <span className="layer" style={{ inset: "44.79% 26.17% 7.3% 25.92%" }}>
+        <img src={a.profileAreaWinter} alt="" />
+      </span>
     </span>
   );
 }
@@ -194,6 +204,9 @@ export function BestandAreaNav({ active: current = "Bestand", onArea }: { active
 }
 
 export function BestandModuleNav() {
+  const [menu, setMenu] = useState(false);
+  const [create, setCreate] = useState(false);
+  const ref = useClickOutside<HTMLDivElement>(menu, () => setMenu(false));
   return (
     <div className="module-nav">
       <button type="button" className="module-pill active">
@@ -201,15 +214,36 @@ export function BestandModuleNav() {
         Dashboard &amp; Listen
       </button>
 
-      <div className="module-pill module-select">
-        <span className="module-select-label">
-          <Icon src={a.category} size={24} />
-          Module
-        </span>
-        <button type="button" className="module-select-value">
-          Weiterbildungen
-          <Icon src={a.chevronDown} size={16} />
-        </button>
+      <div className="module-pick" ref={ref}>
+        <div className={menu ? "module-pill module-select open" : "module-pill module-select"}>
+          <span className="module-select-label">
+            <Icon src={a.category} size={24} />
+            Module
+          </span>
+          <button type="button" className="module-select-value" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>
+            Weiterbildungen
+            <Icon src={a.chevronDown} size={16} />
+          </button>
+        </div>
+        {menu ? (
+          <div className="module-menu" role="menu">
+            {MODULE_ITEMS.map((item) => (
+              <button
+                type="button"
+                role="menuitem"
+                key={item}
+                className={item === "Weiterbildungen" ? "active" : ""}
+                onClick={() => {
+                  setMenu(false);
+                  if (item === "Mitarbeiter anlegen") setCreate(true);
+                }}
+              >
+                <Icon src={item === "Mitarbeiter anlegen" ? a.plusCircle : a.mbEducation} size={18} />
+                {item}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="module-group">
@@ -225,6 +259,8 @@ export function BestandModuleNav() {
         <Icon src={a.settings} size={24} />
         Settings
       </button>
+
+      {create ? <MitarbeiterCreate onClose={() => setCreate(false)} /> : null}
     </div>
   );
 }

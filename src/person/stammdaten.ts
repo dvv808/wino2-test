@@ -5,7 +5,7 @@ import {
   companyShellFirmenbuch,
   companyWirtschaftCards,
 } from "./companyWirtschaft";
-import { FILE_PARTNERS, type FileContact } from "./partners";
+import { FILE_PARTNERS, partnerKindText, type FileContact, type FilePartner } from "./partners";
 
 /**
  * The Stammdaten page is a long stack of sections, and every section holds one or
@@ -1266,9 +1266,15 @@ export function addressForm(card: Card): AddressForm {
   };
 }
 
+/** Who owns a bank account: the Kontoinhaber row, or the linked partner shown above the Kontodetails. */
+export function bankOwner(card: Card) {
+  const person = card.blocks?.find((block) => block.kind === "person" && block.caption === "Kontoinhaber");
+  return person?.kind === "person" ? person.name : rowValue(card, "Kontoinhaber");
+}
+
 export function bankForm(card: Card): BankForm {
   return {
-    person: rowValue(card, "Kontoinhaber"),
+    person: bankOwner(card),
     iban: rowValue(card, "IBAN"),
     bic: rowValue(card, "BIC"),
     institut: rowValue(card, "Kreditinstitut"),
@@ -1392,9 +1398,42 @@ export function applyAddress(card: Card, form: AddressForm, draft = false): Card
   };
 }
 
-export function applyBank(card: Card, form: BankForm, draft = false): Card {
+/**
+ * `linked`: the account belongs to another Wino partner (Figma 22828:442698). The card then shows that
+ * partner as Kontoinhaber and the account under Kontodetails; the account itself lives in their profile.
+ */
+export function applyBank(card: Card, form: BankForm, draft = false, linked?: FilePartner): Card {
   const defined = Boolean(form.person || form.iban || form.institut);
   const extras = (card.blocks ?? []).filter((block) => block.kind === "usage" || block.kind === "badge");
+  const details: Card["blocks"] = linked
+    ? [
+        {
+          kind: "person",
+          caption: "Kontoinhaber",
+          tag: partnerKindText(linked.kind),
+          name: linked.name,
+          sub: linked.born ?? "-",
+          party: linked.fileKind === "company" ? "company" : "person",
+        },
+        {
+          kind: "rows",
+          caption: "Kontodetails",
+          rows: [
+            { label: "Kreditinstitut", value: dash(form.institut) },
+            { label: "IBAN", value: dash(form.iban) },
+          ],
+        },
+      ]
+    : [
+        {
+          kind: "rows",
+          rows: [
+            { label: "Kontoinhaber", value: dash(form.person) },
+            { label: "Kreditinstitut", value: dash(form.institut) },
+            { label: "IBAN", value: dash(form.iban) },
+          ],
+        },
+      ];
   return {
     ...card,
     draft,
@@ -1402,14 +1441,7 @@ export function applyBank(card: Card, form: BankForm, draft = false): Card {
       ? [form.institut, form.person].filter(Boolean).join(" - ") || "Bankverbindung"
       : "Nicht definiert",
     blocks: [
-      {
-        kind: "rows",
-        rows: [
-          { label: "Kontoinhaber", value: dash(form.person) },
-          { label: "Kreditinstitut", value: dash(form.institut) },
-          { label: "IBAN", value: dash(form.iban) },
-        ],
-      },
+      ...(details ?? []),
       {
         kind: "files",
         caption: "Anhänge",
@@ -1923,6 +1955,92 @@ export function cloneCompanySections(
               files: [],
             }),
           ),
+        }
+      : section,
+  );
+}
+
+/** Normalised IBAN, to tell whether two cards describe the same account. */
+export function ibanKey(iban: string) {
+  return iban.replace(/\s+/g, "").toUpperCase();
+}
+
+/** The accounts a partner owns, from their own Bankverbindungen (accounts linked from others are left out). */
+export function ownBankAccounts(sections: Section[], owner: string): BankForm[] {
+  const bank = sections.find((section) => section.id === "bankverbindungen");
+  return (bank?.cards ?? [])
+    .filter((card) => !card.empty && bankOwner(card) === owner && rowValue(card, "IBAN"))
+    .map((card) => bankForm(card));
+}
+
+/**
+ * A Bankverbindung can only use another person's account when that person is a Wino partner and the account
+ * is in their own profile. This pass links every such card to its owner and makes sure the owner has it.
+ */
+export function linkBankOwners<F extends { sections: Section[] }>(
+  files: Record<string, F>,
+  partners: FilePartner[],
+): Record<string, F> {
+  const next: Record<string, F> = { ...files };
+  const byName = new Map(partners.map((partner) => [partner.name, partner]));
+  for (const holder of partners) {
+    const file = next[holder.id];
+    const bank = file?.sections.find((section) => section.id === "bankverbindungen");
+    if (!file || !bank) continue;
+    for (const card of bank.cards) {
+      if (card.empty) continue;
+      const owner = byName.get(bankOwner(card));
+      if (!owner || owner.id === holder.id) continue;
+      const form = bankForm(card);
+      // The holder's card shows the owner as a linked partner.
+      next[holder.id] = {
+        ...next[holder.id],
+        sections: next[holder.id].sections.map((section) =>
+          section.id === "bankverbindungen"
+            ? { ...section, cards: section.cards.map((entry) => (entry.id === card.id ? applyBank(entry, form, entry.draft, owner) : entry)) }
+            : section,
+        ),
+      };
+      // The owner has the account in their own profile.
+      const ownerFile = next[owner.id];
+      if (!ownerFile) continue;
+      const ownerBank = ownerFile.sections.find((section) => section.id === "bankverbindungen");
+      if (!ownerBank || ownerBank.cards.some((entry) => !entry.empty && ibanKey(rowValue(entry, "IBAN")) === ibanKey(form.iban))) continue;
+      const own = applyBank({ id: `bank-own-${ibanKey(form.iban).toLowerCase()}` }, form);
+      const used: Card = {
+        ...own,
+        blocks: [
+          ...(own.blocks ?? []),
+          { kind: "badge", icon: a.bank, caption: "Verwendung", text: `Verknüpft bei ${holder.name}`, above: true },
+        ],
+      };
+      next[owner.id] = {
+        ...ownerFile,
+        sections: ownerFile.sections.map((section) =>
+          section.id === "bankverbindungen" ? { ...section, cards: [...section.cards.filter((entry) => !entry.empty), used] } : section,
+        ),
+      };
+    }
+  }
+  return next;
+}
+
+/** Puts a partner's own account into their Bankverbindungen (replacing the empty placeholder). */
+export function withOwnBank(sections: Section[], id: string, form: BankForm): Section[] {
+  return sections.map((section) =>
+    section.id === "bankverbindungen"
+      ? {
+          ...section,
+          cards: [
+            ...section.cards.filter((card) => !card.empty),
+            {
+              ...applyBank({ id }, form),
+              blocks: [
+                ...(applyBank({ id }, form).blocks ?? []),
+                { kind: "badge", icon: a.bank, caption: "Verwendung", text: "Konto nicht in Verwendung", above: true },
+              ],
+            },
+          ],
         }
       : section,
   );

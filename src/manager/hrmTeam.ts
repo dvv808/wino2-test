@@ -36,7 +36,13 @@ export type TeamMember = {
   zeitkonto: number;
   /** Last Mitarbeitergespräch: days ago, kind and status. None = "nicht vorhanden". */
   gespraech?: { vorTagen: number; art: "Gespräch" | "Jahresgespräch" | "Probezeitgespräch"; status: "abgeschlossen" | "offen" };
+  /** Created with "Mitarbeiter anlegen": Bewerber and Bewerber Potential are not (yet) employed. */
+  typ?: MitarbeiterTyp;
+  /** Created with "Mitarbeiter anlegen": everything entered there, shown in the employee tab. */
+  angelegt?: Record<string, string>;
 };
+
+export type MitarbeiterTyp = "Mitarbeiter" | "Bewerber" | "Bewerber Potential";
 
 type Row = [string, string, string, number, number, number, number, number, number, number, number, number, boolean, number, number, TeamMember["gespraech"]?];
 
@@ -147,3 +153,37 @@ export const todayIso = () => iso(new Date());
 
 /** A department by the slug of its name, e.g. "beratung-service". */
 export const abteilungBySlug = (slug: string) => ABTEILUNGEN.find((dept) => slugOf(dept.name) === slug);
+
+/**
+ * "Mitarbeiter anlegen": adds a person to the team. A Mitarbeiter joins their Abteilung (and so the side nav);
+ * Bewerber and Bewerber Potential only get their own tab for now.
+ */
+export function registerMember(entry: { name: string; role: string; abteilung: string; typ: MitarbeiterTyp; urlaubAnspruch: number; angelegt: Record<string, string> }) {
+  const existing = TEAM.find((m) => m.name === entry.name);
+  if (existing) return existing;
+  const created: TeamMember = {
+    name: entry.name,
+    role: entry.role,
+    photo: "",
+    abteilung: entry.typ === "Mitarbeiter" ? entry.abteilung : "",
+    workflows: 0,
+    urlaubAnspruch: entry.urlaubAnspruch,
+    urlaubVerbraucht: 0,
+    krank: 0,
+    krankWoche: 0,
+    krankVorwoche: 0,
+    dv: 0,
+    dvWoche: 0,
+    dvVorwoche: 0,
+    homeoffice: 0,
+    soll: SOLL,
+    abschluss: true,
+    fehler: 0,
+    zeitkonto: 0,
+    typ: entry.typ,
+    angelegt: entry.angelegt,
+  };
+  TEAM.push(created);
+  if (entry.typ === "Mitarbeiter") ABTEILUNGEN.find((d) => d.name === entry.abteilung)?.people.push(entry.name);
+  return created;
+}
