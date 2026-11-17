@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as a from "../assets/index";
 import { hhmm, iso, parseIso } from "../home/calendar/calendarData";
 import { MiniMonth } from "../home/calendar/MiniMonth";
-import { TEAM } from "../manager/hrmTeam";
+import { TEAM, isEmployee } from "../manager/hrmTeam";
 import { FILE_PARTNERS } from "../person/partners";
 import { QUARTERS, TERMINARTEN, loadTermine, saveTermine } from "./termine";
 
@@ -285,7 +285,7 @@ export function MobileTerminForm({ day: startDay, art, onBack, onSaved }: { day:
             ))}
             {winter.length === 0 ? <em>Keine Teilnehmer</em> : null}
           </div>
-          <Picker label="Personen suchen" options={TEAM.map((m) => m.name).filter((n) => !winter.includes(n))} onPick={(name) => setWinter((list) => [...list, name])} />
+          <Picker label="Personen suchen" options={TEAM.filter(isEmployee).map((m) => m.name).filter((n) => !winter.includes(n))} onPick={(name) => setWinter((list) => [...list, name])} />
         </div>
         <div className="m-field">
           <span className="m-label">Teilnehmer Extern</span>

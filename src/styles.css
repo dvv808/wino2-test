@@ -27172,3 +27172,728 @@ button.m-chip {
 .bank-pick-item.picked {
   background: linear-gradient(16deg, #ffffff 13%, var(--wino-bg-darker) 97%);
 }
+
+/* Mitarbeiter anlegen: HRM Berater avatar dropdown (Wino - Concepts 21743:72128). */
+.hr-pick-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.hr-pick-field > span:not(.icon) {
+  flex: 1;
+  min-width: 0;
+}
+.hr-pick-avatar {
+  flex: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.hr-pick-avatar.big {
+  width: 32px;
+  height: 32px;
+}
+.hr-pick-menu .comms-option {
+  align-items: center;
+}
+
+/* Mitarbeiter tab: Stammdaten section Anstellung (moved out of Mitarbeiter anlegen). */
+.ma-anstellung .ma-anstellung-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px 32px;
+}
+.ma-anstellung-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.ma-anstellung-head h2 {
+  margin: 0;
+}
+.hr-pick-menu ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hr-pick-menu .comms-option {
+  width: 100%;
+  gap: 12px;
+}
+
+/* Generated Mitarbeiter without a photo: the blank person on a white disc. */
+.emp-avatar img.blank {
+  background: var(--wino-white);
+  border-radius: 50%;
+}
+
+/* Mitarbeiter tab dashboard: the employee profile card left, the HRM dashboard of that one person right. */
+.ma-dash {
+  display: grid;
+  grid-template-columns: 406px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 16px 24px 24px;
+  background: var(--wino-bg-lighter);
+  overflow: auto;
+}
+.ma-dash-main {
+  min-width: 0;
+}
+.ma-dash-main > .hd {
+  margin-top: 0;
+}
+.ma-card .pd-avatar .ma-card-photo {
+  inset: 8px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.ma-card .pd-link-avatar .ma-card-face {
+  border-radius: 50%;
+  object-fit: cover;
+}
+.ma-card-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.ma-card-more {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--wino-black-medium);
+}
+.ma-dash-main {
+  container-type: inline-size;
+}
+/* Next to the profile card the dashboard has less room: below 1180px its card pairs stack. */
+@container (max-width: 1180px) {
+  .ma-dash-main .hd-row.top,
+  .ma-dash-main .hd-row.bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Mitarbeiter Profil: the photo on the business card. */
+.pp-id-avatar .ma-id-photo {
+  border-radius: 50%;
+  object-fit: cover;
+  inset: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+}
+.ma-card-anchor {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  scroll-margin-top: 16px;
+}
+.ma-card-anchor > .pp-card {
+  flex: 1;
+}
+
+/* Online status dot on employee photos: coded, never baked into the picture. */
+.ma-online {
+  position: absolute;
+  right: 4%;
+  bottom: 4%;
+  display: block;
+  width: 22%;
+  height: 22%;
+  min-width: 9px;
+  min-height: 9px;
+  z-index: 1;
+}
+.ma-online img {
+  position: static !important;
+  inset: auto !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+.ma-id-avatar {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+
+/* Tabs in the main nav (Figma 22880:444969): fixed 220 × 56 px (ears included), so the × never moves.
+   The name fills the room between icon and ×; two lines at most; what does not fit fades out (no "…"). */
+.main-nav .person-tab-body {
+  width: 200px;
+  flex: none;
+  box-sizing: border-box;
+}
+.main-nav .person-tab.inactive .person-tab-body {
+  width: 200px;
+}
+.main-nav .person-tab-body > .close-icon {
+  margin-left: auto;
+  flex: none;
+}
+.main-nav button.person-tab-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+}
+.tab-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 16px;
+  text-align: left;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+}
+.tab-label.two {
+  display: flex;
+  flex-direction: column;
+}
+.tab-label.two > span {
+  white-space: nowrap;
+}
+.tab-label.wrap {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: manual;
+  max-height: 32px;
+}
+/* Parked tabs take the same 220px as the active one (ears are hidden there, so the margin stands in for them). */
+.main-nav .person-tab.inactive {
+  margin: 0 10px;
+}
+
+/* "+N" tab counter (Figma 22880:444969): a small dark disc at the end of the tab row. */
+.main-nav-left {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+.main-nav .person-tab.tab-tucked {
+  display: none;
+}
+.tab-overflow {
+  position: relative;
+  align-self: center;
+  margin-left: 8px;
+  padding-bottom: 0;
+}
+.tab-overflow.empty {
+  display: none;
+}
+.tab-overflow-btn {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: #444f56;
+  color: var(--wino-white);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tab-overflow-btn:hover {
+  background: #56646c;
+}
+.tab-overflow-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid var(--wino-bg-darker);
+  border-radius: 12px;
+  background: var(--wino-white);
+  box-shadow: 0 12px 24px rgba(49, 53, 55, 0.18);
+}
+.tab-overflow-menu button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+.tab-overflow-menu button:hover {
+  background: var(--wino-bg-lighter);
+}
+
+/* Long values (e.g. mail addresses) wrap inside the card, preferably after "@" or a dot; never cut, never past the card. */
+.pp-val-text {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+/* In a narrow card the label gives up room first (down to 96px), so the value keeps enough width. */
+.pp-row > .pp-label {
+  flex: none;
+  width: min(200px, 42%);
+}
+
+/* Mitarbeiter business card in Profil (Figma 20379:190350): 552 × 252 dark card. */
+.ma-bizcard {
+  position: relative;
+  width: 100%;
+  max-width: 552px;
+  min-height: 252px;
+  box-sizing: border-box;
+  padding: 16px 16px 20px;
+  color: var(--wino-white);
+  overflow: hidden;
+  border-radius: 16px;
+}
+.ma-bizcard-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ma-bizcard-deco {
+  position: absolute;
+  top: 0;
+  right: 1px;
+  width: 190px;
+  height: 118px;
+  object-fit: none;
+  object-position: left top;
+  transform: scaleY(-1);
+  opacity: 0.5;
+  border-top-right-radius: 6px;
+}
+.ma-bizcard-w {
+  position: absolute;
+  left: 218px;
+  top: 159px;
+  width: 296px;
+  height: 93px;
+}
+.ma-bizcard-code {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+  color: #c6ccda;
+}
+.ma-bizcard-head {
+  position: relative;
+  padding-right: 48px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ma-bizcard-photo {
+  position: relative;
+  flex: none;
+  width: 48px;
+  height: 48px;
+}
+.ma-bizcard-photo > img:first-child {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+.ma-bizcard-photo > img.blank {
+  background: var(--wino-white);
+}
+.ma-bizcard-dot {
+  position: absolute;
+  left: 35px;
+  top: 35px;
+  width: 13px;
+  height: 13px;
+}
+.ma-bizcard-who {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.ma-bizcard-who .chip {
+  height: 14px;
+  line-height: 12px;
+  font-size: 11px;
+}
+.ma-bizcard-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 1px;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+.ma-bizcard-mark {
+  position: relative;
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+.ma-bizcard-mark img {
+  position: absolute;
+  inset: 0;
+  width: 24px;
+  height: 24px;
+}
+.ma-bizcard-mark .glyph {
+  inset: 4px auto auto 4.5px;
+  width: 15px;
+  height: 16px;
+}
+.ma-bizcard-status {
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+.ma-bizcard-contacts {
+  position: relative;
+  margin: 12px 0 0 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ma-bizcard-contact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ma-bizcard-contact > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ma-bizcard-contact small {
+  font-size: 13px;
+  letter-spacing: 0.13px;
+  color: #c6ccda;
+}
+.ma-bizcard-contact strong {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ma-bizcard-icon {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+}
+.ma-bizcard-icon > img {
+  position: absolute;
+  inset: 0;
+  width: 32px;
+  height: 32px;
+}
+.ma-bizcard-icon > .icon {
+  position: relative;
+}
+
+/* Copy button next to the note button on phone / mail rows. */
+.pp-row-copy {
+  margin-right: -16px;
+  cursor: pointer;
+}
+.pp-row-copy.copied {
+  background: var(--wino-signal-greenlight);
+}
+/* The chip on the dark business card keeps its dark text (Figma: #313537 on the green chip). */
+.ma-bizcard .chip {
+  color: var(--wino-black-dark);
+}
+
+/* Home module nav: each pill in a wrapper so a divider can follow it (Bestand: after Schnellsuche). */
+.module-pill-wrap {
+  display: contents;
+}
+.module-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--wino-bg-darker);
+}
+
+/* Home → Bestand → Kunden (Figma 8534:82498). */
+.kd-shell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+}
+.kd-page {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 71px 24px;
+  background: var(--wino-white);
+  border-radius: 0 0 24px 24px;
+  overflow: auto;
+}
+.kd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.kd-head h1 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: 0.21px;
+}
+.kd-head h1 span {
+  margin-left: 28px;
+  font-weight: 400;
+}
+.kd-hot {
+  display: flex;
+  gap: 8px;
+}
+.kd-hot-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 32px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--wino-bg-lighter);
+  font: inherit;
+  font-size: 13px;
+  color: var(--wino-black-dark);
+  cursor: pointer;
+}
+.kd-hot-pill.active {
+  background: var(--wino-black-dark);
+  color: var(--wino-white);
+}
+.kd-hot-pill.active img {
+  filter: invert(1);
+}
+.kd-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.kd-avatar {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+.kd-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 40px;
+  height: 40px;
+}
+.kd-avatar .glyph {
+  inset: 10px;
+  width: 20px;
+  height: 20px;
+}
+.kd-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.kd-copy strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.kd-copy small {
+  font-size: 11px;
+  color: var(--wino-black-medium);
+}
+.kd-copy .kd-alert {
+  color: #d1314c;
+}
+/* Figma 22880:486482: unpaid subscription → red gradient at the start of the row; inactive customer → grey row. */
+.hn-st-row.kd-row.unpaid > .kd-kunde {
+  background: linear-gradient(90deg, #fbdde3 0%, #fdf1f3 60%, transparent 100%);
+}
+.hn-st-row.kd-row.inactive > div {
+  background: #f1f4f7;
+}
+.kd-avatar.kunde .glyph {
+  filter: brightness(0) invert(1);
+}
+.kd-avatar .kd-badge {
+  inset: 29px auto auto 11px;
+  width: 18px;
+  height: 18px;
+}
+.kd-lines {
+  font-size: 13px;
+  line-height: 16px;
+}
+.kd-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.kd-tags .chip small {
+  font-size: 9px;
+}
+.kd-berater {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.kd-berater .emp-avatar {
+  position: relative;
+  width: 24px;
+  height: 24px;
+}
+.kd-berater .emp-avatar img:first-child {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Maklervereinbarung stepper too wide (Figma 22742:231226): the last step stays pinned left of a pocket in the page
+   colour that holds ‹ ›; the other steps slide underneath it, a white fade marks the edge. */
+.stepper-wrap.overflowing {
+  position: relative;
+}
+.stepper-wrap.overflowing > .stepper {
+  position: relative;
+  scroll-behavior: smooth;
+  /* The pinned step ends 26px before the bar does (Figma): the pocket's curve covers that part. */
+  padding-right: 26px;
+}
+.stepper-wrap.overflowing .stepper .step:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  /* Figma: the badge ends 67px before the tab's right edge, clear of the pocket's curve. */
+  padding-right: 67px;
+  border-top-right-radius: 24px;
+}
+/* Pinned: its right side runs into the pocket, no turned curve there. */
+.stepper-wrap.overflowing .stepper .step:last-child::after {
+  content: none;
+}
+/* Behind the pinned tab's own curve (z-index -1 inside the tab), so only the part left of the curve shows:
+   a soft white edge over the steps sliding underneath, never a second tab background. */
+.stepper .step .step-fade {
+  position: absolute;
+  top: 0;
+  left: calc(-1 * var(--sw-slope) - 12px);
+  width: 64px;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+/* Only the part level with the bar: it stops at the bar's bottom edge like the other waves. */
+.stepper-pocket {
+  position: absolute;
+  /* Level with the tabs and exactly as tall: nothing reaches into the content below. */
+  top: 16px;
+  right: 16px;
+  z-index: 4;
+  width: 112px;
+  height: 59px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.stepper-pocket-bg {
+  position: absolute;
+  inset: 0;
+  width: 112px;
+  height: 84px;
+}
+.stepper-pocket button {
+  position: absolute;
+  top: 13px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.stepper-pocket button:nth-of-type(1) {
+  left: 44px;
+}
+.stepper-pocket button:nth-of-type(2) {
+  left: 75px;
+}
+.stepper-pocket button img {
+  position: absolute;
+  left: -18px;
+  top: -15px;
+  width: 64px;
+  height: 64px;
+  max-width: none;
+}
+.stepper-pocket button:hover:not(:disabled) img {
+  filter: brightness(1.2);
+}
+.stepper-pocket button:disabled {
+  cursor: default;
+}
+.stepper-pocket button:disabled img {
+  opacity: 0.35;
+}
+.stepper-wrap.overflowing .stepper .step:last-child .badge,
+.stepper-wrap.overflowing .stepper .step:last-child .step-label {
+  position: relative;
+}
+
+/* Documents before the Dokumentenfreigabe (step 5): an outlined "MUSTER" runs diagonally over every page. */
+.pdf-page.muster::after,
+.pdf-thumb.muster::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 420'%3E%3Ctext x='300' y='250' text-anchor='middle' transform='rotate(-55 300 210)' font-family='Fira Sans, Arial, sans-serif' font-size='150' font-weight='500' letter-spacing='6' fill='none' stroke='%23313537' stroke-opacity='0.75' stroke-width='3'%3EMUSTER%3C/text%3E%3C/svg%3E");
+  background-repeat: repeat-y;
+  background-size: 100% 34%;
+  background-position: center top;
+}
+.pdf-thumb.muster {
+  position: relative;
+}
+/* Steps measure their offset against the bar itself (used to keep the active step clear of the pinned last one). */
+.stepper-wrap.overflowing > .stepper {
+  position: relative;
+}

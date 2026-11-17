@@ -96,7 +96,9 @@ export function PdfViewer({
   fileName?: string;
   signature?: string | null;
 }) {
-  const { activeDoc } = useWorkflow();
+  const { activeDoc, docsApproval } = useWorkflow();
+  // Until step 5 (Dokumentenfreigabe) is granted, every page carries a big "MUSTER" watermark.
+  const muster = docsApproval !== "granted";
   /* The bar names the document that is currently selected in the rail. */
   const title = fileName ?? DOCUMENTS[activeDoc] ?? DOCUMENTS[0];
   // Unternehmen get the company Maklervereinbarung and Vollmachten; SEPA is the same.
@@ -121,7 +123,7 @@ export function PdfViewer({
             <button
               key={index}
               type="button"
-              className={`pdf-thumb${index === current ? " active" : ""}`}
+              className={`pdf-thumb${index === current ? " active" : ""}${muster ? " muster" : ""}`}
               aria-label={`Seite ${index + 1}`}
               onClick={() => goTo(index)}
             >
@@ -134,7 +136,7 @@ export function PdfViewer({
           {loading ? <p className="pdf-loading">Dokument wird geladen …</p> : null}
           {pages.map((page, index) => (
             <div
-              className="pdf-page"
+              className={muster ? "pdf-page muster" : "pdf-page"}
               key={index}
               ref={(node) => {
                 pageRefs.current[index] = node;

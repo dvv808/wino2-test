@@ -45,10 +45,29 @@ function chipClass(tag: string) {
   return "chip";
 }
 
+/**
+ * Long values (mail addresses, links) wrap inside the card instead of running out of it: a break is offered
+ * after "@" and after dots, and as a last resort anywhere (see .pp-val-text). Nothing is cut off.
+ */
+function breakable(text: string) {
+  if (!/[@.]/.test(text) || text.length < 24 || /\s/.test(text)) return <span className="pp-val-text">{text}</span>;
+  const parts = text.split(/(?<=[@.])/);
+  return (
+    <span className="pp-val-text">
+      {parts.map((part, index) => (
+        <span key={index}>
+          {part}
+          {index < parts.length - 1 ? <wbr /> : null}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function ValueCell({ value, className }: { value: Value; className?: string }) {
   const cls = ["pp-val", className].filter(Boolean).join(" ");
 
-  if (typeof value === "string") return <span className={cls}>{value}</span>;
+  if (typeof value === "string") return <span className={cls}>{breakable(value)}</span>;
 
   if (value.kind === "link") {
     return (
@@ -113,6 +132,28 @@ function DiffValue({
   );
 }
 
+/** Copies a phone number, mail address etc. to the clipboard; shows a tick for a moment. */
+function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      className={copied ? "pp-row-note pp-row-copy copied" : "pp-row-note pp-row-copy"}
+      aria-label={`${label} kopieren`}
+      title={copied ? "Kopiert" : "Kopieren"}
+      onClick={(event) => {
+        event.stopPropagation();
+        void navigator.clipboard?.writeText(value).catch(() => undefined);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1400);
+      }}
+    >
+      <img src={copied ? a.tick : a.hnCopy} alt="" width={copied ? 12 : 18} height={copied ? 12 : 18} />
+    </button>
+  );
+}
+
 function RowLine({
   row,
   was,
@@ -135,9 +176,12 @@ function RowLine({
       </span>
       <DiffValue now={row.value} was={was} change={change} />
       {row.action && change !== "removed" ? (
-        <button type="button" className="pp-row-note" aria-label={`Notiz zu ${row.label}`}>
-          <img src={a.comment} alt="" width={18} height={18} />
-        </button>
+        <>
+          <CopyButton value={typeof row.value === "string" ? row.value : "text" in row.value ? row.value.text : ""} label={row.label} />
+          <button type="button" className="pp-row-note" aria-label={`Notiz zu ${row.label}`}>
+            <img src={a.comment} alt="" width={18} height={18} />
+          </button>
+        </>
       ) : null}
     </div>
   );

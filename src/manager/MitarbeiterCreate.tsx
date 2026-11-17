@@ -5,7 +5,7 @@ import { useWorkflow } from "../workflow";
 import { CreateContactFields, Field, Select, Text } from "../person/forms";
 import type { ContactChannel } from "../person/stammdaten";
 import { PlausiState } from "../person/PlausiState";
-import { ABTEILUNGEN, TEAM, registerMember, slugOf, type MitarbeiterTyp, type TeamMember } from "./hrmTeam";
+import { ABTEILUNGEN, ABTEILUNG_NAMEN, TEAM, registerMember, slugOf, type MitarbeiterTyp, type TeamMember } from "./hrmTeam";
 
 /**
  * Mitarbeiter anlegen (Management → Module): the Partner-anlegen flow for people who work, or might work, at
@@ -14,18 +14,24 @@ import { ABTEILUNGEN, TEAM, registerMember, slugOf, type MitarbeiterTyp, type Te
  */
 type Step = "typ" | "daten" | "summary";
 const STEPS: { id: Step; label: string }[] = [
-  { id: "typ", label: "Mitarbeitertyp" },
+  { id: "typ", label: "Personen- & Partnertyp" },
   { id: "daten", label: "Daten" },
   { id: "summary", label: "Zusammenfassung" },
 ];
 
-const TYPEN: MitarbeiterTyp[] = ["Mitarbeiter", "Bewerber", "Bewerber Potential"];
+// Wino - Concepts 21743:72128: Partnertyp and Personentyp go together. A Mitarbeiter is Personentyp
+// Mitarbeiter; Bewerber and Bewerber Potential start as Privatperson.
+const TYPEN: MitarbeiterTyp[] = ["Bewerber Potential", "Bewerber", "Mitarbeiter"];
+const PERSONENTYPEN = ["Privatperson", "Unternehmen (Firmenb.)", "Öffentl. Einrichtung", "Vereine (ZVR-Nr.)", "Mitarbeiter"];
+const personentypFor = (typ: MitarbeiterTyp) => (typ === "Mitarbeiter" ? "Mitarbeiter" : "Privatperson");
 const MANDANTEN = ["Makler Winter", "Brombauer & Partner"];
 
 type Draft = {
   mandant: string;
   typ: MitarbeiterTyp;
+  personentyp: string;
   verantwortlich: string;
+  abteilung: string;
   // Persönliche Daten
   titelVor: string;
   vorname: string;
@@ -51,17 +57,6 @@ type Draft = {
   phones: ContactChannel[];
   mails: ContactChannel[];
   websites: ContactChannel[];
-  // Anstellung (Mitarbeiter)
-  abteilung: string;
-  position: string;
-  vorgesetzt: string;
-  eintrittTag: string;
-  eintrittMonat: string;
-  eintrittJahr: string;
-  ausmass: string;
-  wochenstunden: string;
-  standort: string;
-  urlaub: string;
   // Bewerbung (Bewerber)
   stelle: string;
   bewTag: string;
@@ -81,7 +76,9 @@ type Draft = {
 const EMPTY: Draft = {
   mandant: "Makler Winter",
   typ: "Mitarbeiter",
+  personentyp: "Mitarbeiter",
   verantwortlich: "Adams Anna",
+  abteilung: ABTEILUNGEN[0].name,
   titelVor: "",
   vorname: "",
   nachname: "",
@@ -104,16 +101,6 @@ const EMPTY: Draft = {
   phones: [{ value: "", note: "", extra: "Mobil" }],
   mails: [{ value: "", note: "" }],
   websites: [{ value: "", note: "" }],
-  abteilung: ABTEILUNGEN[0].name,
-  position: "",
-  vorgesetzt: "",
-  eintrittTag: "01",
-  eintrittMonat: "",
-  eintrittJahr: "",
-  ausmass: "Vollzeit",
-  wochenstunden: "38,5",
-  standort: "Schladming",
-  urlaub: "25",
   stelle: "Berater/in Versicherungen",
   bewTag: "",
   bewMonat: "",
@@ -251,7 +238,6 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
   const nameMissing = !draft.vorname.trim() || !draft.nachname.trim();
 
   const personRows: [string, string][] = [
-    ["Mandant", draft.mandant],
     ["Titel vor", draft.titelVor],
     ["Vorname", draft.vorname],
     ["Nachname", draft.nachname],
@@ -260,6 +246,7 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
     ["Geburtsdatum", date(draft.gebTag, draft.gebMonat, draft.gebJahr)],
     ["Nationalität", draft.nationalitaet],
     ["SV-Nummer", draft.typ === "Mitarbeiter" ? draft.svNummer : ""],
+    ["Notiz", draft.notiz],
   ];
   const filled = (items: ContactChannel[]) => items.map((item) => item.value.trim()).filter(Boolean).join(", ");
   const adressRows: [string, string][] = [
@@ -279,17 +266,16 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
     ["Website", filled(draft.websites)],
     ["Kontaktnotiz", draft.contactNotiz],
   ];
+  const partnerRows: [string, string][] = [
+    ["Mandant", draft.mandant],
+    ["Partnertyp", draft.typ],
+    ["Personentyp", draft.personentyp],
+    ["HRM Berater", draft.verantwortlich],
+    ["Abteilung", draft.typ === "Mitarbeiter" ? draft.abteilung : ""],
+  ];
   const typRows: [string, string][] =
     draft.typ === "Mitarbeiter"
-      ? [
-          ["Abteilung", draft.abteilung],
-          ["Position", draft.position],
-          ["Vorgesetzte/r", draft.vorgesetzt],
-          ["Eintritt", date(draft.eintrittTag, draft.eintrittMonat, draft.eintrittJahr)],
-          ["Beschäftigungsausmaß", draft.ausmass === "Teilzeit" ? `Teilzeit · ${draft.wochenstunden} h/Woche` : `Vollzeit · ${draft.wochenstunden} h/Woche`],
-          ["Standort", draft.standort],
-          ["Urlaubsanspruch", draft.urlaub ? `${draft.urlaub} Tage` : ""],
-        ]
+      ? []
       : draft.typ === "Bewerber"
         ? [
             ["Stelle", draft.stelle],
@@ -304,7 +290,7 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
             ["Nächster Kontakt", draft.naechsterKontakt],
             ["Einschätzung", draft.bewertung],
           ];
-  const typTitle = draft.typ === "Mitarbeiter" ? "Anstellung" : draft.typ === "Bewerber" ? "Bewerbung" : "Potential";
+  const typTitle = draft.typ === "Bewerber" ? "Bewerbung" : "Potential";
 
   function goNext() {
     if (step === "daten") {
@@ -321,13 +307,13 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
       return;
     }
     const angelegt: Record<string, string> = {};
-    for (const [label, value] of [...personRows, ...adressRows, ...kontaktRows, ...typRows, ["Notiz", draft.notiz] as [string, string]]) if (value.trim()) angelegt[label] = value;
+    for (const [label, value] of [...partnerRows, ...personRows, ...adressRows, ...kontaktRows, ...typRows]) if (value.trim()) angelegt[label] = value;
     registerMember({
       name,
-      role: draft.typ === "Mitarbeiter" ? draft.position || "Mitarbeiter/in" : draft.typ === "Bewerber" ? `Bewerbung: ${draft.stelle}` : `Potential: ${draft.wunschposition}`,
+      role: draft.typ === "Mitarbeiter" ? "Mitarbeiter/in" : draft.typ === "Bewerber" ? `Bewerbung: ${draft.stelle}` : `Potential: ${draft.wunschposition}`,
       abteilung: draft.abteilung,
       typ: draft.typ,
-      urlaubAnspruch: Number(draft.urlaub) || 25,
+      urlaubAnspruch: 25,
       angelegt,
     });
     onClose();
@@ -361,16 +347,22 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
         <div className="pa-main">
           {step === "typ" ? (
             <section className="pa-typ">
-              <h2>Mitarbeitertyp</h2>
+              <h2>Personen- &amp; Partnertyp</h2>
               <Field label="Mandant">
                 <Select value={draft.mandant} onChange={(v) => patch({ mandant: v })} options={MANDANTEN} />
               </Field>
-              <Field label="Mitarbeitertyp">
-                <Select value={draft.typ} onChange={(v) => patch({ typ: v as MitarbeiterTyp })} options={TYPEN} />
+              <Field label="Partnertyp">
+                <Select value={draft.typ} onChange={(v) => patch({ typ: v as MitarbeiterTyp, personentyp: personentypFor(v as MitarbeiterTyp) })} options={TYPEN} />
               </Field>
-              <Field label="Verantwortlich (HR)">
-                <Select value={draft.verantwortlich} onChange={(v) => patch({ verantwortlich: v })} options={["Adams Anna", "Peter Moser", "Christine Auer Hammer-schmidt"]} />
+              <Field label="Personentyp">
+                <Select value={draft.personentyp} onChange={(v) => patch({ personentyp: v })} options={PERSONENTYPEN} />
               </Field>
+              <HrBeraterPick value={draft.verantwortlich} onPick={(v) => patch({ verantwortlich: v })} />
+              {draft.typ === "Mitarbeiter" ? (
+                <Field label="Abteilung">
+                  <Select value={draft.abteilung} onChange={(v) => patch({ abteilung: v })} options={ABTEILUNG_NAMEN} />
+                </Field>
+              ) : null}
             </section>
           ) : null}
 
@@ -407,6 +399,9 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
                       <Text value={draft.svNummer} onChange={(v) => patch({ svNummer: v })} />
                     </Field>
                   ) : null}
+                  <Field label={draft.typ === "Mitarbeiter" ? "Allgemeine Notiz zum Mitarbeiter" : "Notiz zur Person"}>
+                    <textarea className="textarea" value={draft.notiz} onChange={(e) => patch({ notiz: e.target.value })} />
+                  </Field>
                 </section>
 
                 <section className="pa-card">
@@ -451,35 +446,7 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
                   />
                 </section>
 
-                {draft.typ === "Mitarbeiter" ? (
-                  <section className="pa-card">
-                    <h2>Anstellung</h2>
-                    <Field label="Abteilung">
-                      <Select value={draft.abteilung} onChange={(v) => patch({ abteilung: v })} options={ABTEILUNGEN.map((d) => d.name)} />
-                    </Field>
-                    <Field label="Position">
-                      <Select value={draft.position} onChange={(v) => patch({ position: v })} options={POSITIONEN} />
-                    </Field>
-                    <Field label="Vorgesetzte/r">
-                      <Select value={draft.vorgesetzt} onChange={(v) => patch({ vorgesetzt: v })} options={TEAM.filter((m) => !m.typ || m.typ === "Mitarbeiter").map((m) => m.name)} />
-                    </Field>
-                    <Field label="Eintrittsdatum">
-                      <DateField prefix="Am" day={draft.eintrittTag} month={draft.eintrittMonat} year={draft.eintrittJahr} onDay={(v) => patch({ eintrittTag: v })} onMonth={(v) => patch({ eintrittMonat: v })} onYear={(v) => patch({ eintrittJahr: v })} />
-                    </Field>
-                    <Field label="Beschäftigungsausmaß">
-                      <Select value={draft.ausmass} onChange={(v) => patch({ ausmass: v, wochenstunden: v === "Vollzeit" ? "38,5" : "20" })} options={["Vollzeit", "Teilzeit", "Geringfügig"]} />
-                    </Field>
-                    <Field label="Wochenstunden">
-                      <Text value={draft.wochenstunden} onChange={(v) => patch({ wochenstunden: v })} />
-                    </Field>
-                    <Field label="Standort">
-                      <Select value={draft.standort} onChange={(v) => patch({ standort: v })} options={["Schladming", "Kapfenberg", "Homeoffice"]} />
-                    </Field>
-                    <Field label="Urlaubsanspruch (Tage/Jahr)">
-                      <Text value={draft.urlaub} onChange={(v) => patch({ urlaub: v })} />
-                    </Field>
-                  </section>
-                ) : draft.typ === "Bewerber" ? (
+                {draft.typ === "Mitarbeiter" ? null : draft.typ === "Bewerber" ? (
                   <section className="pa-card">
                     <h2>Bewerbung</h2>
                     <Field label="Stelle">
@@ -517,12 +484,6 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
                   </section>
                 )}
 
-                <section className="pa-card">
-                  <h2>Notiz</h2>
-                  <Field label={draft.typ === "Mitarbeiter" ? "Allgemeine Notiz zum Mitarbeiter" : "Notiz zur Person"}>
-                    <textarea className="textarea" value={draft.notiz} onChange={(e) => patch({ notiz: e.target.value })} />
-                  </Field>
-                </section>
               </div>
               <CheckPanel
                 draft={draft}
@@ -543,11 +504,11 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
                 </p>
               </header>
               <div className="pa-summary-cards">
+                <SummaryCard title="Personen- &amp; Partnertyp" rows={partnerRows} />
                 <SummaryCard title="Persönliche Daten" rows={personRows} />
                 <SummaryCard title="Adressdaten" rows={adressRows} />
                 <SummaryCard title="Kontaktdaten" rows={kontaktRows} />
-                <SummaryCard title={typTitle} rows={typRows} />
-                <SummaryCard title="Notiz" rows={[["Notiz", draft.notiz]]} />
+                {typRows.length ? <SummaryCard title={typTitle} rows={typRows} /> : null}
               </div>
             </section>
           ) : null}
@@ -570,6 +531,63 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
           </span>
         </footer>
       </div>
+    </div>
+  );
+}
+
+/** HRM Berater (Wino - Concepts 21743:72128): the team as an avatar dropdown, "Auswählen" on top. */
+function HrBeraterPick({ value, onPick }: { value: string; onPick: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const people = TEAM.filter((m) => !m.typ || m.typ === "Mitarbeiter");
+  const current = people.find((m) => m.name === value);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => ref.current && !ref.current.contains(event.target as Node) && setOpen(false);
+    const key = (event: KeyboardEvent) => event.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", key);
+    };
+  }, [open]);
+  return (
+    <div className="block comms-field hr-pick" ref={ref}>
+      <span className="field-label">HRM Berater</span>
+      <button type="button" className={`text-field hr-pick-field${open ? " open" : ""}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {current ? <img className="hr-pick-avatar" src={current.photo || a.clientBlank} alt="" /> : null}
+        <span>{current?.name ?? "Auswählen"}</span>
+        <Icon src={a.selectCaret} size={16} className={open ? "kal-open" : undefined} />
+      </button>
+      {open ? (
+        <div className="comms-menu hr-pick-menu" role="listbox" aria-label="HRM Berater">
+          <p className="comms-menu-head">Auswählen</p>
+          <ul>
+            {people.map((m) => {
+              const selected = m.name === value;
+              return (
+                <li key={m.name}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    className={selected ? "comms-option selected" : "comms-option"}
+                    onClick={() => {
+                      onPick(m.name);
+                      setOpen(false);
+                    }}
+                  >
+                    <img className="hr-pick-avatar big" src={m.photo || a.clientBlank} alt="" />
+                    <span className="comms-option-copy">{m.name}</span>
+                    {selected ? <Icon src={a.tick} size={12} className="comms-tick" /> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

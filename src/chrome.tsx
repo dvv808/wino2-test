@@ -9,9 +9,29 @@ import { discardPruefung, draftFor, usePruefungen } from "./person/pruefung";
 import type { FileContact } from "./person/partners";
 import { Icon } from "./ui";
 import { MANAGEMENT_VIEWS, useWorkflow, type WorkflowPane } from "./workflow";
-import { abteilungBySlug, memberBySlug } from "./manager/hrmTeam";
+import { abteilungBySlug, memberBySlug, nameParts } from "./manager/hrmTeam";
 
 export const APPS = ["Person", "Verträge", "Schäden", "Angebote"];
+
+/**
+ * Tab name (Figma 22880:444969). Every tab is 220 × 56 px, so the × always sits in the same place.
+ * People (partners and Mitarbeiter): Vorname on top, Nachname below once the name no longer fits one line; names
+ * are never broken inside. Companies and insurers: wrap only between words. Whatever is still too long fades out
+ * under a gradient (no "…").
+ */
+export function TabLabel({ name, company, first, last }: { name: string; company?: boolean; first?: string; last?: string }) {
+  if (company) return <span className="tab-label wrap">{name}</span>;
+  const words = name.trim().split(/\s+/);
+  const top = first ?? words[0];
+  const bottom = last ?? words.slice(1).join(" ");
+  if (name.length <= 14 || !bottom) return <span className="tab-label">{name}</span>;
+  return (
+    <span className="tab-label two">
+      <span>{top}</span>
+      <span>{bottom}</span>
+    </span>
+  );
+}
 
 /**
  * A parked tab opens wherever it is clicked, not only on its name: a click on the tab that misses its buttons
@@ -61,7 +81,9 @@ export function FileTabs() {
         const active =
           id === filePartnerId && view !== "konzernHub" && view !== "home" && view !== "meinBereich" && view !== "admin" && view !== "mitarbeiter" && view !== "abteilung" && !MANAGEMENT_VIEWS.includes(view);
         const name = active ? personName : getPartner(id).name;
-        const tabIcon = getPartner(id).fileKind === "company" ? a.company : a.person;
+        const isCompany = getPartner(id).fileKind === "company";
+        const tabIcon = isCompany ? a.company : a.person;
+        const label = <TabLabel name={name} company={isCompany} />;
         if (active) {
           const closeActive = () => {
             if (openFileIds.length === 1 && finanzenProfileOpen) closeFinanzenProfile();
@@ -89,13 +111,13 @@ export function FileTabs() {
             view === "stammdaten" || view === "workflow" ? (
               <button type="button" className="person-tab-body" onClick={openPerson}>
                 <Icon src={tabIcon} size={24} />
-                {name}
+                {label}
                 {closeControl}
               </button>
             ) : (
               <span className="person-tab-body">
                 <Icon src={tabIcon} size={24} />
-                {name}
+                {label}
                 {closeControl}
               </span>
             );
@@ -113,7 +135,7 @@ export function FileTabs() {
             <span className="person-tab-body">
               <Icon src={tabIcon} size={24} />
               <button type="button" className="person-tab-open" onClick={() => activateFile(id)}>
-                {name}
+                {label}
               </button>
               <button type="button" className="close-icon" aria-label={`${name} schließen`} onClick={() => closeFile(id)}>
                 <img src={a.iconClose} alt="" width={18} height={18} />
@@ -129,7 +151,7 @@ export function FileTabs() {
             <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
             <span className="person-tab-body">
               <Icon src={a.ksGroupCompanies} size={24} />
-              Konzern {partyName(konzernHubId)}
+              <TabLabel name={`Konzern ${partyName(konzernHubId)}`} company />
               <button type="button" className="close-icon" aria-label="Konzern schließen" onClick={closeKonzernHub}>
                 <img src={a.iconClose} alt="" width={18} height={18} />
               </button>
@@ -142,7 +164,7 @@ export function FileTabs() {
             <span className="person-tab-body">
               <Icon src={a.ksGroupCompanies} size={24} />
               <button type="button" className="person-tab-open" onClick={activateKonzernHub}>
-                Konzern {partyName(konzernHubId)}
+                <TabLabel name={`Konzern ${partyName(konzernHubId)}`} company />
               </button>
               <button type="button" className="close-icon" aria-label="Konzern schließen" onClick={closeKonzernHub}>
                 <img src={a.iconClose} alt="" width={18} height={18} />
@@ -176,7 +198,7 @@ export function FileTabs() {
           <span className="person-tab-body">
             <Icon src={a.person} size={24} />
             <button type="button" className="person-tab-open" onClick={() => openFreigabe(freigabeId)}>
-              {freigabeName}
+              <TabLabel name={freigabeName} />
             </button>
             <button type="button" className="close-icon" aria-label={`${freigabeName} schließen`} onClick={dropFreigabe}>
               <img src={a.iconClose} alt="" width={18} height={18} />
@@ -235,7 +257,109 @@ export function AdminTab() {
       )}
       <MitarbeiterTabs />
       <AbteilungTabs />
+      <TabOverflow />
     </>
+  );
+}
+
+const TAB_WIDTH = 220;
+
+/**
+ * "+N" at the end of the tab row (Figma 22880:444969): tabs that no longer fit are tucked away (never the active
+ * one) and listed in a small menu under the counter; picking one opens that tab. Works on whatever tabs the
+ * current view renders, so it is measured from the DOM.
+ */
+export function TabOverflow() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [hidden, setHidden] = useState<{ index: number; label: string }[]>([]);
+  const [open, setOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const self = ref.current;
+    const row = self?.parentElement;
+    const nav = row?.closest<HTMLElement>(".main-nav");
+    if (!self || !row || !nav) return;
+    let timer = 0;
+    const measure = () => {
+      const tabs = [...row.children].filter((el): el is HTMLElement => el instanceof HTMLElement && el.classList.contains("person-tab"));
+      // The row itself is sized by the nav (it never grows with its tabs), so its width is the room there is.
+      const logo = row.querySelector<HTMLElement>(".logo-menu");
+      const room = row.clientWidth - (logo?.offsetWidth ?? 0) - 16;
+      const fit = Math.max(1, Math.floor(room / TAB_WIDTH));
+      const next: { index: number; label: string }[] = [];
+      const keep = new Set(tabs.map((_, i) => i));
+      if (tabs.length > fit) {
+        // Room for the counter too; the active tab always stays visible.
+        const slots = Math.max(1, Math.floor((room - 56) / TAB_WIDTH));
+        const active = tabs.findIndex((tab) => !tab.classList.contains("inactive"));
+        keep.clear();
+        tabs.slice(0, slots).forEach((_, i) => keep.add(i));
+        if (active >= slots) {
+          keep.delete(slots - 1);
+          keep.add(active);
+        }
+      }
+      tabs.forEach((tab, i) => {
+        // toggle with force only touches the class when it changes, so the observer does not loop.
+        tab.classList.toggle("tab-tucked", !keep.has(i));
+        if (keep.has(i)) return;
+        const source = tab.querySelector(".tab-label") ?? tab.querySelector(".mgmt-tab-copy, .dept-tab-copy, .person-tab-open") ?? tab;
+        // Two-line names are two spans: join them with a space.
+        const parts = source.classList.contains("two") ? [...source.children].map((el) => el.textContent ?? "") : [source.textContent ?? ""];
+        const label = parts.join(" ").replace(/\s+/g, " ").trim();
+        next.push({ index: i, label });
+      });
+      setHidden((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+    };
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(measure, 16);
+    };
+    measure();
+    const resize = new ResizeObserver(schedule);
+    resize.observe(nav);
+    const mutations = new MutationObserver(schedule);
+    mutations.observe(row, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+    return () => {
+      window.clearTimeout(timer);
+      resize.disconnect();
+      mutations.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => ref.current && !ref.current.contains(event.target as Node) && setOpen(false);
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const pick = (index: number) => {
+    const row = ref.current?.parentElement;
+    const tab = row ? [...row.children].filter((el) => el.classList.contains("person-tab"))[index] : undefined;
+    tab?.querySelector<HTMLButtonElement>(".person-tab-open")?.click();
+    setOpen(false);
+  };
+
+  return (
+    <div className={hidden.length ? "tab-overflow" : "tab-overflow empty"} ref={ref}>
+      {hidden.length ? (
+        <>
+          <button type="button" className="tab-overflow-btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+            +{hidden.length}
+          </button>
+          {open ? (
+            <div className="tab-overflow-menu" role="menu">
+              {hidden.map((entry) => (
+                <button type="button" role="menuitem" key={entry.index} onClick={() => pick(entry.index)}>
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
   );
 }
 
@@ -248,6 +372,8 @@ export function MitarbeiterTabs() {
         const person = memberBySlug(id);
         if (!person) return null;
         const active = view === "mitarbeiter" && id === mitarbeiterId;
+        const { vorname, nachname } = nameParts(person);
+        const label = <TabLabel name={person.name} first={vorname} last={nachname} />;
         return (
           <div className={active ? "person-tab" : "person-tab inactive"} key={id}>
             <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
@@ -257,10 +383,10 @@ export function MitarbeiterTabs() {
                 <img className="emp-dot" src={a.statusDot} alt="" />
               </span>
               {active ? (
-                person.name
+                label
               ) : (
                 <button type="button" className="person-tab-open" onClick={() => openMitarbeiter(id)}>
-                  {person.name}
+                  {label}
                 </button>
               )}
               <button type="button" className="close-icon" aria-label={`${person.name} schließen`} onClick={() => closeMitarbeiter(id)}>

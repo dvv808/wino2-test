@@ -47,19 +47,12 @@ const MANDATE_SECTIONS = [
     title: "Abgelaufen (0)",
     empty: "Keine abgelaufenen Vereinbarungen",
   },
-  {
-    id: "kurzfristig",
-    icon: a.history,
-    title: "Kurzfristige Vereinbarungen (0)",
-    empty: "Keine kurzfristigen Vereinbarungen",
-  },
 ] as const;
 
 const SIDE_SUBS = [
   { id: "gueltig", icon: a.confirmOutline, label: "Gültig (0)" },
   { id: "entwuerfe", icon: a.notes, label: "Entwürfe (0)" },
   { id: "abgelaufen", icon: a.docList, label: "Abgelaufen" },
-  { id: "kurzfristig", icon: a.history, label: "Kurzfristige Vereinb." },
 ] as const;
 
 const FEATURES = [
@@ -76,12 +69,6 @@ const OVERVIEW = [
     label: "Interessentenvereinbarung",
     state: "Offen",
     child: { icon: a.iconMandate, label: "AV Vollmacht", state: "Offen" },
-  },
-  {
-    icon: a.iconLimitKm,
-    label: "Kurzfristige Vereinbarungen",
-    state: "Optional",
-    child: { icon: a.iconDamage, label: "Schadenvollmacht", state: "Optional" },
   },
 ];
 
@@ -100,19 +87,6 @@ const CREATE_OPTIONS = [
         state: "Offen",
       },
       { icon: a.iconMandate, label: "AV Vollmacht", state: "Offen" },
-    ],
-  },
-  {
-    id: "kurzfristig",
-    title: "Kurzfristige Vereinbarung",
-    enabled: false,
-    tree: [
-      {
-        icon: a.iconLimitKm,
-        label: "Kurzfristige Vereinbarungen",
-        state: "Optional",
-      },
-      { icon: a.iconDamage, label: "Schadenvollmacht", state: "Optional" },
     ],
   },
   {
@@ -243,16 +217,16 @@ function maklerAgreementCard(
 }
 
 /**
- * A partner in the Honorar Forderungen always has a valid agreement: Business is billed under a Maklervereinbarung
- * (with Laufzeit), Single under a Kurzfristige Vereinbarung - the same split as "Vereinbarung" in the Forderungen table.
+ * A partner in the Honorar Forderungen always has a valid Maklervereinbarung (a Kunde always has one; there are no
+ * Kurzfristige Vereinbarungen yet). Business shows its Laufzeit, Single the date it is valid since.
  */
 function honorarAgreementCard(partner: Partner, fee: Fee): Card {
   const [kind, since] = agreementLines(fee);
-  const makler = kind === "Maklervereinbarung";
+  const laufzeit = kind === "Maklervereinbarung";
   return {
     id: "honorar-vereinbarung",
-    icon: makler ? a.iconBrokerContract : a.iconLimitKm,
-    title: makler ? "Maklervereinbarung: Kunde" : "Kurzfristige Vereinbarung",
+    icon: a.hoStatusGenehmigt,
+    title: "Maklervereinbarung: Kunde",
     clampTo: 551,
     blocks: [
       {
@@ -279,8 +253,8 @@ function honorarAgreementCard(partner: Partner, fee: Fee): Card {
         caption: "Vereinbarung",
         rows: [
           {
-            label: makler ? "Laufzeit" : "Gültig seit",
-            value: makler ? since.replace(/^LZ /, "") : since,
+            label: laufzeit ? "Laufzeit" : "Gültig seit",
+            value: laufzeit ? since.replace(/^LZ /, "") : since,
           },
           { label: "Kundenberater", value: partner.advisor },
         ],
@@ -438,9 +412,12 @@ function dmsAgreementCard(doc: Dokument, place: string[] | null): Card {
 function DmsAgreementCards({
   docs,
   state,
+  onOpen,
 }: {
   docs: Dokument[];
   state: DmsState;
+  /** Gültig: a click opens the Maklervereinbarung workflow, finished and filled in. */
+  onOpen?: () => void;
 }) {
   const { apply } = useDms();
   const { setMeinBereichNav, openMeinBereich } = useWorkflow();
@@ -454,6 +431,7 @@ function DmsAgreementCards({
           <DataCard
             key={doc.id}
             card={dmsAgreementCard(doc, place)}
+            onSelect={onOpen}
             headerExtra={
               <span
                 className="mm-dms-head"
@@ -665,9 +643,7 @@ function Sidebar({
                   ? `Gültig (${counts.gueltig})`
                   : item.id === "entwuerfe"
                     ? `Entwürfe (${counts.entwuerfe})`
-                    : item.id === "abgelaufen"
-                      ? `Abgelaufen (${counts.abgelaufen})`
-                      : item.label}
+                    : `Abgelaufen (${counts.abgelaufen})`}
               </span>
               <Icon
                 src={a.chevronDark}
@@ -957,9 +933,7 @@ export function MaklermandatPage() {
                       ? `${section.title} (${counts.gueltig})`
                       : section.id === "entwuerfe"
                         ? `${section.title} (${counts.entwuerfe})`
-                        : section.id === "abgelaufen"
-                          ? `Abgelaufen (${counts.abgelaufen})`
-                          : section.title}
+                        : `Abgelaufen (${counts.abgelaufen})`}
                   </span>
                   {"create" in section && section.create ? (
                     <button
@@ -971,12 +945,11 @@ export function MaklermandatPage() {
                     </button>
                   ) : null}
                 </header>
-                {section.id !== "kurzfristig" &&
-                (mandateCards[section.id].length ||
+                {(mandateCards[section.id].length ||
                   dmsDocs[section.id].length) ? (
                   <div className="pp-cards">
                     {/* The Maklervereinbarung (from the DMS when filed there) leads, the other agreements follow. */}
-                    <DmsAgreementCards docs={dmsDocs[section.id]} state={dms} />
+                    <DmsAgreementCards docs={dmsDocs[section.id]} state={dms} onOpen={section.id === "gueltig" ? openMakler : undefined} />
                     {mandateCards[section.id].map((card) =>
                       card.id === "makler-vereinbarung" ||
                       card.id === "honorar-vereinbarung" ? (

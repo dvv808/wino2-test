@@ -10,7 +10,9 @@ import {
 import { hashToRoute, routeToHash, type ManagerNav, type PersonArea, type PersonModule } from "./routing";
 import type { FinanzenPage, HonorarStepKey, Partner as HonorarPartner } from "./types/honorar";
 import { buildHonorarPartner } from "./person/createDraft";
-import { FILE_PARTNERS, getPartner, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
+import { demoKundenFiles } from "./home/kundenData";
+import * as a from "./assets/index";
+import { FILE_PARTNERS, getPartner, partnerKindText, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
 import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
   MULTI_CARD_AREAS,
@@ -41,6 +43,7 @@ import {
   withOwnBank,
   type BankForm,
   type ContactForm,
+  commsOptions,
 } from "./person/stammdaten";
 import {
   INITIAL_VERSIONS,
@@ -259,9 +262,83 @@ const FAMILY_BANKS: Partial<Record<PartnerId, { institut: string; iban: string; 
   ashley: { institut: "Salzburger Sparkasse", iban: "AT 4820 4040 0000 5871 23", bic: "SBGSAT2SXXX" },
 };
 
+/** Home → Bestand → Kunden: every demo customer is a Wino file from the start (opens, survives a reload, searchable). */
+const DEMO_KUNDEN = demoKundenFiles();
+DEMO_KUNDEN.forEach((entry) => registerPartner(entry.file));
+
+const mailName = (text: string) =>
+  text.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
+
+/**
+ * Every partner file can run a Maklervereinbarung: it needs a phone, a mail and a Postadresse in the Stammdaten,
+ * and a company a contact person (Vertretungsbefugte Person). Seed files that lack them get them here.
+ */
+function withContactData(file: FilePartner, sections: Section[]): Section[] {
+  const company = file.fileKind === "company";
+  const seed = [...file.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const phone = file.phone ?? `+43 664 ${String(1000000 + (seed % 8999999))}`;
+  const host = mailName(file.name).split(".")[0];
+  const mail = file.email ?? (company ? `office@${host}.at` : `${mailName(file.name)}@mail.at`);
+  const add: { area: string; card: Card }[] = [];
+  const phones = commsOptions(sections, "phone");
+  const mails = commsOptions(sections, "mail");
+  const hasPerson = [...phones, ...mails].some((group) => group.person && group.person.tag !== "Kanal");
+  if (!phones.length || !mails.length || (company && !hasPerson)) {
+    const person = company ? `Mag. ${["Stefan Gruber", "Andrea Leitner", "Markus Hofer"][seed % 3]}` : file.name;
+    add.push({
+      area: "kontakte",
+      card: {
+        id: `kontakt-auto-${file.id}`,
+        title: company ? "Geschäftsführung" : `Kontaktdaten von ${file.name.split(" ")[0]}`,
+        blocks: [
+          { kind: "person", tag: company ? "Kontaktperson" : partnerKindText(file.kind ?? "einfach"), name: person, sub: company ? "Geschäftsführung" : file.born ?? "" },
+          {
+            kind: "rows",
+            rows: [
+              { label: "Telefon", value: phone, icon: a.phone, action: true },
+              { label: "Mail", value: company ? `${mailName(person.replace(/^Mag\.\s*/, ""))}@${host}.at` : mail, icon: a.mail, action: true },
+            ],
+          },
+        ],
+      },
+    });
+  }
+  if (!commsOptions(sections, "post").length && file.address) {
+    add.push({
+      area: "adressen",
+      card: {
+        id: `adresse-auto-${file.id}`,
+        icon: a.flag,
+        title: company ? "Firmensitz" : "Hauptwohnsitz",
+        blocks: [
+          { kind: "rows", rows: [{ label: "Adresse", value: { kind: "link", text: file.address.join("\n") } }] },
+          { kind: "badge", icon: a.house, caption: "Postadresse", text: "Diese Adresse ist die Postadresse" },
+        ],
+      },
+    });
+  }
+  if (!add.length) return sections;
+  return sections.map((section) => {
+    const extra = add.filter((entry) => sectionIdForArea(entry.area as StammdatenAreaId) === section.id).map((entry) => entry.card);
+    if (!extra.length) return section;
+    const cards = [...section.cards.filter((card) => !card.empty), ...extra];
+    return { ...section, cards };
+  });
+}
+
 function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
   // Accounts linked from another partner (e.g. Thomas Atkinson's Sparkasse in Julia's file) also sit in the owner's profile.
-  return linkBankOwners(seedPartnerFiles(), Object.values(FILE_PARTNERS)) as Record<PartnerId, PartnerFile>;
+  const kunden = Object.fromEntries(
+    DEMO_KUNDEN.map((entry) => [
+      entry.file.id,
+      { sections: entry.sections, versions: entry.versions, viewingVersionId: entry.viewingVersionId, stammdatenBaseline: null, stammdatenPublished: null },
+    ]),
+  );
+  const seeded = linkBankOwners(seedPartnerFiles(), Object.values(FILE_PARTNERS)) as Record<PartnerId, PartnerFile>;
+  const completed = Object.fromEntries(
+    Object.entries(seeded).map(([id, entry]) => [id, { ...entry, sections: withContactData(getPartner(id), entry.sections) }]),
+  ) as Record<PartnerId, PartnerFile>;
+  return { ...completed, ...kunden };
 }
 
 function withFamilyBank(id: PartnerId, name: string, sections: Section[]): Section[] {
@@ -484,7 +561,7 @@ function useWorkflowState() {
   const [ashleyConverted, setAshleyConverted] = useState(false);
   const [partnerFiles, setPartnerFiles] = useState<Record<string, PartnerFile>>(initialPartnerFiles);
   const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
-  const [extraPartners, setExtraPartners] = useState<FilePartner[]>([]);
+  const [extraPartners, setExtraPartners] = useState<FilePartner[]>(() => DEMO_KUNDEN.map((entry) => entry.file));
   const file = partnerFiles[filePartnerId] ?? partnerFiles.julia;
   const { sections, versions, viewingVersionId, stammdatenBaseline, stammdatenPublished } = file;
   const sectionsRef = useRef(sections);
@@ -1244,7 +1321,85 @@ function useWorkflowState() {
     setView("person");
   }
 
+  /** Which partner the workflow was last pre-filled for as a gültige Maklervereinbarung. */
+  const filledMaklerFor = useRef<string | null>(null);
+
+  /**
+   * Opens the Maklervereinbarung workflow. A gültige one (Kunde, or Signaturen approved) opens finished: every
+   * step done, both Freigaben granted, the signed PDF in place, the contact picks and the agreement text filled
+   * from the Stammdaten. Opening a draft afterwards starts from a clean workflow again.
+   */
   function openMakler() {
+    const state = partnerFiles[filePartnerId];
+    const valid = getPartner(filePartnerId).kind === "kunde" || Boolean(state?.maklerFinished);
+    if (valid) {
+      const source = state?.sections ?? sections;
+      const pickOf = (type: "phone" | "mail" | "post"): CommsPick | undefined => {
+        const group = commsOptions(source, type)[0];
+        const option = group?.options[0];
+        return option
+          ? { value: option.value, second: option.second, cardId: group.id, cardTitle: group.title, tags: option.tags, owner: group.person?.name }
+          : undefined;
+      };
+      const mail = pickOf("mail");
+      // Unternehmen: the first contact person is the Vertretungsbefugte Person; her phone and mail are picked.
+      const company = getPartner(filePartnerId).fileKind === "company";
+      const person = company
+        ? [...commsOptions(source, "phone"), ...commsOptions(source, "mail")].find((group) => group.person && group.person.tag !== "Kanal")
+        : undefined;
+      const ownPick = (type: "phone" | "mail"): CommsPick | undefined => {
+        const group = commsOptions(source, type).find((entry) => entry.person?.name === person?.person?.name);
+        const option = group?.options[0];
+        return group && option
+          ? { value: option.value, second: option.second, cardId: group.id, cardTitle: group.title, tags: option.tags, owner: group.person?.name }
+          : undefined;
+      };
+      const rep: CommsPick | undefined = person?.person
+        ? { value: person.person.name, second: person.person.sub, cardId: person.id, cardTitle: person.title, tags: person.person.tag ? [person.person.tag] : [] }
+        : undefined;
+      setCommsChoices((current) => ({
+        ...current,
+        [filePartnerId]: rep
+          ? { rep, phone: ownPick("phone"), mail: ownPick("mail"), post: pickOf("post"), versandMail: mail, ...current[filePartnerId] }
+          : { phone: pickOf("phone"), mail, post: pickOf("post"), versandMail: mail, ...current[filePartnerId] },
+      }));
+      setDone(Object.fromEntries(STEP_IDS.map((id) => [id, true])) as Record<StepId, boolean>);
+      setDocsApproval("granted");
+      setSignApproval("granted");
+      setSignMode("upload");
+      setSignFile((file) => file ?? "Maklervereinbarung_unterschrieben.pdf");
+      setConsent(true);
+      setTermsOn(true);
+      setTextBlock((block) => block ?? TEXT_BLOCKS[0].title);
+      setTermsText((text) => text || TEXT_BLOCKS[0].text);
+      // Signed by the Kunde and countersigned by Makler Winter on the date the documents are valid from.
+      setSignDay("12");
+      setSignMonth("12");
+      setSignYear("2025");
+      setWinterSignDay("12");
+      setWinterSignMonth("12");
+      setWinterSignYear("2025");
+      setActiveStep("sign");
+      filledMaklerFor.current = filePartnerId;
+    } else if (filledMaklerFor.current) {
+      // Coming from a finished agreement: a draft starts empty again.
+      setDone({});
+      setDocsApproval("idle");
+      setSignApproval("idle");
+      setSignFile(null);
+      setSignature(null);
+      setConsent(false);
+      setTextBlock(null);
+      setTermsText("");
+      setSignDay("24");
+      setSignMonth("11");
+      setSignYear("2027");
+      setWinterSignDay("");
+      setWinterSignMonth("");
+      setWinterSignYear("");
+      setActiveStep("tasks");
+      filledMaklerFor.current = null;
+    }
     setMaklerOpen(true);
     setView("workflow");
   }

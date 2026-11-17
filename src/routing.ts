@@ -112,6 +112,13 @@ const NAV_LABELS = [
   "Listen",
   "Dokumente",
   "Honorare/Forderungen",
+  "Schnellsuche",
+  "Kunden",
+  "Versicherer",
+  "Verträge",
+  "Schäden",
+  "Angebote",
+  "Objekte",
 ];
 
 /** "Workflows & To-Dos" → "workflows-und-to-dos", "Übersicht" → "uebersicht". */

@@ -4,7 +4,7 @@ import { addDays, parseIso, weekStart } from "../home/calendar/calendarData";
 import { loadAntraege, onAntraegeChange } from "../home/calendar/homeoffice";
 import { Icon } from "../ui";
 import { homeofficeRows, useHrDemo, type Art, type HrAntrag } from "./hrmAntraege";
-import { HOHER_RESTURLAUB, HOMEOFFICE_GRENZE, TEAM as ALL_TEAM, TERMINARTEN, teamTermine, todayIso, type TeamMember } from "./hrmTeam";
+import { HOHER_RESTURLAUB, HOMEOFFICE_GRENZE, TEAM as ALL_TEAM, isEmployee, TERMINARTEN, teamTermine, todayIso, type TeamMember } from "./hrmTeam";
 import { inAuswahl, inZeitpunkt, useAuswahl } from "./mitarbeiterAuswahl";
 
 /**
@@ -138,7 +138,7 @@ export function HrmDashboard({ onTab, exportSlot }: { onTab: (tab: string) => vo
 
   /* The Mitarbeiter side nav narrows everything: selected employees and the Zeitpunkt (Anträge by year). */
   const { selected, zeitpunkt } = useAuswahl();
-  const TEAM = ALL_TEAM.filter((m) => inAuswahl(selected, m.name));
+  const TEAM = ALL_TEAM.filter((m) => isEmployee(m) && inAuswahl(selected, m.name));
   const lucy = inAuswahl(selected, "Lucy Dallon");
   const workflows = WORKFLOWS.filter((w) => inAuswahl(selected, w.person.name));
 
@@ -298,7 +298,7 @@ export function HrmDashboard({ onTab, exportSlot }: { onTab: (tab: string) => vo
                 {gespraeche.slice(0, 3).map((g) => (
                   <li key={g.person.name} title={g.person.name}>
                     <span className="hd-avatar">
-                      <img src={g.person.photo} alt={g.person.name} />
+                      <img src={g.person.photo || a.clientBlank} alt={g.person.name} />
                       <img className="hd-avatar-dot" src={a.statusDot} alt="" />
                     </span>
                     <span className="hd-list-date">{dmy(g.day)}</span>
@@ -321,7 +321,7 @@ export function HrmDashboard({ onTab, exportSlot }: { onTab: (tab: string) => vo
                 {workflows.map((w) => (
                   <li key={w.titel} title={w.person.name}>
                     <span className="hd-avatar">
-                      <img src={w.person.photo} alt={w.person.name} />
+                      <img src={w.person.photo || a.clientBlank} alt={w.person.name} />
                       <img className="hd-avatar-dot" src={a.statusDot} alt="" />
                     </span>
                     <span className="hd-list-date wide">{w.person.name}</span>

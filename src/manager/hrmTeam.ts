@@ -7,6 +7,18 @@ import { addDays, iso, parseIso, weekStart } from "../home/calendar/calendarData
  * (Anträge, Lucy's Homeoffice) is added on top in the dashboard.
  */
 
+export type Anstellung = {
+  position: string;
+  vorgesetzt: string;
+  eintrittTag: string;
+  eintrittMonat: string;
+  eintrittJahr: string;
+  ausmass: string;
+  wochenstunden: string;
+  standort: string;
+  urlaub: string;
+};
+
 export type TeamMember = {
   name: string;
   abteilung: string;
@@ -40,6 +52,8 @@ export type TeamMember = {
   typ?: MitarbeiterTyp;
   /** Created with "Mitarbeiter anlegen": everything entered there, shown in the employee tab. */
   angelegt?: Record<string, string>;
+  /** Stammdaten section Anstellung, edited in the Mitarbeiter tab. */
+  anstellung?: Anstellung;
 };
 
 export type MitarbeiterTyp = "Mitarbeiter" | "Bewerber" | "Bewerber Potential";
@@ -54,17 +68,17 @@ const ROWS: Row[] = [
   ["Peter Moser", "CEO & Geschäftsführer", a.empPeter, 30, 12, 0, 0, 0, 0, 0, 0, 430, true, 0, 1260],
   ["Lucy Dallon", "Innendienst", a.empLucy, 25, 6, 5, 0, 2, 8, 2, 0, 505, true, 1, 210, { vorTagen: 19, art: "Jahresgespräch", status: "abgeschlossen" }],
   ["Jasmin Gratzinger", "Berater", a.empJasmin, 25, 19, 14, 3, 2, 16, 0, 4, 80, false, 4, -610, { vorTagen: 26, art: "Probezeitgespräch", status: "offen" }],
-  ["Adams Anna", "Geschäftsleitung", a.reqAnna, 30, 26, 1, 0, 0, 2, 0, 0, 520, true, 0, 880, { vorTagen: 33, art: "Jahresgespräch", status: "abgeschlossen" }],
-  ["Adams Sonja", "KFZ Innendienst", a.reqSonja, 25, 8, 9, 0, 4, 9, 8, 0, 240, true, 1, -45],
-  ["Bennett Mike", "KFZ Innendienst", a.reqMike, 25, 17, 4, 1, 0, 24, 0, 8, 190, false, 3, 130],
-  ["Cooper Ashton", "KFZ Innendienst", a.reqAshton, 25, 5, 7, 0, 0, 8, 8, 0, 610, true, 0, 365],
-  ["Davis Julia", "KFZ Innendienst", a.reqDavis, 25, 23, 0, 0, 0, 4, 0, 0, 55, true, 0, 720, { vorTagen: 48, art: "Gespräch", status: "abgeschlossen" }],
-  ["Dennett Lily", "Schaden", a.empJasmin, 25, 14, 6, 0, 1, 11, 0, 3, 495, true, 2, -180],
-  ["Garcia Thomas", "Schaden", a.empPeter, 25, 10, 2, 0, 0, 5, 0, 0, 330, false, 5, -90, { vorTagen: 61, art: "Gespräch", status: "offen" }],
-  ["Patel Aarav", "Schaden", a.empAlexander, 25, 7, 3, 1, 0, 0, 0, 0, 150, true, 0, 45],
+  ["Adams Anna", "Leitung HR-Management", a.reqAnna, 30, 26, 1, 0, 0, 2, 0, 0, 520, true, 0, 880, { vorTagen: 33, art: "Jahresgespräch", status: "abgeschlossen" }],
+  ["Adams Sonja", "Leitung KFZ-Versicherungen", a.reqSonja, 25, 8, 9, 0, 4, 9, 8, 0, 240, true, 1, -45],
+  ["Bennett Mike", "KFZ-Versicherungen", a.reqMike, 25, 17, 4, 1, 0, 24, 0, 8, 190, false, 3, 130],
+  ["Cooper Ashton", "IT-Administrator", a.reqAshton, 25, 5, 7, 0, 0, 8, 8, 0, 610, true, 0, 365],
+  ["Davis Julia", "Marketing", a.reqDavis, 25, 23, 0, 0, 0, 4, 0, 0, 55, true, 0, 720, { vorTagen: 48, art: "Gespräch", status: "abgeschlossen" }],
+  ["Dennett Lily", "Leitung Personenversicherungen", a.empJasmin, 25, 14, 6, 0, 1, 11, 0, 3, 495, true, 2, -180],
+  ["Garcia Thomas", "Leitung Betriebsversicherungen", a.empPeter, 25, 10, 2, 0, 0, 5, 0, 0, 330, false, 5, -90, { vorTagen: 61, art: "Gespräch", status: "offen" }],
+  ["Patel Aarav", "Leitung Betriebliche Vorsorge", a.empAlexander, 25, 7, 3, 1, 0, 0, 0, 0, 150, true, 0, 45],
 ];
 
-export type Abteilung = { name: string; lead: string[]; people: string[] };
+export type Abteilung = { name: string; lead: string[]; people: string[]; /** The Bewerber group of the tree: not an Abteilung you can pick. */ bewerber?: true };
 
 /** The company tree of the Mitarbeiter side nav and its filter (Makler Winter → Abteilungen → Mitarbeiter). */
 export const FIRMA = "Makler Winter";
@@ -74,14 +88,42 @@ export const ABTEILUNGEN: Abteilung[] = [
     lead: ["Vorgesetzter der Abteilung: Adams Lucy", "Abteilungsleitung: Christine Auer"],
     people: ["Christine Auer Hammer-schmidt", "Alexander Doppler", "Tamara Auer"],
   },
-  { name: "Unternehmensleitung", lead: ["Leiter des Unternehmens: Peter Moser"], people: ["Peter Moser", "Lucy Dallon", "Jasmin Gratzinger", "Adams Anna"] },
-  {
-    name: "Schadenabteilung",
-    lead: ["Vorgesetzter der Abteilung: Julia Huber", "Abteilungsleitung: Werner Barthos"],
-    people: ["Dennett Lily", "Garcia Thomas", "Patel Aarav"],
-  },
-  { name: "KFZ Innendienst", lead: ["Abteilungsleitung: Adams Sonja"], people: ["Adams Sonja", "Bennett Mike", "Cooper Ashton", "Davis Julia"] },
+  { name: "Bewerber", lead: [], people: [], bewerber: true },
+  { name: "Fachabteilung Betriebliche Vorsorge", lead: ["Abteilungsleitung: Patel Aarav"], people: ["Patel Aarav"] },
+  { name: "Fachabteilung Betriebsversicherungen", lead: ["Abteilungsleitung: Garcia Thomas"], people: ["Garcia Thomas"] },
+  { name: "Fachabteilung KFZ-Versicherungen", lead: ["Abteilungsleitung: Adams Sonja"], people: ["Adams Sonja", "Bennett Mike"] },
+  { name: "Fachabteilung Personenversicherungen", lead: ["Abteilungsleitung: Dennett Lily"], people: ["Dennett Lily"] },
+  { name: "Finanzmanagement", lead: ["Vorgesetzter der Abteilung: Peter Moser"], people: [] },
+  { name: "HR-Management", lead: ["Abteilungsleitung: Adams Anna"], people: ["Adams Anna"] },
+  { name: "IT-Management", lead: ["Abteilungsleitung: Cooper Ashton"], people: ["Cooper Ashton"] },
+  { name: "Kundenberater", lead: ["Vorgesetzter der Abteilung: Peter Moser"], people: ["Jasmin Gratzinger"] },
+  { name: "Marketing", lead: ["Abteilungsleitung: Davis Julia"], people: ["Davis Julia"] },
+  { name: "Office-Management", lead: ["Abteilungsleitung: Lucy Dallon"], people: ["Lucy Dallon"] },
+  { name: "Unternehmensführung", lead: ["Leiter des Unternehmens: Peter Moser"], people: ["Peter Moser"] },
 ];
+
+/**
+ * Makler Winter has 100 Mitarbeiter. Headcount per Abteilung (business standard for a broker of that size):
+ * the Kundenberater and the Fachabteilungen are the big teams, Unternehmensführung, HR and Marketing are small.
+ * The 14 named people above come first; the rest are generated (seeded, the same on every load).
+ */
+const HEADCOUNT: Record<string, number> = {
+  "Beratung & Service": 12,
+  "Fachabteilung Betriebliche Vorsorge": 8,
+  "Fachabteilung Betriebsversicherungen": 10,
+  "Fachabteilung KFZ-Versicherungen": 12,
+  "Fachabteilung Personenversicherungen": 10,
+  Finanzmanagement: 6,
+  "HR-Management": 4,
+  "IT-Management": 5,
+  Kundenberater: 20,
+  Marketing: 4,
+  "Office-Management": 5,
+  Unternehmensführung: 4,
+};
+
+/** The Abteilungen you can assign someone to (everything but the Bewerber group). */
+export const ABTEILUNG_NAMEN = ABTEILUNGEN.filter((d) => !d.bewerber).map((d) => d.name);
 
 const WORKFLOW_COUNT: Record<string, number> = { "Tamara Auer": 2, "Peter Moser": 3, "Jasmin Gratzinger": 2, "Bennett Mike": 1 };
 
@@ -92,6 +134,70 @@ export const TEAM: TeamMember[] = ROWS.map(
     workflows: WORKFLOW_COUNT[name] ?? 0,
   }),
 );
+
+const VORNAMEN = ["Anna", "Lukas", "Sophie", "Florian", "Lena", "Maximilian", "Katharina", "Tobias", "Julia", "Stefan", "Elena", "Markus", "Sarah", "David", "Theresa", "Michael", "Laura", "Andreas", "Verena", "Patrick", "Nina", "Christoph", "Lisa", "Matthias", "Hannah", "Daniel", "Magdalena", "Bernhard", "Johanna", "Simon", "Eva", "Georg", "Marie", "Philipp", "Carina", "Martin", "Sabine", "Thomas", "Melanie", "Fabian"];
+const NACHNAMEN = ["Gruber", "Huber", "Wagner", "Pichler", "Steiner", "Moser", "Mayer", "Hofer", "Leitner", "Berger", "Fuchs", "Eder", "Fischer", "Schmid", "Winkler", "Weber", "Schwarz", "Maier", "Schneider", "Reiter", "Mayr", "Schmidt", "Wimmer", "Egger", "Brunner", "Lang", "Baumgartner", "Auer", "Binder", "Lechner", "Wolf", "Wallner", "Aigner", "Ebner", "Koller", "Lehner", "Haas", "Schuster", "Holzer", "Strasser"];
+const ROLLEN: Record<string, string[]> = {
+  "Beratung & Service": ["Berater/in", "Kundenservice", "Innendienst"],
+  "Fachabteilung Betriebliche Vorsorge": ["Referent/in Vorsorge", "Sachbearbeiter/in"],
+  "Fachabteilung Betriebsversicherungen": ["Referent/in Betriebsversicherungen", "Sachbearbeiter/in", "Schadenreferent/in"],
+  "Fachabteilung KFZ-Versicherungen": ["KFZ-Versicherungen", "KFZ Innendienst", "Schadenreferent/in KFZ"],
+  "Fachabteilung Personenversicherungen": ["Referent/in Personenversicherungen", "Sachbearbeiter/in"],
+  Finanzmanagement: ["Buchhaltung", "Controlling", "Leitung Finanzen"],
+  "HR-Management": ["HR-Referent/in", "Lohnverrechnung"],
+  "IT-Management": ["IT-Support", "Systemadministration"],
+  Kundenberater: ["Kundenberater/in", "Junior Kundenberater/in", "Senior Kundenberater/in"],
+  Marketing: ["Marketing", "Content & Social Media"],
+  "Office-Management": ["Empfang", "Assistenz", "Office-Management"],
+  Unternehmensführung: ["Prokurist/in", "Geschäftsführung", "Assistenz der Geschäftsführung"],
+};
+
+(function fillTeam() {
+  const random = seeded(4242);
+  const pick = <T,>(list: T[]) => list[Math.floor(random() * list.length)];
+  const between = (min: number, max: number) => min + Math.floor(random() * (max - min + 1));
+  const used = new Set(TEAM.map((m) => m.name));
+  let n = 0;
+  for (const dept of ABTEILUNGEN) {
+    const want = HEADCOUNT[dept.name] ?? 0;
+    while (dept.people.length < want) {
+      let name = "";
+      do name = `${NACHNAMEN[(n * 7 + between(0, 39)) % NACHNAMEN.length]} ${pick(VORNAMEN)}`;
+      while (used.has(name));
+      used.add(name);
+      n++;
+      const anspruch = random() < 0.3 ? 30 : 25;
+      const krankWoche = random() < 0.12 ? between(1, 3) : 0;
+      const dvWoche = random() < 0.15 ? between(2, 8) : 0;
+      const gespraechArt = pick(["Gespräch", "Jahresgespräch", "Probezeitgespräch"] as const);
+      TEAM.push({
+        name,
+        role: pick(ROLLEN[dept.name] ?? ["Mitarbeiter/in"]),
+        photo: "",
+        abteilung: dept.name,
+        workflows: random() < 0.2 ? between(1, 3) : 0,
+        urlaubAnspruch: anspruch,
+        urlaubVerbraucht: between(3, anspruch - 1),
+        krank: between(0, 14),
+        krankWoche,
+        krankVorwoche: random() < 0.12 ? between(1, 3) : 0,
+        dv: between(0, 20),
+        dvWoche,
+        dvVorwoche: random() < 0.15 ? between(2, 8) : 0,
+        homeoffice: between(40, 560),
+        soll: SOLL,
+        abschluss: random() < 0.8,
+        fehler: random() < 0.25 ? between(1, 5) : 0,
+        zeitkonto: between(-480, 1200),
+        gespraech: random() < 0.75 ? { vorTagen: between(2, 300), art: gespraechArt, status: random() < 0.75 ? "abgeschlossen" : "offen" } : undefined,
+      });
+      dept.people.push(name);
+    }
+  }
+})();
+
+/** Employees only (no Bewerber / Bewerber Potential): what the HRM figures count. */
+export const isEmployee = (m: TeamMember) => !m.typ || m.typ === "Mitarbeiter";
 
 export const member = (name: string) => TEAM.find((m) => m.name === name);
 
@@ -109,7 +215,7 @@ export type Terminart = (typeof TERMINARTEN)[number];
 export type TeamTermin = { day: string; art: Terminart; extern: boolean; reise: boolean; wer: string };
 
 /** Small seeded generator, so the team calendar is the same on every load. */
-function seeded(seed: number) {
+export function seeded(seed: number) {
   let t = seed;
   return () => {
     t = (t + 0x6d2b79f5) | 0;
@@ -135,15 +241,17 @@ export function teamTermine(today: string): TeamTermin[] {
   const random = seeded(year * 7919);
   const total = WEIGHTS.reduce((sum, [, w]) => sum + w, 0);
   const list: TeamTermin[] = [];
+  const staff = TEAM.filter(isEmployee);
   for (let day = `${year}-01-01`; day <= end; day = addDays(day, 1)) {
     const weekday = parseIso(day).getDay();
     if (weekday === 0 || weekday === 6) continue;
-    const count = 3 + Math.floor(random() * 7);
+    // About five Termine per person and week, whatever the team size.
+    const count = Math.round((3 + random() * 7) * (staff.length / 14));
     for (let i = 0; i < count; i++) {
       let pick = random() * total;
       const art = (WEIGHTS.find(([, w]) => (pick -= w) < 0) ?? WEIGHTS[0])[0];
       const extern = art !== "Interne Besprechungen" && art !== "Projekte" && random() < 0.55;
-      list.push({ day, art, extern, reise: extern && random() < 0.35, wer: TEAM[Math.floor(random() * TEAM.length)].name });
+      list.push({ day, art, extern, reise: extern && random() < 0.35, wer: staff[Math.floor(random() * staff.length)].name });
     }
   }
   return list;
@@ -185,5 +293,18 @@ export function registerMember(entry: { name: string; role: string; abteilung: s
   };
   TEAM.push(created);
   if (entry.typ === "Mitarbeiter") ABTEILUNGEN.find((d) => d.name === entry.abteilung)?.people.push(entry.name);
+  else ABTEILUNGEN.find((d) => d.bewerber)?.people.push(entry.name);
   return created;
+}
+
+
+/** Named people written "Vorname Nachname"; everyone else (and every generated person) is "Nachname Vorname". */
+const FIRST_LAST = ["Christine Auer Hammer-schmidt", "Alexander Doppler", "Tamara Auer", "Peter Moser", "Lucy Dallon", "Jasmin Gratzinger"];
+
+/** Vorname and Nachname of a team member (from "Mitarbeiter anlegen" when entered there). */
+export function nameParts(person: TeamMember) {
+  if (person.angelegt?.Vorname || person.angelegt?.Nachname) return { vorname: person.angelegt.Vorname ?? "", nachname: person.angelegt.Nachname ?? "" };
+  const words = person.name.split(" ");
+  if (FIRST_LAST.includes(person.name)) return { vorname: words[0], nachname: words.slice(1).join(" ") };
+  return { vorname: words.slice(1).join(" "), nachname: words[0] };
 }

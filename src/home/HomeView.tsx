@@ -5,7 +5,7 @@ import { ConstructionArt } from "../mein-bereich/MeinBereichView";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { HomeWorkflows } from "./HomeWorkflows";
-import { PartnerList } from "./PartnerList";
+import { KundenList } from "./KundenList";
 import { GlobalSearch } from "../search/GlobalSearch";
 
 type Area = "Planner" | "Kommunikation" | "Bestand" | "Wissen";
@@ -25,7 +25,16 @@ const PAGES: Record<Area, { label: string; icon: string }[]> = {
     { label: "E-Mail", icon: a.navMail },
     { label: "Telefonie", icon: a.navMail },
   ],
-  Bestand: [{ label: "Dashboard", icon: a.dashboard }],
+  // Figma 8534:82498: Schnellsuche, then the lists of the Bestand.
+  Bestand: [
+    { label: "Schnellsuche", icon: a.bestandFastSearch },
+    { label: "Kunden", icon: a.bestandUser },
+    { label: "Versicherer", icon: a.bestandInsurance },
+    { label: "Verträge", icon: a.bestandFiles },
+    { label: "Schäden", icon: a.bestandDamage },
+    { label: "Angebote", icon: a.bestandOffer },
+    { label: "Objekte", icon: a.bestandObject },
+  ],
   Wissen: [{ label: "Dashboard", icon: a.dashboard }],
 };
 
@@ -33,14 +42,15 @@ const PAGES: Record<Area, { label: string; icon: string }[]> = {
 export function HomeView() {
   const { homeNav, setHomeNav } = useWorkflow();
   const area = homeNav.area as Area;
-  const page = homeNav.page;
+  // An old link to Bestand → Dashboard lands on Kunden.
+  const page = PAGES[area].some((p) => p.label === homeNav.page) ? homeNav.page : area === "Bestand" ? "Kunden" : homeNav.page;
 
-  const partners = area === "Bestand" && page === "Dashboard";
+  const kunden = area === "Bestand" && page === "Kunden";
   const workflows = area === "Planner" && page === "Workflows & To-Dos";
   const kalender = area === "Planner" && page === "Kalender";
 
   function openArea(next: Area) {
-    setHomeNav({ area: next, page: next === "Planner" ? "Workflows & To-Dos" : PAGES[next][0].label });
+    setHomeNav({ area: next, page: next === "Planner" ? "Workflows & To-Dos" : next === "Bestand" ? "Kunden" : PAGES[next][0].label });
   }
 
   return (
@@ -76,10 +86,10 @@ export function HomeView() {
 
         <div className="module-nav">
           {PAGES[area].map((item) => (
+            <span className="module-pill-wrap" key={item.label}>
             <button
               type="button"
               className={item.label === page ? "module-pill active" : "module-pill"}
-              key={item.label}
               onClick={() => setHomeNav({ area, page: item.label })}
             >
               <Icon src={item.icon} size={24} />
@@ -90,16 +100,21 @@ export function HomeView() {
                 </span>
               ) : null}
             </button>
+            {/* Figma: a divider between Schnellsuche and the Bestand lists. */}
+            {item.label === "Schnellsuche" ? <span className="module-divider" aria-hidden /> : null}
+            </span>
           ))}
+          {area === "Bestand" ? null : (
           <button type="button" className="module-pill ghost module-history">
             <Icon src={a.filterLines} size={24} />
             Verlauf
           </button>
+          )}
         </div>
 
-        {partners ? (
-          <div className="content-shell mb-page">
-            <PartnerList />
+        {kunden ? (
+          <div className="content-shell kd-shell">
+            <KundenList />
           </div>
         ) : kalender ? (
           <KalenderPage />

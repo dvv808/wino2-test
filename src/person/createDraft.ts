@@ -891,3 +891,75 @@ export function buildHonorarPartner(partner: { id: string; name: string; type: "
   };
   return buildCreatedPartner(draft, seq);
 }
+
+/**
+ * A Wino file for a customer from Home → Bestand → Kunden (demo rows), so every row opens a real partner tab with
+ * Stammdaten: name, Geburtsdatum, Rufname (vulgo), address, phone, mail and the Partnertyp of the list.
+ */
+export function buildKundePartner(
+  kunde: {
+    name: string;
+    company: boolean;
+    born?: string;
+    vulgo?: string;
+    street: string;
+    city: string;
+    typ: PartnerTyp;
+    phone: string;
+    mail: string;
+    notiz?: string;
+    fn?: string;
+    /** Companies: the Geschäftsführung as a contact person (Vertretungsbefugte Person in the Maklervereinbarung). */
+    contact?: { name: string; role: string; phone: string; mail: string };
+  },
+  seq: number,
+) {
+  const streetMatch = kunde.street.match(/^(.*?)\s+(\d+\w*)$/);
+  const [, plz = "", ort = ""] = kunde.city.match(/^A[- ]?(\d{4})\s+(.*)$/) ?? [];
+  const [vorname, nachname] = splitName(kunde.name);
+  const [tag = "", monat = "", jahr = ""] = (kunde.born ?? "").split(".");
+  const draft: PartnerDraft = {
+    ...EMPTY_DRAFT,
+    partnerTyp: kunde.typ,
+    personTyp: kunde.company ? "Unternehmen" : "Privatperson",
+    vorname: kunde.company ? "" : vorname,
+    nachname: kunde.company ? "" : nachname,
+    rufname: kunde.vulgo ?? "",
+    firmenwortlaut: kunde.company ? kunde.name : "",
+    geburtTag: tag,
+    geburtMonat: monat,
+    geburtJahr: jahr,
+    strasse: streetMatch ? streetMatch[1] : kunde.street,
+    nummer: streetMatch ? streetMatch[2] : "",
+    plz,
+    ort,
+    notiz: kunde.notiz ?? "",
+    phones: [{ value: kunde.phone, note: "", extra: "Mobil" }],
+    mails: [{ value: kunde.mail, note: "" }],
+  };
+  const built = buildCreatedPartner(draft, seq);
+  if (kunde.fn) built.file.fn = kunde.fn;
+  const contact = kunde.contact;
+  if (contact) {
+    const card: Card = {
+      id: `kontakt-gf-${seq}`,
+      title: contact.role,
+      blocks: [
+        { kind: "person", tag: "Kontaktperson", name: contact.name, sub: contact.role },
+        { kind: "note", caption: "Allgemeine Kontaktnotiz", text: "Zeichnungsberechtigt für die Firma." },
+        {
+          kind: "rows",
+          rows: [
+            { label: "Telefon", value: contact.phone, icon: a.phone, action: true },
+            { label: "Mail", value: contact.mail, icon: a.mail, action: true },
+          ],
+        },
+      ],
+    };
+    built.sections = built.sections.map((section) =>
+      section.id === "kontakte" ? { ...section, title: `Kontakte (${section.cards.length + 1})`, cards: [...section.cards, card] } : section,
+    );
+    built.file.moreContacts = 1;
+  }
+  return built;
+}

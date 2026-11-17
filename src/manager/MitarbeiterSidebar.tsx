@@ -3,7 +3,7 @@ import * as a from "../assets/index";
 import { loadAntraege, onAntraegeChange } from "../home/calendar/homeoffice";
 import { Icon } from "../ui";
 import { homeofficeRows, useHrDemo } from "./hrmAntraege";
-import { ABTEILUNGEN, FIRMA, TEAM, member, slugOf, type Abteilung, type TeamMember } from "./hrmTeam";
+import { ABTEILUNGEN, ABTEILUNG_NAMEN, FIRMA, TEAM, isEmployee, member, slugOf, type Abteilung, type TeamMember } from "./hrmTeam";
 import { useWorkflow } from "../workflow";
 import { AbteilungScope, setSelected, setZeitpunkt, useAuswahlRaw, type Zeitpunkt } from "./mitarbeiterAuswahl";
 
@@ -65,7 +65,7 @@ function EmployeeCard({ person, requests, selected, onToggle, onOpen }: { person
       }}
     >
       <span className="emp-avatar">
-        <img src={person.photo} alt="" />
+        <img className={person.photo ? undefined : "blank"} src={person.photo || a.clientBlank} alt="" />
         <img className="emp-dot" src={a.statusDot} alt="" />
       </span>
       <span className="emp-copy">
@@ -135,7 +135,7 @@ function FilterBox({ selected, onSave, onClose }: { selected: string[]; onSave: 
         ) : null}
       </label>
       <p className="ms-filter-sum">
-        {TEAM.length} Mitarbeiter in {ABTEILUNGEN.length} Abteilungen
+        {TEAM.filter(isEmployee).length} Mitarbeiter in {ABTEILUNG_NAMEN.length} Abteilungen
       </p>
       <div className="ms-tree">
         <div className="ms-tree-row firma">
@@ -174,7 +174,7 @@ function FilterBox({ selected, onSave, onClose }: { selected: string[]; onSave: 
                           <Tick checked={has(m.name)} label={`${m.name} auswählen`} onChange={() => toggle([m.name])} />
                           <button type="button" className="ms-tree-label" onClick={() => toggle([m.name])}>
                             <span className="emp-avatar">
-                              <img src={m.photo} alt="" />
+                              <img className={m.photo ? undefined : "blank"} src={m.photo || a.clientBlank} alt="" />
                               <img className="emp-dot" src={a.statusDot} alt="" />
                             </span>
                             <span className="ms-tree-person">
@@ -255,7 +255,7 @@ export function MitarbeiterSidebar() {
       <div className="mitarbeiter-head">
         <div className="mitarbeiter-title">
           <h2>Mitarbeiter</h2>
-          <span className="mitarbeiter-count">{scope ? scope.length : TEAM.length}</span>
+          <span className="mitarbeiter-count">{scope ? scope.length : TEAM.filter(isEmployee).length}</span>
         </div>
 
         <label className="mitarbeiter-search">
@@ -320,7 +320,7 @@ export function MitarbeiterSidebar() {
           </div>
           <div className="ms-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === "alle"} className={tab === "alle" ? "active" : ""} onClick={() => setTab("alle")}>
-              Alle ({scope ? scope.length : TEAM.length})
+              Alle ({scope ? scope.length : TEAM.filter(isEmployee).length})
             </button>
             <button type="button" role="tab" aria-selected={tab === "auswahl"} className={tab === "auswahl" ? "active" : ""} onClick={() => setTab("auswahl")}>
               Auswahl ({selected.length})

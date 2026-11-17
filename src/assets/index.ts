@@ -346,3 +346,25 @@ export { default as plausiBadgeWino } from "./icons/plausi-badge-wino.svg";
 export { default as avatarBgDark } from "./icons/avatar-bg-dark.svg";
 export { default as personSmallWhite } from "./icons/person-small-white.svg";
 export { default as infoRing20 } from "./icons/info-ring-20.svg";
+// Mitarbeiter business card (Figma 20379:190350): dark card shape, corner lines, "W" watermark, icon disc, Winter mark.
+export { default as maCardBg } from "./icons/ma-card-bg.svg";
+export { default as maCardDeco } from "./icons/ma-card-deco.svg";
+export { default as maCardW } from "./icons/ma-card-w.svg";
+export { default as maCardCircle } from "./icons/ma-card-circle.svg";
+export { default as maCardWinter } from "./icons/ma-card-winter.svg";
+export { default as maCardWinterBg } from "./icons/ma-card-winter-bg.svg";
+// Home → Bestand content nav (Figma 8534:82498).
+export { default as bestandFastSearch } from "./icons/bestand-fastsearch.svg";
+export { default as bestandUser } from "./icons/bestand-user.svg";
+export { default as bestandInsurance } from "./icons/bestand-insurance.svg";
+export { default as bestandFiles } from "./icons/bestand-files.svg";
+export { default as bestandDamage } from "./icons/bestand-damage.svg";
+export { default as bestandOffer } from "./icons/bestand-offer.svg";
+export { default as bestandObject } from "./icons/bestand-object.svg";
+// Winter Kunde badge under the dark partner icon (Figma 22880:486482).
+export { default as kundeBadge } from "./icons/kunde-badge.svg";
+// Stepper end when the bar overflows (Figma 22742:231226): white fade, arrow pocket, ‹ › discs.
+export { default as stepperEndFade } from "./icons/stepper-end-fade.svg";
+export { default as stepperEndPocket } from "./icons/stepper-end-pocket.svg";
+export { default as stepperArrowLeft } from "./icons/stepper-arrow-left.svg";
+export { default as stepperArrowRight } from "./icons/stepper-arrow-right.svg";

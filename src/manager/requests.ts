@@ -135,8 +135,8 @@ const MARTINA: RequestRow["partner"] = {
   kind: "person",
 };
 
-const ASHTON = { name: "Cooper Ashton", role: "KFZ Innendienst", photo: a.reqAshton };
-const DAVIS = { name: "Davis Julia", role: "KFZ Innendienst", photo: a.reqDavis };
+const ASHTON = { name: "Cooper Ashton", role: "IT-Administrator", photo: a.reqAshton };
+const DAVIS = { name: "Davis Julia", role: "Marketing", photo: a.reqDavis };
 
 /** Requests from other advisors, so the Bestandsmanager's inbox is not empty. */
 export const DEMO_REQUESTS: RequestRow[] = [
