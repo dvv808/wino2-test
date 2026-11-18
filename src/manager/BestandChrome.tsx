@@ -18,7 +18,12 @@ const MODULES = [
 ];
 
 /** The Module dropdown: Weiterbildungen and Mitarbeiter anlegen (opens the create flow). */
-const MODULE_ITEMS = ["Weiterbildungen", "Mitarbeiter anlegen"] as const;
+const MODULE_ITEMS = ["Weiterbildungen", "Personalverrechnung", "Mitarbeiter anlegen"] as const;
+const MODULE_ICON: Record<(typeof MODULE_ITEMS)[number], string> = {
+  Weiterbildungen: a.mbEducation,
+  Personalverrechnung: a.personalverrechnung,
+  "Mitarbeiter anlegen": a.plusCircle,
+};
 
 /** The Management tab shows the Winter Versicherung area icon from the profile menu: the orbit shelf with the W mark. */
 export function ManagementAreaIcon() {
@@ -206,6 +211,8 @@ export function BestandAreaNav({ active: current = "Bestand", onArea }: { active
 export function BestandModuleNav() {
   const [menu, setMenu] = useState(false);
   const [create, setCreate] = useState(false);
+  // The picked module shows in the pill; "Mitarbeiter anlegen" is an action, not a module.
+  const [module, setModule] = useState<(typeof MODULE_ITEMS)[number]>("Weiterbildungen");
   const ref = useClickOutside<HTMLDivElement>(menu, () => setMenu(false));
   return (
     <div className="module-nav">
@@ -221,7 +228,7 @@ export function BestandModuleNav() {
             Module
           </span>
           <button type="button" className="module-select-value" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>
-            Weiterbildungen
+            {module}
             <Icon src={a.chevronDown} size={16} />
           </button>
         </div>
@@ -232,13 +239,14 @@ export function BestandModuleNav() {
                 type="button"
                 role="menuitem"
                 key={item}
-                className={item === "Weiterbildungen" ? "active" : ""}
+                className={item === module ? "active" : ""}
                 onClick={() => {
                   setMenu(false);
                   if (item === "Mitarbeiter anlegen") setCreate(true);
+                  else setModule(item);
                 }}
               >
-                <Icon src={item === "Mitarbeiter anlegen" ? a.plusCircle : a.mbEducation} size={18} />
+                <Icon src={MODULE_ICON[item]} size={18} />
                 {item}
               </button>
             ))}

@@ -844,8 +844,18 @@ export function FileIdentity({
   forceInteressent?: boolean;
 }) {
   const person = useFilePerson();
+  const { openPersonArea, stammdatenOpen, closeStammdaten } = useWorkflow();
   const { file, born, address, contacts, extra, isCompany, personName } = person;
   const shown = contacts.slice(0, 3);
+  // "+N weitere Kontakte" leads to the Kontakte section of the Stammdaten page (never into the workflow): scroll
+  // there when it is on screen, otherwise open the Stammdaten and scroll once they are rendered.
+  const showKontakte = () => {
+    const scroll = () => document.getElementById("kontakte")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (document.getElementById("kontakte") && !stammdatenOpen) return scroll();
+    if (stammdatenOpen) closeStammdaten(true);
+    openPersonArea("stammdaten");
+    window.setTimeout(scroll, 120);
+  };
   const kind = person.tag;
   const interessent = forceInteressent || person.tag === "interessent";
   const compact = /\bcompact\b/.test(className);
@@ -895,7 +905,7 @@ export function FileIdentity({
         ) : null}
       </div>
       {!compact && extra > 0 ? (
-        <button type="button" className="mm-more">
+        <button type="button" className="mm-more" onClick={showKontakte}>
           +{extra} weitere Kontakte
         </button>
       ) : null}

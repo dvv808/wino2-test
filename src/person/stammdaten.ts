@@ -21,7 +21,7 @@ export type Value =
   | string
   | { kind: "link"; text: string; icon?: string }
   | { kind: "flag"; text: string }
-  | { kind: "file"; text: string; type?: "pdf" | "jpg" }
+  | ({ kind: "file"; text: string; type?: "pdf" | "jpg" } & DocMeta)
   | { kind: "entity"; tag: string; name: string; sub: string }
   /** A team member with their photo (e.g. "Ausgegeben von", "Erstellt von"). */
   | { kind: "person"; name: string; photo?: string };
@@ -34,9 +34,16 @@ export type Block =
   | { kind: "group"; caption: string; rows: Row[] }
   | { kind: "note"; caption: string; text: string }
   | { kind: "files"; caption: string; rows: Row[] }
-  | { kind: "person"; caption?: string; tag?: string; name: string; sub: string; party?: "person" | "company" }
+  /** `channel`: a Kanal card (e.g. Office); its head shows the partner the channel belongs to. */
+  | { kind: "person"; caption?: string; tag?: string; name: string; sub: string; party?: "person" | "company"; channel?: boolean }
   | { kind: "badge"; icon: string; caption?: string; text: string; open?: boolean; above?: boolean }
   | { kind: "usage"; icon: string; caption: string; text: string; rows: Row[] };
+
+/** Is this person block the head of a Kanal card (old cards: tag "Kanal"; new: `channel`, showing the partner)? */
+export const isChannelBlock = (block?: Block) => block?.kind === "person" && (block.channel === true || block.tag === "Kanal");
+
+/** The partner a Kanal belongs to (the file itself), shown at the top of every Kanal card. */
+export type ChannelOwner = { name: string; tag?: string; sub: string; company: boolean };
 
 /** A section with nothing in it yet offers a way to link the data up. */
 export type Empty = { icon: string; title: string; lead?: string; link: string };
@@ -147,7 +154,17 @@ export function sectionIdForArea(area: StammdatenAreaId) {
   return area === "externe" ? "firmenbuch" : area;
 }
 
-export type FileEntry = { label: string; name: string; type?: "pdf" | "jpg" };
+/** An uploaded document; Ausweis-type documents carry their Typ, validity and issuer. */
+export type FileEntry = { label: string; name: string; type?: "pdf" | "jpg" } & DocMeta;
+export type DocMeta = { docTyp?: string; von?: string; bis?: string; aussteller?: string };
+export const DOC_TYPEN = ["Führerschein", "Reisepass", "Personalausweis", "Heiratsurkunde"];
+
+/** "gültig 01.01.2020 – 01.01.2030 · BH Liezen" for a card, or "" when nothing was entered. */
+export function docMetaLine(meta: DocMeta) {
+  const has = (value?: string) => Boolean(value && /\d|[A-Za-z]/.test(value.replace(/\./g, "")));
+  const range = has(meta.von) || has(meta.bis) ? `gültig ${has(meta.von) ? meta.von : "…"} – ${has(meta.bis) ? meta.bis : "…"}` : "";
+  return [range, meta.aussteller?.trim()].filter(Boolean).join(" · ");
+}
 
 export type PartnerForm = {
   titelVor: string;
@@ -786,7 +803,7 @@ export function commsOptions(sections: Section[], type: CommsType): CommsGroup[]
   const ownContact = (card: Card) => {
     if (company) return true;
     const person = card.blocks?.find((block) => block.kind === "person");
-    if (person?.kind !== "person" || person.tag === "Kanal") return true;
+    if (person?.kind !== "person" || isChannelBlock(person)) return true;
     return !owner || norm(person.name) === norm(owner);
   };
   return liveCards(sections, "kontakte")
@@ -799,7 +816,13 @@ export function commsOptions(sections: Section[], type: CommsType): CommsGroup[]
       return {
         id: card.id,
         title: card.title ?? "Kontakt",
-        person: person?.kind === "person" ? { name: person.name, tag: person.tag, sub: person.sub } : undefined,
+        // A Kanal group keeps tag "Kanal" and its Bezeichnung as name (its card head shows the partner instead).
+        person:
+          person?.kind === "person"
+            ? isChannelBlock(person)
+              ? { name: card.title ?? person.name, tag: "Kanal", sub: person.sub }
+              : { name: person.name, tag: person.tag, sub: person.sub }
+            : undefined,
         note: note?.kind === "note" ? note.text : undefined,
         options: values.map((value) => ({ value, tags: [] })),
       };
@@ -1001,11 +1024,18 @@ function noteText(card: Card) {
 function fileEntries(card: Card): FileEntry[] {
   const files = card.blocks?.find((block) => block.kind === "files");
   if (files?.kind !== "files") return [];
-  return files.rows.map((row) => ({
-    label: row.label,
-    name: valueText(row.value),
-    type: typeof row.value === "object" && row.value.kind === "file" ? row.value.type : "pdf",
-  }));
+  return files.rows.map((row) => {
+    const file = typeof row.value === "object" && row.value.kind === "file" ? row.value : null;
+    return {
+      label: row.label,
+      name: valueText(row.value),
+      type: file?.type ?? "pdf",
+      docTyp: file?.docTyp,
+      von: file?.von,
+      bis: file?.bis,
+      aussteller: file?.aussteller,
+    };
+  });
 }
 
 function splitDate(value: string) {
@@ -1219,7 +1249,7 @@ export function partnerForm(card: Card): PartnerForm {
 export function contactForm(card: Card): ContactForm {
   const person = card.blocks?.find((block) => block.kind === "person");
   const rows = card.blocks?.flatMap((block) => ("rows" in block ? block.rows : [])) ?? [];
-  const kanal = person?.kind === "person" && person.tag === "Kanal";
+  const kanal = isChannelBlock(person);
   const named = person?.kind === "person" && person.name !== "Partner" && !kanal ? person.name : "";
   return {
     kind: kanal ? "kanal" : "person",
@@ -1309,16 +1339,17 @@ export function applyPartner(card: Card, form: PartnerForm, draft = false): Card
       {
         kind: "files",
         caption: "Anhänge",
+        // Typ (Reisepass …) as the label when picked; validity and issuer stay on the file value.
         rows: form.files.map((file) => ({
-          label: file.label,
-          value: { kind: "file", text: file.name, type: file.type },
+          label: file.docTyp || file.label,
+          value: { kind: "file", text: file.name, type: file.type, docTyp: file.docTyp, von: file.von, bis: file.bis, aussteller: file.aussteller },
         })),
       },
     ],
   };
 }
 
-export function applyContact(card: Card, form: ContactForm, draft = false): Card {
+export function applyContact(card: Card, form: ContactForm, draft = false, owner?: ChannelOwner): Card {
   const kanal = form.kind === "kanal";
   const defined = kanal ? Boolean(form.bezeichnung) : Boolean(form.partner || form.bezeichnung);
   const person = card.blocks?.find((block) => block.kind === "person");
@@ -1327,22 +1358,28 @@ export function applyContact(card: Card, form: ContactForm, draft = false): Card
     draft,
     title: defined ? form.bezeichnung || (kanal ? "Kanal" : "Kontaktperson") : "Nicht definiert",
     blocks: [
-      {
-        kind: "person",
-        tag: kanal
-          ? "Kanal"
-          : person?.kind === "person" && person.tag && person.tag !== "Kanal"
-            ? person.tag
-            : form.partner === FILE_PARTNERS.julia.name
-              ? "Interessent"
-              : undefined,
-        name: kanal ? form.bezeichnung || "Kanal" : form.partner || "Partner",
-        sub: kanal
-          ? "-"
-          : filled(person?.kind === "person" ? person.sub : "") ||
-            Object.values(FILE_PARTNERS).find((entry) => entry.name === form.partner)?.born ||
-            "-",
-      },
+      // Kanal: linked automatically to the partner of the file, which shows at the top of the card.
+      // Person: the chosen person.
+      kanal
+        ? owner
+          ? { kind: "person" as const, channel: true, tag: owner.tag, name: owner.name, sub: owner.sub || "-", party: owner.company ? ("company" as const) : ("person" as const) }
+          : person?.kind === "person" && person.channel
+            ? { ...person, channel: true }
+            : { kind: "person" as const, tag: "Kanal", name: form.bezeichnung || "Kanal", sub: "-" }
+        : {
+            kind: "person" as const,
+            tag:
+              person?.kind === "person" && person.tag && !isChannelBlock(person)
+                ? person.tag
+                : form.partner === FILE_PARTNERS.julia.name
+                  ? "Interessent"
+                  : undefined,
+            name: form.partner || "Partner",
+            sub:
+              filled(person?.kind === "person" && !isChannelBlock(person) ? person.sub : "") ||
+              Object.values(FILE_PARTNERS).find((entry) => entry.name === form.partner)?.born ||
+              "-",
+          },
       { kind: "note", caption: "Allgemeine Notiz zur Kontaktperson", text: form.notiz || "-" },
       {
         kind: "rows",
@@ -1755,7 +1792,7 @@ function lunixoKontakte(): Card[] {
       {
         kind: "kanal",
         partner: "",
-        bezeichnung: "Office Lunixo AG",
+        bezeichnung: "Office",
         notiz: "Zentrale – Mo bis Fr 08:00 bis 17:00 erreichbar.",
         phones: [
           { value: "+43 662 21 33 40", note: "", extra: "Festnetz" },

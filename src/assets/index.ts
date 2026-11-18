@@ -386,3 +386,5 @@ export { default as laptop } from "./icons/laptop.svg";
 export { default as food } from "./icons/food.svg";
 export { default as gym } from "./icons/gym.svg";
 export { default as car } from "./icons/car.svg";
+/** Module menu (Wino - Icons: Icon_PersonalverrechnungPayroll). */
+export { default as personalverrechnung } from "./icons/personalverrechnung.svg";

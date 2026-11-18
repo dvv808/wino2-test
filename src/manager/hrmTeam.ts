@@ -49,6 +49,8 @@ export type MaStamm = {
   mails: MaChannel[];
   websites: MaChannel[];
   bank: { inhaber: string; iban: string; bic: string; institut: string; notiz?: string } | null;
+  /** Uploaded documents (Typ, Gültig von / bis, Aussteller), from the Allgemeine Partnerdaten. */
+  dokumente?: { label: string; name: string; type?: "pdf" | "jpg"; docTyp?: string; von?: string; bis?: string; aussteller?: string }[];
 };
 
 export type TeamMember = {
@@ -122,7 +124,6 @@ export const ABTEILUNGEN: Abteilung[] = [
     lead: ["Vorgesetzter der Abteilung: Adams Lucy", "Abteilungsleitung: Christine Auer"],
     people: ["Christine Auer Hammer-schmidt", "Alexander Doppler", "Tamara Auer"],
   },
-  { name: "Bewerber", lead: [], people: [], bewerber: true },
   { name: "Fachabteilung Betriebliche Vorsorge", lead: ["Abteilungsleitung: Patel Aarav"], people: ["Patel Aarav"] },
   { name: "Fachabteilung Betriebsversicherungen", lead: ["Abteilungsleitung: Garcia Thomas"], people: ["Garcia Thomas"] },
   { name: "Fachabteilung KFZ-Versicherungen", lead: ["Abteilungsleitung: Adams Sonja"], people: ["Adams Sonja", "Bennett Mike"] },
@@ -134,6 +135,8 @@ export const ABTEILUNGEN: Abteilung[] = [
   { name: "Marketing", lead: ["Abteilungsleitung: Davis Julia"], people: ["Davis Julia"] },
   { name: "Office-Management", lead: ["Abteilungsleitung: Lucy Dallon"], people: ["Lucy Dallon"] },
   { name: "Unternehmensführung", lead: ["Leiter des Unternehmens: Peter Moser"], people: ["Peter Moser"] },
+  // Last in the tree, but a group of its own in the filter: everyone who is not (yet) employed.
+  { name: "Bewerber", lead: ["Zuständig: HR-Management"], people: [], bewerber: true },
 ];
 
 /**
@@ -342,4 +345,13 @@ export function nameParts(person: TeamMember) {
   const words = person.name.split(" ");
   if (FIRST_LAST.includes(person.name)) return { vorname: words[0], nachname: words.slice(1).join(" ") };
   return { vorname: words.slice(1).join(" "), nachname: words[0] };
+}
+
+/** Three Bewerber from the start (Benjamin Atkinson is the Bewerber of the Figma screens). */
+for (const [vorname, nachname, typ, notiz] of [
+  ["Benjamin", "Atkinson", "Bewerber", "War vorher bei der Allianz tätig."],
+  ["Lena", "Hofbauer", "Bewerber", "Bewerbung als Innendienst, Gespräch am 25.11.2026."],
+  ["Maximilian", "Steiner", "Bewerber Potential", "Initiativbewerbung, für 2027 vorgemerkt."],
+] as const) {
+  registerMember({ name: `${vorname} ${nachname}`, role: typ, abteilung: "", typ, urlaubAnspruch: 25, angelegt: { Vorname: vorname, Nachname: nachname, Notiz: notiz } });
 }

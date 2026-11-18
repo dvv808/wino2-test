@@ -4,7 +4,7 @@ import * as a from "../assets/index";
 import { AppsNav, FileIdentity, FileTabs, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
 import { WicoDeviationBox } from "../Summary";
-import { useWorkflow } from "../workflow";
+import { channelOwner, useWorkflow } from "../workflow";
 import { DataCard, focusForm } from "./cards";
 import { kommunikationChoice, withKommunikation } from "./kommunikation";
 import { DeleteCard } from "./DeleteCard";
@@ -342,10 +342,10 @@ export function StammdatenWorkflow() {
           : { ...next, phones: [], mails: [], websites: [] };
     setContact(form);
     if (selected) {
-      patchStammdatenCard(stammdatenArea, applyContact(selected, form, true));
+      patchStammdatenCard(stammdatenArea, applyContact(selected, form, true, channelOwner(getPartner(filePartnerId))));
       return;
     }
-    addStammdatenCard(applyContact({ id: `kontakte-${Date.now()}` }, form, true));
+    addStammdatenCard(applyContact({ id: `kontakte-${Date.now()}` }, form, true, channelOwner(getPartner(filePartnerId))));
   }
 
   function updateAddress(form: AddressForm) {
@@ -687,6 +687,8 @@ export function StammdatenWorkflow() {
                     )}
                   {stammdatenArea === "kontakte" && (
                     <ContactFields
+                      // The first contact card is the partner's own and mandatory: its head is locked.
+                      own={selected && selected.id === cards[0]?.id ? { company: isCompanyFile } : undefined}
                       form={contact}
                       onChange={updateContact}
                       onRemoved={notifyRemoved}
@@ -757,7 +759,8 @@ export function StammdatenWorkflow() {
                         selected={card.id === selected?.id}
                         onSelect={() => selectStammdatenCard(card.id)}
                         onEdit={() => selectStammdatenCard(card.id)}
-                        onDelete={() => setPendingDelete(card)}
+                        // The first contact card is mandatory: it cannot be deleted.
+                        onDelete={stammdatenArea === "kontakte" && card.id === cards[0]?.id ? undefined : () => setPendingDelete(card)}
                       />
                     ))}
                     {stammdatenArea === "personendaten" ? <VertretungBox /> : null}

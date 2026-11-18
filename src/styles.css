@@ -28316,3 +28316,62 @@ button.m-chip {
 .pp-card.selected > .pp-card-shape::after {
   inset: 2px;
 }
+
+/* Locked fields of the own contact card (Kanal oder Person, Partner with avatar, Kontaktbezeichnung). */
+.sw-locked {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 44px;
+  text-align: left;
+}
+.sw-locked .emp-avatar {
+  flex: none;
+}
+
+/* Plausibilitäts Check: every entry is a button that opens its area in the workflow. */
+.pp-plausi li:has(> .pp-plausi-link) {
+  padding: 0;
+}
+.pp-plausi-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 20px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pp-plausi-link:hover {
+  background: rgba(186, 204, 213, 0.25);
+}
+.pp-plausi-link .pp-plausi-copy {
+  flex: 1;
+}
+
+/* Uploaded Ausweis-type documents: Typ, Gültig von / bis and Aussteller under the file. */
+.file-chip:has(> .file-meta) {
+  flex-wrap: wrap;
+}
+.file-meta {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--wino-bg-light);
+}
+.pp-file-copy {
+  display: inline-flex;
+  flex-direction: column;
+}
+.pp-file-copy small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--wino-black-medium);
+}

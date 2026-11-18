@@ -11,13 +11,36 @@ import * as a from "./assets/index";
 export function useStepperOverflow(active: string) {
   const barRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
+  const overflowRef = useRef(false);
+  /** The bar width the tabs need in normal mode (measured when they stopped fitting). */
+  const needRef = useRef(0);
   useEffect(() => {
     const bar = barRef.current;
     if (!bar) return;
-    const check = () => setOverflow(bar.scrollWidth > bar.clientWidth + 2);
+    // Overflow mode changes the layout it is measured on (bar padding, pinned tab padding), so measuring it again
+    // there makes the bar flip back and forth (flickering ‹ ›). Instead: in normal mode, measure what the tabs need
+    // (their widths + gaps + the bar's own padding) and remember it when they stop fitting; in overflow mode only the
+    // available width is compared with that remembered need (+24px hysteresis).
+    const check = () => {
+      const width = bar.getBoundingClientRect().width;
+      if (!overflowRef.current) {
+        const need = bar.scrollWidth;
+        if (need <= bar.clientWidth + 1) return;
+        needRef.current = need + (width - bar.clientWidth);
+        overflowRef.current = true;
+        setOverflow(true);
+        return;
+      }
+      if (width >= needRef.current + 24) {
+        overflowRef.current = false;
+        setOverflow(false);
+      }
+    };
     check();
     const observer = new ResizeObserver(check);
     observer.observe(bar);
+    // The tabs change width with the active step: re-check when they do.
+    for (const step of bar.children) observer.observe(step);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {

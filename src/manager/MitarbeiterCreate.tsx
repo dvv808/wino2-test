@@ -252,10 +252,11 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
   const duplicate = teamHits(draft).some((m) => m.name.toLowerCase() === name.toLowerCase());
   const nameMissing = !draft.vorname.trim() || !draft.nachname.trim();
   // Zusammenfassung (Figma 21745:72129): Systemdaten, Allgemeine Partnerdaten, Hauptwohnsitz, Kontaktdaten.
+  // Only what was entered: no empty states here (they belong to the created partner's Stammdaten).
   const areas = areasOf(previewPerson(draft));
   const summary = ["ma-system-daten", "ma-person", "ma-adresse", "ma-kontakt"]
     .map((id) => areas.flatMap((area) => area.cards).find((card) => card.id === id))
-    .filter((card): card is NonNullable<typeof card> => Boolean(card));
+    .filter((card): card is NonNullable<typeof card> => Boolean(card) && !card?.empty);
 
   function goNext() {
     if (step === "daten") {

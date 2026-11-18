@@ -823,7 +823,12 @@ export function summaryCards(draft: PartnerDraft): Card[] {
   const sections = draftSections(draft, "partner-new");
   const ids = ["systemdaten", "personendaten", "adressen", "kontakte"];
   if (draft.personTyp === "Unternehmen" && draft.assignedHit?.source === "wico") ids.splice(1, 0, "wirtschaftsdaten");
-  return ids.flatMap((id) => sections.find((section) => section.id === id)?.cards ?? []).filter((card) => !card.empty);
+  // Only what was entered: no empty states and no placeholder cards (an address with only "-" values).
+  const noAddress = ![draft.strasse, draft.nummer, draft.plz, draft.ort].some((value) => value?.trim());
+  return ids
+    .filter((id) => !(id === "adressen" && noAddress))
+    .flatMap((id) => sections.find((section) => section.id === id)?.cards ?? [])
+    .filter((card) => !card.empty);
 }
 
 export function buildCreatedPartner(draft: PartnerDraft, seq: number, asDraft = false) {

@@ -14,7 +14,7 @@ import type {
   VereinEntry,
   WirtschaftForm,
 } from "./stammdaten";
-import { CONTACT_PARTNERS, EMPTY_GEWERBE, EMPTY_VEREIN } from "./stammdaten";
+import { CONTACT_PARTNERS, DOC_TYPEN, EMPTY_GEWERBE, EMPTY_VEREIN } from "./stammdaten";
 import {
   COMPANY_PERSONS,
   EMPTY_COMPANY_GEWERBE,
@@ -387,15 +387,35 @@ export function Area({
   );
 }
 
-function Drop({
+export function Drop({
   files,
   onFiles,
   context,
+  documents = false,
 }: {
   files: FileEntry[];
   onFiles: (files: FileEntry[]) => void;
   context: UploadContext;
+  /** Ausweis-type documents: each file gets Typ (dropdown), Gültig von / bis and Aussteller. */
+  documents?: boolean;
 }) {
+  const patchFile = (index: number, fields: Partial<FileEntry>) =>
+    onFiles(files.map((entry, at) => (at === index ? { ...entry, ...fields } : entry)));
+  const dateInput = (label: string, value: string | undefined, onChange: (value: string) => void) => {
+    const [d = "", m = "", y = ""] = (value ?? "").split(".");
+    return (
+      <Field label={label}>
+        <DateField
+          day={d}
+          month={m}
+          year={y}
+          onDay={(v) => onChange([v, m, y].join("."))}
+          onMonth={(v) => onChange([d, v, y].join("."))}
+          onYear={(v) => onChange([d, m, v].join("."))}
+        />
+      </Field>
+    );
+  };
   return (
     <div className="sw-files">
       <DmsUpload
@@ -432,6 +452,18 @@ function Drop({
           >
             <Icon src={a.trash} size={18} />
           </button>
+          {documents ? (
+            <div className="file-meta">
+              <Field label="Typ">
+                <Select value={file.docTyp ?? ""} onChange={(docTyp) => patchFile(index, { docTyp })} options={DOC_TYPEN} />
+              </Field>
+              {dateInput("Gültig von", file.von, (von) => patchFile(index, { von }))}
+              {dateInput("Gültig bis", file.bis, (bis) => patchFile(index, { bis }))}
+              <Field label="Aussteller">
+                <Text value={file.aussteller ?? ""} onChange={(aussteller) => patchFile(index, { aussteller })} />
+              </Field>
+            </div>
+          ) : null}
         </div>
       ))}
     </div>
@@ -509,7 +541,7 @@ export function PartnerFields({
       </Field>
       <div className="sw-group">
         <h3>Anhänge</h3>
-        <Drop files={form.files} onFiles={(files) => set("files", files)} context={partnerUpload("partner.stammdaten.anhang", partnerId, "anhang")} />
+        <Drop documents files={form.files} onFiles={(files) => set("files", files)} context={partnerUpload("partner.stammdaten.anhang", partnerId, "anhang")} />
       </div>
     </>
   );
@@ -851,7 +883,15 @@ function PhoneField({
         <span className="text-field">+43</span>
         <Icon src={a.selectCaret} size={16} />
       </span>
-      <input className="text-field" value={value} onChange={(event) => onChange(event.target.value)} />
+      {/* The country code belongs to the number: stored as "+43 664 …" (a leading 0 is dropped), shown without it. */}
+      <input
+        className="text-field"
+        value={value.replace(/^\+43\s*/, "")}
+        onChange={(event) => {
+          const local = event.target.value.replace(/^\+43\s*/, "").replace(/^0+/, "");
+          onChange(local.trim() ? `+43 ${local}` : "");
+        }}
+      />
     </div>
   );
 }
@@ -979,18 +1019,56 @@ export function ContactFields({
   onChange,
   onRemoved,
   origin,
+  own,
 }: {
   form: ContactForm;
   onChange: (form: ContactForm) => void;
   onRemoved?: (message: string, undo: () => void) => void;
   /** Set when the picked partner has its own file (Privatperson only): channels are read-only from there. */
   origin?: ContactOrigin | null;
+  /**
+   * The first, mandatory contact card (Wino - Concepts 21745:72955): for a person Kanal oder Person, Partner and
+   * Kontaktbezeichnung are fixed; for an Unternehmen the Kanal and its Bezeichnung (Office). The phone gets +43.
+   */
+  own?: { photo?: string; company?: boolean };
 }) {
   const set = <K extends keyof ContactForm>(key: K, value: ContactForm[K]) =>
     onChange({ ...form, [key]: value });
 
+  const locked = (label: string, value: string, icon?: ReactNode) => (
+    <div className="block">
+      <span className="field-label">{label}</span>
+      <span className="text-field locked sw-locked">
+        {icon}
+        {value}
+      </span>
+    </div>
+  );
+
   return (
     <>
+      {own && (own.company || form.kind === "kanal") ? (
+        // Unternehmen (Figma 20521:233247): the first, mandatory card is always the Kanal "Office"; the card itself
+        // carries the company as its partner. Locked, whatever the stored kind.
+        <>
+          {locked("Kanal oder Person", "Kanal")}
+          {locked("Kanalbezeichnung", form.bezeichnung || "Office")}
+        </>
+      ) : own ? (
+        // Einzelperson / Mitarbeiter: the first, mandatory card is the person's own.
+        <>
+          {locked("Kanal oder Person", "Person")}
+          {locked(
+            "Partner",
+            form.partner,
+            <span className="emp-avatar">
+              <img src={own.photo || a.clientBlank} alt="" />
+            </span>,
+          )}
+          {locked("Kontaktbezeichnung oder Funktion", form.bezeichnung)}
+        </>
+      ) : (
+      <>
       <Field label="Kanal oder Person">
         <Select
           value={form.kind === "kanal" ? "Kanal" : "Person"}
@@ -1019,6 +1097,8 @@ export function ContactFields({
           </Field>
         </>
       )}
+      </>
+      )}
       <Field label="Allgemeine Notiz zur Kontaktperson">
         <Area value={form.notiz} onChange={(value) => set("notiz", value)} />
       </Field>
@@ -1038,7 +1118,11 @@ export function ContactFields({
         {(phone, patch) => (
           <>
             <Field label="Telefonnummer">
-              <Text value={phone.value} onChange={(value) => patch({ ...phone, value })} />
+              {own ? (
+                <PhoneField value={phone.value} onChange={(value) => patch({ ...phone, value })} />
+              ) : (
+                <Text value={phone.value} onChange={(value) => patch({ ...phone, value })} />
+              )}
             </Field>
             <Field label="Mobil oder Festnetz">
               <Select

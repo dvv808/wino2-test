@@ -12,7 +12,7 @@ import type { FinanzenPage, HonorarStepKey, Partner as HonorarPartner } from "./
 import { buildHonorarPartner } from "./person/createDraft";
 import { demoKundenFiles } from "./home/kundenData";
 import * as a from "./assets/index";
-import { FILE_PARTNERS, getPartner, markKunde, partnerKindText, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
+import { FILE_PARTNERS, getPartner, markKunde, partnerKind, partnerKindText, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
 import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
   MULTI_CARD_AREAS,
@@ -36,9 +36,11 @@ import {
   type Card,
   type Section,
   type StammdatenAreaId,
+  applyContact,
   bankForm,
   contactForm,
   linkBankOwners,
+  type ChannelOwner,
   ownBankAccounts,
   withOwnBank,
   type BankForm,
@@ -326,17 +328,66 @@ function withContactData(file: FilePartner, sections: Section[]): Section[] {
   });
 }
 
+/** The partner a Kanal of this file belongs to: shown at the top of every Kanal card. */
+export function channelOwner(file: FilePartner): ChannelOwner {
+  const company = file.fileKind === "company";
+  return { name: file.name, tag: partnerKindText(partnerKind(file)), sub: company ? (file.fn ? `FN ${file.fn}` : "-") : file.born ?? "-", company };
+}
+
+/**
+ * Every Unternehmen has an Office Kanal card, always first and mandatory (it cannot be deleted; its head is locked).
+ * A missing one is added (company phone + office mail); an "Office" card stored as a person becomes the Kanal; every
+ * Kanal card shows the company at its top.
+ */
+export function withOfficeCard(file: FilePartner, sections: Section[]): Section[] {
+  if (file.fileKind !== "company") return sections;
+  const owner = channelOwner(file);
+  return sections.map((section) => {
+    if (section.id !== sectionIdForArea("kontakte")) return section;
+    const live = section.cards.filter((card) => !card.empty);
+    const asChannel = (card: Card) => {
+      const form = contactForm(card);
+      const office = /office/i.test(form.bezeichnung) && (form.kind === "kanal" || !form.partner || form.partner === file.name);
+      return form.kind === "kanal" || office ? applyContact(card, { ...form, kind: "kanal", partner: "" }, card.draft, owner) : card;
+    };
+    const cards = live.map(asChannel);
+    const officeAt = cards.findIndex((card) => /office/i.test(card.title ?? "") && contactForm(card).kind === "kanal");
+    if (officeAt > 0) cards.unshift(...cards.splice(officeAt, 1));
+    if (officeAt < 0) {
+      const host = mailName(file.name).split(".")[0];
+      const seed = [...file.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+      cards.unshift(
+        applyContact(
+          { id: `kontakt-office-${file.id}` },
+          {
+            kind: "kanal",
+            partner: "",
+            bezeichnung: "Office",
+            notiz: "Für alle Fragen rundum die Firma.",
+            phones: [{ value: file.phone && !file.phone.startsWith("+43 664") ? file.phone : `+43 662 ${String(100000 + (seed % 899999))}`, note: "", extra: "Festnetz" }],
+            mails: [{ value: `office@${host}.at`, note: "" }],
+            websites: [],
+          },
+          false,
+          owner,
+        ),
+      );
+    }
+    return { ...section, cards };
+  });
+}
+
 function initialPartnerFiles(): Record<PartnerId, PartnerFile> {
   // Accounts linked from another partner (e.g. Thomas Atkinson's Sparkasse in Julia's file) also sit in the owner's profile.
   const kunden = Object.fromEntries(
     DEMO_KUNDEN.map((entry) => [
       entry.file.id,
-      { sections: entry.sections, versions: entry.versions, viewingVersionId: entry.viewingVersionId, stammdatenBaseline: null, stammdatenPublished: null },
+      { sections: withOfficeCard(entry.file, entry.sections), versions: entry.versions, viewingVersionId: entry.viewingVersionId, stammdatenBaseline: null, stammdatenPublished: null },
     ]),
   );
   const seeded = linkBankOwners(seedPartnerFiles(), Object.values(FILE_PARTNERS)) as Record<PartnerId, PartnerFile>;
   const completed = Object.fromEntries(
-    Object.entries(seeded).map(([id, entry]) => [id, { ...entry, sections: withContactData(getPartner(id), entry.sections) }]),
+    Object.entries(seeded).map(([id, entry]) => [id, { ...entry, sections: withOfficeCard(getPartner(id), withContactData(getPartner(id), entry.sections)) }]),
   ) as Record<PartnerId, PartnerFile>;
   return { ...completed, ...kunden };
 }
@@ -1298,7 +1349,7 @@ function useWorkflowState() {
       const next = { ...all };
       for (const entry of files) {
         next[entry.file.id] = {
-          sections: entry.sections,
+          sections: withOfficeCard(entry.file, entry.sections),
           versions: entry.versions,
           viewingVersionId: entry.viewingVersionId,
           stammdatenBaseline: null,

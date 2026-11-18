@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { ContextMenu, Icon, type ContextItem } from "../ui";
-import type { Block, Card, Empty, Row, Value } from "./stammdaten";
+import { docMetaLine, type Block, type Card, type Empty, type Row, type Value } from "./stammdaten";
 import { FILE_PARTNERS, type PartnerId } from "./partners";
 import { useWorkflow } from "../workflow";
 
@@ -102,10 +102,18 @@ function ValueCell({ value, className }: { value: Value; className?: string }) {
 
   if (value.kind === "file") {
     const glyph = value.type === "jpg" ? a.jpg : a.pdf;
+    const meta = docMetaLine(value);
     return (
       <a className={`${cls} file`} href="#datei">
         <img src={glyph} alt="" width={17} height={20} />
-        {value.text}
+        {meta ? (
+          <span className="pp-file-copy">
+            {value.text}
+            <small>{meta}</small>
+          </span>
+        ) : (
+          value.text
+        )}
       </a>
     );
   }

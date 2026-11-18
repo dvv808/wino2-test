@@ -4,7 +4,7 @@ import * as a from "../assets/index";
 import { ContextMenu, DateField, Icon } from "../ui";
 import { DataCard, focusForm } from "../person/cards";
 import { DmsUpload } from "../dms/upload";
-import { BankFields, CreateContactFields, Field, Select, Text } from "../person/forms";
+import { BankFields, ContactFields, Drop, Field, Select, Text } from "../person/forms";
 import type { BankForm } from "../person/stammdaten";
 import { ProfileShelfProvider, ShelfBody, ShelfTitle } from "../person/ProfileShelf";
 import type { Card } from "../person/stammdaten";
@@ -50,8 +50,15 @@ function vorgesetztOf(person: TeamMember) {
   return lead ?? (person.name === "Peter Moser" ? "" : "Peter Moser");
 }
 
+const EMPTY_ANSTELLUNG: Anstellung = { position: "", vorgesetzt: "", eintrittTag: "", eintrittMonat: "", eintrittJahr: "", ausmass: "", wochenstunden: "", standort: "", urlaub: "" };
+
+/** Are there Beschäftigungsdaten at all (Position or Eintrittsdatum)? */
+export const hasAnstellung = (anstellung: Anstellung) => Boolean(anstellung.position.trim() || anstellung.eintrittJahr.trim());
+
 /** The Anstellung as edited in Profil, or its seeded default. */
 export function anstellungOf(person: TeamMember): Anstellung {
+  // Someone created in "Mitarbeiter anlegen" has only what was entered there: no made-up Anstellung.
+  if (!person.anstellung && person.angelegt) return { ...EMPTY_ANSTELLUNG };
   return (
     person.anstellung ?? {
       position: person.role,
@@ -171,6 +178,18 @@ export function areasOf(person: TeamMember): Area[] {
           ]
         : []),
       ...(filled(s.notiz) ? [{ kind: "note" as const, caption: "Allgemeine Notiz zum Partner", text: s.notiz }] : []),
+      ...(s.dokumente?.length
+        ? [
+            {
+              kind: "files" as const,
+              caption: "Dokumente",
+              rows: s.dokumente.map((file) => ({
+                label: file.docTyp || file.label,
+                value: { kind: "file" as const, text: file.name, type: file.type, docTyp: file.docTyp, von: file.von, bis: file.bis, aussteller: file.aussteller },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 
@@ -311,10 +330,14 @@ export function areasOf(person: TeamMember): Area[] {
   };
 
   const empty = (id: string, icon: string, title: string, link: string): Card => ({ id, empty: { icon, title, lead: "Du kannst", link } });
-  const kontaktCards = employee ? [privat, firma] : [privat];
+  // No private phone, mail, website or note yet: the private card is the empty state (Figma 21755:28744 pattern).
+  const privatEmpty = ![...s.phones, ...s.mails, ...s.websites].some((c) => filled(c.value)) && !filled(s.contactNotiz);
+  const privatCard: Card = privatEmpty ? { id: "ma-kontakt-leer", empty: { icon: a.contacts, title: "Noch keine Kontakte angelegt", lead: "Du kannst", link: "neue Kontakte hier anlegen" } } : privat;
+  const kontaktCards = employee ? (privatEmpty ? [firma] : [privat, firma]) : [privatCard];
+  const kontaktCount = kontaktCards.filter((card) => !card.empty).length;
   return [
     { id: "personendaten", label: "Allgemeine Personendaten", nav: "Allg. Personendaten", icon: a.navPerson, cards: [personendaten] },
-    { id: "kontakte", label: `Kontakte (${kontaktCards.length})`, nav: `Kontakte (${kontaktCards.length})`, icon: a.contacts, cards: kontaktCards },
+    { id: "kontakte", label: `Kontakte (${kontaktCount})`, nav: `Kontakte (${kontaktCount})`, icon: a.contacts, cards: kontaktCards },
     { id: "adressen", label: `Adressen (${adresse ? 1 : 0})`, nav: `Adressen (${adresse ? 1 : 0})`, icon: a.house, cards: adresse ? [adresse] : [empty("ma-adresse-leer", a.house, "Noch keine Adresse angelegt", "neue Adressen hier anlegen")] },
     { id: "bank", label: "Bankverbindungen", nav: "Bankverbindung", icon: a.bank, cards: bank ? [bank] : [empty("ma-bank-leer", a.bank, "Noch keine Bankverbindung angelegt", "neue Bankverbindungen hier anlegen")] },
     {
@@ -322,7 +345,10 @@ export function areasOf(person: TeamMember): Area[] {
       label: "Beschäftigungsdaten",
       nav: "Beschäftigungsdaten",
       icon: a.suitcaseWork,
-      cards: employee ? [anstellungCard, arbeitszeit] : [empty("ma-beschaeftigung-leer", a.suitcaseWork, "Noch keine Beschäftigungsdaten angelegt", "neue Beschäftigungsdaten hier anlegen")],
+      cards:
+        employee && hasAnstellung(anstellung)
+          ? [anstellungCard, arbeitszeit]
+          : [empty("ma-beschaeftigung-leer", a.suitcaseWork, "Noch keine Beschäftigungsdaten angelegt", "neue Beschäftigungsdaten hier anlegen")],
     },
     { id: "systemdaten", label: "Systemdaten", nav: "Systemdaten", icon: a.systemRing, cards: [system] },
   ];
@@ -454,17 +480,17 @@ export function MitarbeiterProfil({
   };
   const done = (id: AreaId) => !areas.find((area) => area.id === id)?.cards.some((card) => card.empty);
   const plausi = [
-    { label: "Kontakte", icon: a.contacts, done: s.phones.some((c) => filled(c.value)) || s.mails.some((c) => filled(c.value)) },
-    { label: "Adressen", icon: a.house, done: done("adressen") },
-    { label: "Bankverbindung", icon: a.bank, done: done("bank") },
-    { label: "Beschäftigungsdaten", icon: a.suitcaseWork, done: done("beschaeftigung") },
+    { label: "Kontakte", target: "kontakte" as EditTarget, icon: a.contacts, done: s.phones.some((c) => filled(c.value)) || s.mails.some((c) => filled(c.value)) },
+    { label: "Adressen", target: "adressen" as EditTarget, icon: a.house, done: done("adressen") },
+    { label: "Bankverbindung", target: "bank" as EditTarget, icon: a.bank, done: done("bank") },
+    { label: "Beschäftigungsdaten", target: "beschaeftigung" as EditTarget, icon: a.suitcaseWork, done: done("beschaeftigung") },
     // Mandatory for a Mitarbeiter: Microsoft 365, an office key or badge, an active Wino Zugang, a signed Dienstvertrag.
     ...(employee
       ? [
-          { label: "Inventar", icon: a.inventory, done: hasM365(items) },
-          { label: "Schlüssel & Badges", icon: a.key, done: hasOfficeKey(items) },
-          { label: "Wino Zugang", icon: a.winoIconLogo, done: zugangAktiv(zugang) },
-          { label: "Dienstvertrag", icon: a.docList, done: vertragSigned(vertrag) },
+          { label: "Inventar", target: "inventar" as EditTarget, icon: a.inventory, done: hasM365(items) },
+          { label: "Schlüssel & Badges", target: "schluessel" as EditTarget, icon: a.key, done: hasOfficeKey(items) },
+          { label: "Wino Zugang", target: "zugang" as EditTarget, icon: a.winoIconLogo, done: zugangAktiv(zugang) },
+          { label: "Dienstvertrag", target: "dienstvertrag" as EditTarget, icon: a.docList, done: vertragSigned(vertrag) },
         ]
       : []),
   ];
@@ -551,7 +577,7 @@ export function MitarbeiterProfil({
               <MaBizCard person={person} />
               <div className="pp-info">
                 <small>Info</small>
-                <p>{s.notiz || (employee ? `${person.role} in ${person.abteilung || "Makler Winter"}, Büro ${anstellungOf(person).standort}.` : `${person.typ} bei Makler Winter.`)}</p>
+                <p>{s.notiz || (employee ? `${person.role} in ${person.abteilung || "Makler Winter"}${anstellungOf(person).standort ? `, Büro ${anstellungOf(person).standort}` : ""}.` : `${person.typ} bei Makler Winter.`)}</p>
               </div>
             </div>
 
@@ -581,14 +607,17 @@ export function MitarbeiterProfil({
               <ul>
                 {plausi.map((entry) => (
                   <li key={entry.label}>
-                    <span className="pp-plausi-icon">
-                      <Icon src={entry.icon} size={18} />
-                    </span>
-                    <span className="pp-plausi-copy">
-                      <strong>{entry.label}</strong>
-                      <small>{entry.done ? "Abgeschlossen" : "Offen"}</small>
-                    </span>
-                    <Icon src={entry.done ? a.checkGreen : a.onhold} size={18} />
+                    {/* Every entry opens its own workflow tab on that area. */}
+                    <button type="button" className="pp-plausi-link" onClick={() => onEdit(entry.target)} aria-label={`${entry.label} im Workflow öffnen`}>
+                      <span className="pp-plausi-icon">
+                        <Icon src={entry.icon} size={18} />
+                      </span>
+                      <span className="pp-plausi-copy">
+                        <strong>{entry.label}</strong>
+                        <small>{entry.done ? "Abgeschlossen" : "Offen"}</small>
+                      </span>
+                      <Icon src={entry.done ? a.checkGreen : a.onhold} size={18} />
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -873,20 +902,33 @@ export function MitarbeiterStammdatenWorkflow({
                   <Field label="Allgemeine Notiz zum Partner">
                     <textarea className="textarea" value={s.notiz} onChange={(event) => patch({ notiz: event.target.value })} />
                   </Field>
+                  {/* Profilfoto: Mitarbeiter only (the partner Stammdaten have none). */}
                   <PhotoUpload photo={draft.photo} onPhoto={(photo) => setDraft((d) => ({ ...d, photo }))} />
+                  <div className="sw-group">
+                    <h3>Dokumente hochladen</h3>
+                    <Drop
+                      documents
+                      files={s.dokumente ?? []}
+                      onFiles={(dokumente) => patch({ dokumente })}
+                      context={{ source: "partner.stammdaten.anhang", entityType: null, entityId: null, slot: "dokument", knownMetadata: {} }}
+                    />
+                  </div>
                 </>
               ) : area === "kontakte" ? (
                 <>
-                  <h2>Kontaktdaten</h2>
-                  <CreateContactFields
-                    notiz={s.contactNotiz}
-                    phones={s.phones}
-                    mails={s.mails}
-                    websites={s.websites}
-                    onNotiz={(contactNotiz) => patch({ contactNotiz })}
-                    onPhones={(phones) => patch({ phones })}
-                    onMails={(mails) => patch({ mails })}
-                    onWebsites={(websites) => patch({ websites })}
+                  {/* Wino - Concepts 21745:72955: the partner contact form for the person's own card. */}
+                  <ContactFields
+                    own={{ photo: draft.photo }}
+                    form={{
+                      kind: "person",
+                      partner: [s.vorname, s.nachname].filter(Boolean).join(" ") || person.name,
+                      bezeichnung: `Kontaktdaten von ${s.vorname || person.name}`,
+                      notiz: s.contactNotiz,
+                      phones: s.phones,
+                      mails: s.mails,
+                      websites: s.websites,
+                    }}
+                    onChange={(form) => patch({ contactNotiz: form.notiz, phones: form.phones, mails: form.mails, websites: form.websites })}
                   />
                 </>
               ) : area === "adressen" ? (

@@ -315,9 +315,11 @@ function Sidebar() {
 
 /** The partner at a glance, next to the note and the Plausibilitäts-Check. */
 function IdentityStrip() {
-  const { filePartnerId } = useWorkflow();
+  const { filePartnerId, openStammdaten } = useWorkflow();
   const file = getPartner(filePartnerId);
   const plausi = filePartnerId === "ashley" ? ASHLEY_PLAUSI : PLAUSI;
+  // Every entry opens its area in the Stammdaten Workflow (Anhänge live in the Allgemeine Partnerdaten).
+  const PLAUSI_AREA: Record<string, StammdatenAreaId> = { Adressen: "adressen", Verknüpfung: "verknuepfung", Bankdaten: "bankverbindungen", Anhänge: "personendaten", Kontakte: "kontakte" };
 
   return (
     <div className="pp-strip">
@@ -340,14 +342,21 @@ function IdentityStrip() {
         <ul>
           {plausi.map((entry) => (
             <li key={entry.label}>
-              <span className="pp-plausi-icon">
-                <Icon src={entry.icon} size={18} />
-              </span>
-              <span className="pp-plausi-copy">
-                <strong>{entry.label}</strong>
-                <small>{entry.state}</small>
-              </span>
-              <Icon src={entry.done ? a.checkGreen : a.onhold} size={18} />
+              <button
+                type="button"
+                className="pp-plausi-link"
+                onClick={() => PLAUSI_AREA[entry.label] && openStammdaten(PLAUSI_AREA[entry.label])}
+                aria-label={`${entry.label} im Stammdaten Workflow öffnen`}
+              >
+                <span className="pp-plausi-icon">
+                  <Icon src={entry.icon} size={18} />
+                </span>
+                <span className="pp-plausi-copy">
+                  <strong>{entry.label}</strong>
+                  <small>{entry.state}</small>
+                </span>
+                <Icon src={entry.done ? a.checkGreen : a.onhold} size={18} />
+              </button>
             </li>
           ))}
         </ul>
@@ -572,7 +581,8 @@ export function PersonPage() {
                             card={withKommunikation(card, kommunikation, maklerDone, isCompanyFile)}
                             key={card.id}
                             onEdit={() => openStammdaten(area, card.id)}
-                            onDelete={() => setPendingDelete({ area, card })}
+                            // The first contact card is the partner's own and mandatory: no Löschen.
+                            onDelete={section.id === "kontakte" && card.id === section.cards.find((entry) => !entry.empty)?.id ? undefined : () => setPendingDelete({ area, card })}
                             onAdd={() => openStammdaten(area)}
                           />
                         ))}
