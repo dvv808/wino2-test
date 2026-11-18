@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { StepFade, WaveStepper } from "../stepperOverflow";
 import * as a from "../assets/index";
-import { DateField, Icon } from "../ui";
+import { ContextMenu, DateField, Icon } from "../ui";
 import { DataCard, focusForm } from "../person/cards";
 import { DmsUpload } from "../dms/upload";
 import { BankFields, CreateContactFields, Field, Select, Text } from "../person/forms";
@@ -8,6 +9,9 @@ import type { BankForm } from "../person/stammdaten";
 import { ProfileShelfProvider, ShelfBody, ShelfTitle } from "../person/ProfileShelf";
 import type { Card } from "../person/stammdaten";
 import { contactOf } from "./MitarbeiterCard";
+import { Halo } from "../person/MaklermandatPage";
+import { INV_AREAS, hasM365, hasOfficeKey, invAreaDone, invCards, inventarOf, type InvAreaId } from "./inventar";
+import { KOOP_AREAS, koopAreaDone, koopCards, vertragOf, vertragSigned, zugangAktiv, zugangOf, type KoopAreaId } from "./kooperation";
 import {
   ABTEILUNGEN,
   ABTEILUNG_NAMEN,
@@ -324,11 +328,14 @@ export function areasOf(person: TeamMember): Area[] {
   ];
 }
 
-/** Further areas of the employee profile (Figma): shown in the side nav, content still to come. */
-const MORE_AREAS = [
-  { label: "Inventar", icon: a.category },
-  { label: "Kooperation", icon: a.docList },
-];
+/** What Editieren opens: a Stammdaten, Inventar or Kooperation area (each in its own workflow). */
+export type EditTarget = AreaId | InvAreaId | KoopAreaId;
+export const isInvArea = (target: EditTarget): target is InvAreaId => INV_AREAS.some((area) => area.id === target);
+export const isKoopArea = (target: EditTarget): target is KoopAreaId => KOOP_AREAS.some((area) => area.id === target);
+
+/** The Profil's main levels: each is its own page (side nav group → page with its sections). */
+export type ProfilLevel = "stammdaten" | "inventar" | "kooperation";
+export const levelOf = (target: EditTarget): ProfilLevel => (isInvArea(target) ? "inventar" : isKoopArea(target) ? "kooperation" : "stammdaten");
 
 const kuerzelOf = (s: MaStamm) => `${s.nachname.replace(/[^A-Za-zÄÖÜäöü]/g, "").slice(0, 2)}${s.vorname.slice(0, 2)}`.toUpperCase();
 
@@ -407,18 +414,59 @@ export function MaBizCard({ person, stamm }: { person: TeamMember; stamm?: MaSta
   );
 }
 
-export function MitarbeiterProfil({ person, onEdit }: { person: TeamMember; onEdit: (area: AreaId) => void }) {
-  const [stammOpen, setStammOpen] = useState(true);
+export function MitarbeiterProfil({
+  person,
+  onEdit,
+  level: startLevel = "stammdaten",
+}: {
+  person: TeamMember;
+  onEdit: (area: EditTarget) => void;
+  level?: ProfilLevel;
+}) {
+  const employee = isEmployee(person);
+  const [level, setLevel] = useState<ProfilLevel>(startLevel);
+  // Bewerber → Mitarbeiter (as Einfache Person → Interessent in the Maklermandat): card, then a confirm dialog.
+  const [converting, setConverting] = useState(false);
+  const [, rerender] = useState(0);
+  const [open, setOpen] = useState<Record<ProfilLevel, boolean>>({ stammdaten: true, inventar: true, kooperation: true });
   const areas = areasOf(person);
   const s = stammOf(person);
-  const employee = isEmployee(person);
-  const go = (id: string) => document.getElementById(`ma-area-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Inventar and Kooperation: Mitarbeiter only (a Bewerber gets equipment, access and contract once hired).
+  const items = inventarOf(person);
+  const zugang = zugangOf(person);
+  const vertrag = vertragOf(person, anstellungOf(person));
+  const invAreas = employee
+    ? INV_AREAS.map((area) => ({ id: area.id as EditTarget, label: area.label, nav: area.label, icon: area.icon, cards: invCards(items, area), done: invAreaDone(area.id, items) }))
+    : [];
+  const koopAreas = employee
+    ? KOOP_AREAS.map((area) => ({ id: area.id as EditTarget, label: area.label, nav: area.label, icon: area.icon, cards: koopCards(area.id, zugang, vertrag), done: koopAreaDone(area.id, zugang, vertrag) }))
+    : [];
+  const groups: { id: ProfilLevel; label: string; icon: string; areas: { id: EditTarget; label: string; nav: string; icon: string; cards: Card[]; done?: boolean }[] }[] = [
+    { id: "stammdaten", label: "Stammdaten", icon: a.stammdaten, areas },
+    { id: "inventar", label: "Inventar", icon: a.inventory, areas: invAreas },
+    { id: "kooperation", label: "Kooperation", icon: a.docList, areas: koopAreas },
+  ];
+  const group = groups.find((entry) => entry.id === level) ?? groups[0];
+  const go = (target: ProfilLevel, id?: string) => {
+    setLevel(target);
+    setOpen((current) => ({ ...current, [target]: true }));
+    if (id) window.setTimeout(() => document.getElementById(`ma-area-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  };
   const done = (id: AreaId) => !areas.find((area) => area.id === id)?.cards.some((card) => card.empty);
   const plausi = [
     { label: "Kontakte", icon: a.contacts, done: s.phones.some((c) => filled(c.value)) || s.mails.some((c) => filled(c.value)) },
     { label: "Adressen", icon: a.house, done: done("adressen") },
     { label: "Bankverbindung", icon: a.bank, done: done("bank") },
     { label: "Beschäftigungsdaten", icon: a.suitcaseWork, done: done("beschaeftigung") },
+    // Mandatory for a Mitarbeiter: Microsoft 365, an office key or badge, an active Wino Zugang, a signed Dienstvertrag.
+    ...(employee
+      ? [
+          { label: "Inventar", icon: a.inventory, done: hasM365(items) },
+          { label: "Schlüssel & Badges", icon: a.key, done: hasOfficeKey(items) },
+          { label: "Wino Zugang", icon: a.winoIconLogo, done: zugangAktiv(zugang) },
+          { label: "Dienstvertrag", icon: a.docList, done: vertragSigned(vertrag) },
+        ]
+      : []),
   ];
 
   return (
@@ -439,44 +487,58 @@ export function MitarbeiterProfil({ person, onEdit }: { person: TeamMember; onEd
             Suchen...
           </div>
 
-          <button type="button" className="pp-area open" aria-expanded={stammOpen} onClick={() => setStammOpen((open) => !open)}>
-            <span className="pp-area-label">
-              <Icon src={a.stammdaten} size={18} />
-              Stammdaten
-            </span>
-            <Icon src={stammOpen ? a.chevronDown : a.chevronDark} size={18} className={stammOpen ? undefined : "caret-side"} />
-          </button>
-          {stammOpen ? (
-            <div className="pp-tree">
-              <div className="pp-tree-group">
-                {areas.map((area) => (
-                  <div className="pp-tree-item" key={area.id}>
-                    <button type="button" className="pp-tree-main" onClick={() => go(area.id)}>
-                      <span className="pp-tree-name">
-                        <Icon src={area.icon} size={18} />
-                        {area.nav}
-                      </span>
-                    </button>
+          {groups.map((entry) => {
+            const active = entry.id === level;
+            const expanded = active && open[entry.id] && entry.areas.length > 0;
+            return (
+              <div key={entry.id}>
+                <button
+                  type="button"
+                  className={active ? "pp-area open" : "pp-area"}
+                  aria-expanded={expanded}
+                  onClick={() => (active ? setOpen((current) => ({ ...current, [entry.id]: !current[entry.id] })) : go(entry.id))}
+                >
+                  <span className="pp-area-label">
+                    <Icon src={entry.icon} size={18} />
+                    {entry.label}
+                  </span>
+                  <Icon src={expanded ? a.chevronDown : a.chevronDark} size={18} className={expanded ? undefined : "caret-side"} />
+                </button>
+                {expanded ? (
+                  <div className="pp-tree">
+                    <div className="pp-tree-group">
+                      {entry.areas.map((area) => (
+                        <div className="pp-tree-item" key={area.id}>
+                          <button type="button" className="pp-tree-main" onClick={() => go(entry.id, area.id)}>
+                            <span className="pp-tree-name">
+                              <Icon src={area.icon} size={18} />
+                              {area.nav}
+                            </span>
+                            {/* Mandatory item missing: the yellow Offen clock, as in the Plausibilitäts Check. */}
+                            {area.done === false ? <Icon src={a.onhold} size={16} className="ma-tree-open" /> : null}
+                          </button>
+                          {/* Second level (as in the partner Stammdaten): no arrow; ⋮ Editieren shows on hover. */}
+                          <span className="pp-tree-trail">
+                            <span className="pp-tree-menu">
+                              <ContextMenu
+                                items={[{ label: "Editieren", icon: a.menuEdit, onSelect: () => onEdit(area.id) }]}
+                                label={`${area.label} bearbeiten`}
+                              />
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                ) : null}
               </div>
-            </div>
-          ) : null}
-
-          {MORE_AREAS.map((area) => (
-            <button type="button" className="pp-area" key={area.label}>
-              <span className="pp-area-label">
-                <Icon src={area.icon} size={18} />
-                {area.label}
-              </span>
-              <Icon src={a.chevronDark} size={18} className="caret-side" />
-            </button>
-          ))}
+            );
+          })}
         </aside>
 
         <main className="pp-main">
           <header className="fg-head pp-main-head">
-            <ShelfTitle icon={a.stammdaten}>Stammdaten</ShelfTitle>
+            <ShelfTitle icon={group.icon}>{group.label}</ShelfTitle>
             <span className="fg-head-actions">
               <button type="button" className="fg-head-search" aria-label="Suche">
                 <Icon src={a.searchDark} size={18} />
@@ -493,6 +555,24 @@ export function MitarbeiterProfil({ person, onEdit }: { person: TeamMember; onEd
               </div>
             </div>
 
+            {!employee && level === "kooperation" ? (
+              <div className="mm-overview mm-convert ma-convert">
+                <header>
+                  <Icon src={a.docList} size={22} />
+                  Kooperation
+                </header>
+                <Halo />
+                <strong>
+                  Zu Mitarbeiter
+                  <br />
+                  umwandeln
+                </strong>
+                <p>Als Mitarbeiter bekommt {person.name} Beschäftigungsdaten, Inventar, einen Wino Zugang und einen Dienstvertrag.</p>
+                <button type="button" className="btn-secondary mm-start" onClick={() => setConverting(true)}>
+                  Umwandlung starten
+                </button>
+              </div>
+            ) : (
             <div className="pp-plausi">
               <header>
                 <Icon src={a.plausiCheck} size={22} />
@@ -514,9 +594,41 @@ export function MitarbeiterProfil({ person, onEdit }: { person: TeamMember; onEd
               </ul>
               <a href="#plausi">+2 weitere</a>
             </div>
+            )}
           </div>
+          {converting ? (
+            <ConvertDialog
+              person={person}
+              onCancel={() => setConverting(false)}
+              onConfirm={(abteilung) => {
+                convertToMitarbeiter(person, abteilung);
+                setConverting(false);
+                rerender((v) => v + 1);
+              }}
+            />
+          ) : null}
 
-          {areas.map((area) => {
+          {group.areas.length === 0 ? (
+            // Bewerber: Inventar and Kooperation start once the person is a Mitarbeiter.
+            <section className="pp-section">
+              <div className="pp-cards center">
+                <article className="pp-card empty">
+                  <div className="pp-empty-art">
+                    <span className="plate p3" />
+                    <span className="plate p2" />
+                    <span className="plate p1" />
+                    <span className="orb">
+                      <Icon src={group.icon} size={40} />
+                    </span>
+                  </div>
+                  <strong>Noch kein {group.label}</strong>
+                  <p>{group.label} gibt es ab dem Partnertyp Mitarbeiter (Systemdaten).</p>
+                </article>
+              </div>
+            </section>
+          ) : null}
+
+          {group.areas.map((area) => {
             const isEmpty = area.cards.every((card) => card.empty);
             return (
               <section className="pp-section" id={`ma-area-${area.id}`} key={area.id}>
@@ -542,6 +654,67 @@ export function MitarbeiterProfil({ person, onEdit }: { person: TeamMember; onEd
         </main>
       </ShelfBody>
     </ProfileShelfProvider>
+  );
+}
+
+/** Bewerber → Mitarbeiter: the person moves from the Bewerber group into the chosen Abteilung. */
+export function convertToMitarbeiter(person: TeamMember, abteilung: string) {
+  for (const dept of ABTEILUNGEN) dept.people = dept.people.filter((name) => name !== person.name);
+  ABTEILUNGEN.find((dept) => dept.name === abteilung)?.people.push(person.name);
+  person.typ = "Mitarbeiter";
+  person.abteilung = abteilung;
+  person.role = person.anstellung?.position || "Mitarbeiter/in";
+  if (person.stamm) person.stamm = { ...person.stamm, personentyp: "Mitarbeiter" };
+}
+
+const MA_FEATURES = ["Beschäftigungsdaten", "Inventar, Schlüssel & Badges, Benefits", "Wino Zugang", "Dienstvertrag", "HRM Dashboard & Listen"];
+
+/** The confirm dialog of the Umwandlung (same as "Umwandlung zu Interessenten" in the Maklermandat). */
+function ConvertDialog({ person, onCancel, onConfirm }: { person: TeamMember; onCancel: () => void; onConfirm: (abteilung: string) => void }) {
+  const [abteilung, setAbteilung] = useState(ABTEILUNG_NAMEN[0]);
+  return (
+    <div className="umw-modal" role="dialog" aria-label="Umwandlung zu Mitarbeiter">
+      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onCancel} />
+      <div className="umw-body">
+        <header className="review-titlebar">
+          <span className="review-titlebar-label">Umwandlung zu Mitarbeiter</span>
+          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onCancel}>
+            <Icon src={a.iconCloseDark} size={12} />
+          </button>
+        </header>
+        <div className="umw-content">
+          <Halo size={96} icon={40} />
+          <h2>
+            Umwandlung
+            <br />
+            zu Mitarbeiter
+          </h2>
+          <div className="umw-panel">
+            <MaBizCard person={{ ...person, typ: "Mitarbeiter" }} />
+            <Field label="Abteilung">
+              <Select value={abteilung} onChange={setAbteilung} options={ABTEILUNG_NAMEN} />
+            </Field>
+            <p>Als Mitarbeiter bekommt diese Person Zugang zu weiteren Funktionen:</p>
+            <ul className="umw-features">
+              {MA_FEATURES.map((feature) => (
+                <li key={feature}>
+                  <Icon src={a.tick} size={14} />
+                  {feature}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <footer className="umw-foot">
+          <button type="button" className="btn-secondary" onClick={onCancel}>
+            Abbrechen
+          </button>
+          <button type="button" className="btn-primary" onClick={() => onConfirm(abteilung)}>
+            Umwandlung bestätigen
+          </button>
+        </footer>
+      </div>
+    </div>
   );
 }
 
@@ -632,9 +805,9 @@ export function MitarbeiterStammdatenWorkflow({
 
   return (
     <div className="content-shell ma-wf">
-      <div className="stepper-wrap">
-        <div className="stepper sw-stepper">
-          {WORKFLOW_STEPS.map((step) => (
+      <WaveStepper active={area} className="sw-stepper">
+        {(overflow) =>
+          WORKFLOW_STEPS.map((step, index) => (
             <button key={step.id} type="button" className={`step${area === step.id ? " active" : ""}`} onClick={() => onArea(step.id)}>
               <span className={`step-num${area === step.id ? " active" : ""}`}>
                 <img src={area === step.id ? a.stepActive : a.stepDone} alt="" />
@@ -642,6 +815,7 @@ export function MitarbeiterStammdatenWorkflow({
                   <Icon src={step.icon} size={16} />
                 </span>
               </span>
+              {overflow && index === WORKFLOW_STEPS.length - 1 ? <StepFade /> : null}
               <span className="step-label">
                 {step.label.split("\n").map((line) => (
                   <span key={line} style={{ display: "block" }}>
@@ -650,9 +824,9 @@ export function MitarbeiterStammdatenWorkflow({
                 ))}
               </span>
             </button>
-          ))}
-        </div>
-      </div>
+          ))
+        }
+      </WaveStepper>
 
       <div className="sw-body">
         <div className="sw-strip">

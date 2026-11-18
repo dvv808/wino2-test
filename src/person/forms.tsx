@@ -375,7 +375,7 @@ function filesFromList(list: FileList | File[] | null): FileEntry[] {
   }));
 }
 
-function Area({
+export function Area({
   value,
   onChange,
 }: {

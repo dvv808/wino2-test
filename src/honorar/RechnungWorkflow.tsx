@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { StepFade, WaveStepper } from "../stepperOverflow";
 import * as a from "../assets/index";
 import { APPS, WorkflowDockTab } from "../chrome";
 import { formatDate, formatDay } from "../lib/honorar/format";
@@ -135,9 +136,9 @@ export function WorkflowSteps({ fee, partner, correction }: { fee: Fee; partner:
 
   return (
     <>
-      <div className="stepper-wrap">
-        <div className="stepper">
-          {WORKFLOW_STEPS.map((step, index) => (
+      <WaveStepper active={String(viewed)}>
+        {(overflow) =>
+          WORKFLOW_STEPS.map((step, index) => (
             <button
               type="button"
               key={step.label}
@@ -148,6 +149,7 @@ export function WorkflowSteps({ fee, partner, correction }: { fee: Fee; partner:
                 <img src={viewed === index ? a.stepActive : a.stepDone} alt="" />
                 <span>{index + 1}</span>
               </span>
+              {overflow && index === WORKFLOW_STEPS.length - 1 ? <StepFade /> : null}
               <span className="step-label">
                 {step.label}
                 <small className="rw-step-role">{step.role}</small>
@@ -164,9 +166,9 @@ export function WorkflowSteps({ fee, partner, correction }: { fee: Fee; partner:
                 </span>
               )}
             </button>
-          ))}
-        </div>
-      </div>
+          ))
+        }
+      </WaveStepper>
 
       <main className="page single rw-page">
         <section className="rw-card rw-head">

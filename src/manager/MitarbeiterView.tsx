@@ -9,7 +9,11 @@ import { HrmListen } from "./HrmListen";
 import { MitarbeiterCard } from "./MitarbeiterCard";
 import { AbteilungScope } from "./mitarbeiterAuswahl";
 import { memberBySlug } from "./hrmTeam";
-import { MitarbeiterProfil, MitarbeiterStammdatenWorkflow, takeNextView, type AreaId } from "./MitarbeiterProfil";
+import { MitarbeiterProfil, MitarbeiterStammdatenWorkflow, isInvArea, isKoopArea, levelOf, takeNextView, type EditTarget, type ProfilLevel } from "./MitarbeiterProfil";
+import { MitarbeiterKoopWorkflow } from "./KooperationWorkflow";
+import { MitarbeiterInventarWorkflow } from "./InventarWorkflow";
+import type { InvAreaId } from "./inventar";
+import type { KoopAreaId } from "./kooperation";
 import { ConstructionArt } from "../mein-bereich/MeinBereichView";
 
 const AREAS = ["HRM", "Bestand", "Finanzen", "Berechtigung", "Controlling"] as const;
@@ -33,7 +37,13 @@ export function MitarbeiterView() {
   // Right after Partner anlegen the tab may open on Profil or straight in the Stammdaten Workflow.
   const [start] = useState(() => (mitarbeiterId ? takeNextView(mitarbeiterId) : undefined));
   const [page, setPage] = useState<Page>(start?.page ?? (employee ? "Dashboard" : "Profil"));
-  const [editing, setEditing] = useState<AreaId | null>(start?.edit ?? null);
+  const [editing, setEditing] = useState<EditTarget | null>(start?.edit ?? null);
+  // After a workflow, Profil opens on the level it came from (Stammdaten, Inventar or Kooperation).
+  const [level, setLevel] = useState<ProfilLevel>("stammdaten");
+  const edit = (target: EditTarget | null) => {
+    if (target) setLevel(levelOf(target));
+    setEditing(target);
+  };
   const [, setVersion] = useState(0);
   const [tab, setTab] = useState("antraege");
   const scope = useMemo(() => (person ? [person.name] : null), [person]);
@@ -75,7 +85,7 @@ export function MitarbeiterView() {
           </div>
           {editing && person ? (
             <div className="workflow-dock">
-              <WorkflowDockTab kicker="Stammdaten Workflow" name={person.name} active onClose={() => setEditing(null)} />
+              <WorkflowDockTab kicker={isInvArea(editing) ? "Inventar Workflow" : editing === "zugang" ? "Wino Zugang" : editing === "dienstvertrag" ? "Dienstvertrag" : "Stammdaten Workflow"} name={person.name} active onClose={() => setEditing(null)} />
             </div>
           ) : null}
         </nav>
@@ -91,11 +101,34 @@ export function MitarbeiterView() {
         </div>
         )}
 
-        {person && editing ? (
+        {person && editing && isKoopArea(editing) ? (
+          <MitarbeiterKoopWorkflow
+            key={`${person.name}-${editing}`}
+            person={person}
+            area={editing}
+            onClose={() => {
+              setEditing(null);
+              setPage("Profil");
+              setVersion((v) => v + 1);
+            }}
+          />
+        ) : person && editing && isInvArea(editing) ? (
+          <MitarbeiterInventarWorkflow
+            key={`${person.name}-inv`}
+            person={person}
+            area={editing}
+            onArea={setEditing}
+            onClose={() => {
+              setEditing(null);
+              setPage("Profil");
+              setVersion((v) => v + 1);
+            }}
+          />
+        ) : person && editing ? (
           <MitarbeiterStammdatenWorkflow
             key={`${person.name}-wf`}
             person={person}
-            area={editing}
+            area={editing as Exclude<EditTarget, InvAreaId | KoopAreaId>}
             onArea={setEditing}
             onClose={() => {
               setEditing(null);
@@ -126,7 +159,7 @@ export function MitarbeiterView() {
                 <HrmListen tab={tab} onTab={(next) => (next === "dashboard" ? setPage("Dashboard") : setTab(next))} />
               </div>
             ) : page === "Profil" ? (
-              <MitarbeiterProfil key={person.name} person={person} onEdit={setEditing} />
+              <MitarbeiterProfil key={`${person.name}-${level}`} person={person} level={level} onEdit={edit} />
             ) : (
               <div className="content-shell ma-body">
                 <p className="dms-empty">Diese Seite folgt.</p>

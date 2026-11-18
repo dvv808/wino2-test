@@ -378,3 +378,11 @@ export { default as drafts } from "./icons/drafts.svg";
 export { default as docMissing } from "./icons/doc-missing.svg";
 export { default as winoIconLogo } from "./icons/wino-icon-logo.svg";
 export { default as phoneLandline } from "./icons/phone-landline.svg";
+/** Mitarbeiter Inventar (Wino - Icons: Icon_Inventory, Icon_Key). */
+export { default as inventory } from "./icons/inventory.svg";
+export { default as key } from "./icons/key.svg";
+/** Inventar items (Wino - Icons: Icon_Laptop, Icon_Food, Icon_Gym, Icon_Car). */
+export { default as laptop } from "./icons/laptop.svg";
+export { default as food } from "./icons/food.svg";
+export { default as gym } from "./icons/gym.svg";
+export { default as car } from "./icons/car.svg";

@@ -1,6 +1,7 @@
 import { MitarbeiterView } from "./manager/MitarbeiterView";
+import { StepFade, WaveStepper } from "./stepperOverflow";
 import { AbteilungView } from "./manager/AbteilungView";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import * as a from "./assets/index";
 import { AppsNav, FileTabs, LogoButton, ProfileMenu, WorkflowNav, MeinBereichTab, useFilePerson, useParkedTabClicks } from "./chrome";
 import { MINDESTBETRAG } from "./lib/maklervereinbarung/zahlweise";
@@ -104,62 +105,11 @@ function Stepper() {
           ? !termsOn || Boolean(termsText.trim() && done.terms)
           : done[id] || (id === "tasks" && openTasks(sections).length === 0);
 
-  /* Figma 22742:231226: when the bar is too narrow, the last step stays pinned at the right edge and the others
-     slide underneath it; ‹ › scroll the bar. */
-  const barRef = useRef<HTMLDivElement>(null);
-  const [overflow, setOverflow] = useState(false);
-  useEffect(() => {
-    const bar = barRef.current;
-    if (!bar) return;
-    const check = () => setOverflow(bar.scrollWidth > bar.clientWidth + 2);
-    check();
-    const observer = new ResizeObserver(check);
-    observer.observe(bar);
-    return () => observer.disconnect();
-  }, []);
-  // The active step scrolls into view, clear of the pinned last step (unless it is the pinned one).
-  useEffect(() => {
-    const bar = barRef.current;
-    const step = bar?.querySelector<HTMLElement>(".step.active");
-    const last = bar?.lastElementChild as HTMLElement | null;
-    if (!bar || !step || !last || step === last) return;
-    const box = bar.getBoundingClientRect();
-    const own = step.getBoundingClientRect();
-    const pinned = last.getBoundingClientRect();
-    const tooFarRight = own.right - (pinned.left - 40);
-    const tooFarLeft = own.left - (box.left + 24);
-    if (tooFarRight > 0) bar.scrollBy({ left: tooFarRight, behavior: "smooth" });
-    else if (tooFarLeft < 0) bar.scrollBy({ left: tooFarLeft, behavior: "smooth" });
-  }, [activeStep, overflow]);
-  // ‹ ›: one step's width at a time, to an exact target (clamped), so repeated clicks never get lost mid-animation.
-  const [edge, setEdge] = useState({ start: true, end: false });
-  const target = useRef<number | null>(null);
-  useEffect(() => {
-    const bar = barRef.current;
-    if (!bar) return;
-    const update = () => {
-      const max = bar.scrollWidth - bar.clientWidth;
-      setEdge({ start: bar.scrollLeft <= 1, end: bar.scrollLeft >= max - 1 });
-      if (target.current !== null && Math.abs(bar.scrollLeft - target.current) < 2) target.current = null;
-    };
-    update();
-    bar.addEventListener("scroll", update, { passive: true });
-    return () => bar.removeEventListener("scroll", update);
-  }, [overflow]);
-  const scrollBy = (dir: 1 | -1) => {
-    const bar = barRef.current;
-    if (!bar) return;
-    const max = bar.scrollWidth - bar.clientWidth;
-    const from = target.current ?? bar.scrollLeft;
-    const next = Math.max(0, Math.min(max, from + dir * 260));
-    target.current = next;
-    bar.scrollTo({ left: next, behavior: "smooth" });
-  };
-
   return (
-    <div className={overflow ? "stepper-wrap overflowing" : "stepper-wrap"}>
-      <div className="stepper" ref={barRef}>
-        {STEPS.map((step) => (
+    // Figma 22742:231226: the shared responsive wave stepper (pinned last step, ‹ › pocket).
+    <WaveStepper active={activeStep}>
+      {(overflow) =>
+        STEPS.map((step) => (
           <button
             key={step.id}
             type="button"
@@ -179,7 +129,7 @@ function Stepper() {
               </span>
             )}
             {/* The pinned last step: a white fade on its left, so the steps sliding underneath read as behind it. */}
-            {overflow && step.id === STEPS[STEPS.length - 1].id ? <img className="step-fade" src={a.stepperEndFade} alt="" /> : null}
+            {overflow && step.id === STEPS[STEPS.length - 1].id ? <StepFade /> : null}
             <span className="step-label">
               {step.label.split("\n").map((line) => (
                 <span key={line} style={{ display: "block" }}>
@@ -199,21 +149,9 @@ function Stepper() {
               </span>
             )}
           </button>
-        ))}
-      </div>
-      {overflow ? (
-        // Figma 22742:231226: a pocket in the page colour cuts into the bar's end and holds ‹ ›.
-        <span className="stepper-pocket">
-          <img className="stepper-pocket-bg" src={a.stepperEndPocket} alt="" />
-          <button type="button" aria-label="Schritte nach links" disabled={edge.start} onClick={() => scrollBy(-1)}>
-            <img src={a.stepperArrowLeft} alt="" />
-          </button>
-          <button type="button" aria-label="Schritte nach rechts" disabled={edge.end} onClick={() => scrollBy(1)}>
-            <img src={a.stepperArrowRight} alt="" />
-          </button>
-        </span>
-      ) : null}
-    </div>
+        ))
+      }
+    </WaveStepper>
   );
 }
 

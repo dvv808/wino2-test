@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { StepFade, WaveStepper } from "../stepperOverflow";
 import * as a from "../assets/index";
 import { AppsNav, FileIdentity, FileTabs, LogoButton, ProfileMenu, MeinBereichTab } from "../chrome";
 import { Icon, Notice, Snackbar } from "../ui";
@@ -109,35 +110,13 @@ function Identity() {
   return <FileIdentity className="sw-id" />;
 }
 
-/**
- * The wave tabs all share one width. A label wraps onto a second line; only when it would need a third line it is
- * cut after two and fades out ("clipped", measured after layout and on resize).
- */
-function useClippedLabels() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const bar = ref.current;
-    if (!bar) return;
-    const check = () =>
-      bar.querySelectorAll<HTMLElement>(".step-label").forEach((label) => {
-        label.classList.toggle("clipped", label.scrollHeight > label.clientHeight + 1);
-      });
-    check();
-    const observer = new ResizeObserver(check);
-    observer.observe(bar);
-    return () => observer.disconnect();
-  }, []);
-  return ref;
-}
-
 function Stepper() {
   const { stammdatenArea, goStammdatenArea } = useWorkflow();
-  const barRef = useClippedLabels();
 
   return (
-    <div className="stepper-wrap">
-      <div className="stepper sw-stepper" ref={barRef}>
-        {STAMMDATEN_AREAS.map((area) => (
+    <WaveStepper active={stammdatenArea} className="sw-stepper">
+      {(overflow) =>
+        STAMMDATEN_AREAS.map((area, index) => (
           <button
             key={area.id}
             type="button"
@@ -150,6 +129,7 @@ function Stepper() {
                 <Icon src={area.icon} size={16} />
               </span>
             </span>
+            {overflow && index === STAMMDATEN_AREAS.length - 1 ? <StepFade /> : null}
             <span className="step-label" title={area.label.replace("\n", " ")}>
               {area.label.split("\n").map((line) => (
                 <span key={line} style={{ display: "block" }}>
@@ -158,9 +138,9 @@ function Stepper() {
               ))}
             </span>
           </button>
-        ))}
-      </div>
-    </div>
+        ))
+      }
+    </WaveStepper>
   );
 }
 

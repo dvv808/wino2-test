@@ -1,4 +1,5 @@
 import * as a from "../assets/index";
+import { StepFade, WaveStepper } from "../stepperOverflow";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { RECHNUNGSVERSAND_STEPS, monthOf, rechnungsversandDone, type RechnungsversandStep } from "../lib/honorar/queries";
@@ -19,9 +20,9 @@ export function HonorarStepper() {
   const done = rechnungsversandDone(state, finanzenMonth);
 
   return (
-    <div className="stepper-wrap">
-      <div className="stepper">
-        {RECHNUNGSVERSAND_STEPS.map((step, index) => {
+    <WaveStepper active={finanzenStep ?? ""}>
+      {(overflow) =>
+        RECHNUNGSVERSAND_STEPS.map((step, index) => {
           const current = finanzenStep === step;
           return (
             <button
@@ -34,6 +35,7 @@ export function HonorarStepper() {
                 <img src={current ? a.stepActive : a.stepDone} alt="" />
                 <span>{index + 1}</span>
               </span>
+              {overflow && index === RECHNUNGSVERSAND_STEPS.length - 1 ? <StepFade /> : null}
               <span className="step-label">{LABELS[step]}</span>
               {done[step] ? (
                 <span className="badge done">
@@ -48,8 +50,8 @@ export function HonorarStepper() {
               )}
             </button>
           );
-        })}
-      </div>
-    </div>
+        })
+      }
+    </WaveStepper>
   );
 }

@@ -36,6 +36,7 @@ const ROW_LABEL: Record<string, string> = { Webseite: "Website & Social Media" }
 function valueKey(value: Value) {
   if (typeof value === "string") return value;
   if (value.kind === "entity") return `${value.tag}|${value.name}|${value.sub}`;
+  if (value.kind === "person") return value.name;
   return value.text;
 }
 
@@ -83,6 +84,18 @@ function ValueCell({ value, className }: { value: Value; className?: string }) {
       <span className={cls}>
         <span className="pp-flag at" aria-hidden="true" />
         {value.text}
+      </span>
+    );
+  }
+
+  if (value.kind === "person") {
+    // The small team avatar of the lists (Kundenberater, Mitarbeiter): photo, else the partner glyph.
+    return (
+      <span className={`${cls} pp-person-val`}>
+        <span className="emp-avatar">
+          <img src={value.photo || a.clientBlank} alt="" />
+        </span>
+        {value.name}
       </span>
     );
   }
@@ -446,6 +459,8 @@ export function DataCard({
 
   return (
     <article className={className} onClick={onSelect}>
+      {/* Figma 21745:244614: the card shape (notch top right, #E2E7EC outline, light-blue top tint) drawn behind. */}
+      <span className="pp-card-shape" aria-hidden="true" />
       <header className="pp-card-head">
         <span className="pp-card-title">
           {card.icon ? <Icon src={card.icon} size={22} /> : null}

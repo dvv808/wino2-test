@@ -1,4 +1,4 @@
-<svg width="64" height="59" viewBox="0 0 64 59" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="64" height="59" viewBox="0 0 64 59" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path opacity="0.6" d="M44 11C47 6.5 55 0 63.5 0H0V59H9.5C16 59 27 55 30.5 47C31.6337 44.4087 40.6667 16 44 11Z" fill="url(#stepper_fade)"/>
 <defs>
 <linearGradient id="stepper_fade" x1="42" y1="47.5" x2="3" y2="34" gradientUnits="userSpaceOnUse">

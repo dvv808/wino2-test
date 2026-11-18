@@ -22,7 +22,9 @@ export type Value =
   | { kind: "link"; text: string; icon?: string }
   | { kind: "flag"; text: string }
   | { kind: "file"; text: string; type?: "pdf" | "jpg" }
-  | { kind: "entity"; tag: string; name: string; sub: string };
+  | { kind: "entity"; tag: string; name: string; sub: string }
+  /** A team member with their photo (e.g. "Ausgegeben von", "Erstellt von"). */
+  | { kind: "person"; name: string; photo?: string };
 
 /** `icon` sits in front of the label, `action` adds the note button on the right. */
 export type Row = { label: string; value: Value; icon?: string; action?: boolean };

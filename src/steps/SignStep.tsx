@@ -27,10 +27,21 @@ const CONSENT = [
   "Weitere Informationen zur Datenverarbeitung sind der Datenschutzerklärung des Maklers zu entnehmen. Diese ist abrufbar unter www.makler-winter.at.",
 ];
 
-function SignaturePad({ disabled }: { disabled: boolean }) {
+/** The signature pad. Without `value` / `onChange` it signs the Maklervereinbarung; with them any document. */
+export function SignaturePad({
+  disabled,
+  value,
+  onChange,
+}: {
+  disabled: boolean;
+  value?: string | null;
+  onChange?: (signature: string | null) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
-  const { signature, setSignature } = useWorkflow();
+  const workflow = useWorkflow();
+  const signature = onChange ? (value ?? null) : workflow.signature;
+  const setSignature = onChange ?? workflow.setSignature;
   const [empty, setEmpty] = useState(!signature);
 
   useEffect(() => {

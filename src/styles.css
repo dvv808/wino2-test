@@ -6368,6 +6368,8 @@ span.pp-tree-main {
 .stepper .step {
   --sw-tab: transparent;
   flex: 0 0 auto;
+  /* Every wave tab is at least 220px (fits almost every label + badge) and never stretches across the bar. */
+  min-width: 220px;
   height: var(--sw-tab-h);
   padding: 0 14px;
   gap: 8px;
@@ -6425,29 +6427,17 @@ span.pp-tree-main {
   mask-image: var(--sw-fall);
 }
 
-/* Stammdaten workflow: every wave tab has the same width (the bar's width is shared equally); below 120px the
-   bar scrolls sideways instead of chopping the labels. */
+/* Responsive wave stepper (Figma 22742:231226): the tabs share the free width but never shrink below their labels;
+   when they do not fit, the last one is pinned and the rest slide underneath (stepperOverflow.tsx). */
 .sw-stepper .step {
-  flex: 1 1 0;
-  min-width: 120px;
-  padding: 0 clamp(4px, calc(1.6vw - 16px), 14px);
+  flex: 0 0 auto;
+  padding: 0 14px;
   gap: 6px;
 }
 
-/* Labels: up to two lines (long words break with a hyphen); a third line is cut and fades out. */
 .sw-stepper .step-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-height: 34px;
-  overflow: hidden;
-  white-space: normal;
-  overflow-wrap: break-word;
-  hyphens: auto;
-}
-
-.sw-stepper .step-label.clipped {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 12px), transparent);
+  flex: none;
+  white-space: nowrap;
 }
 
 /* The first tab starts at the rounded corner of the bar: no left curve. */
@@ -27805,6 +27795,23 @@ button.m-chip {
   padding-right: 67px;
   border-top-right-radius: 24px;
 }
+/* Pinned: always a solid tab with its rising left curve (whatever its position in the light/dark rhythm), so the
+   steps sliding underneath never show through it. */
+.stepper-wrap.overflowing .stepper .step:last-child:not(.active) {
+  --sw-tab: var(--sw-dark);
+}
+.stepper-wrap.overflowing .stepper .step:last-child::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 100%;
+  width: var(--sw-slope);
+  height: 100%;
+  background: var(--sw-tab);
+  -webkit-mask: var(--sw-rise) 0 0 / 100% 100% no-repeat;
+  mask: var(--sw-rise) 0 0 / 100% 100% no-repeat;
+  pointer-events: none;
+}
 /* Pinned: its right side runs into the pocket, no turned curve there. */
 .stepper-wrap.overflowing .stepper .step:last-child::after {
   content: none;
@@ -27814,9 +27821,13 @@ button.m-chip {
 .stepper .step .step-fade {
   position: absolute;
   top: 0;
-  left: calc(-1 * var(--sw-slope) - 12px);
-  width: 64px;
+  /* The fade's curve (x 9.5 → 63.5 of its 64px) is the tab's 54-unit rising curve: scale it with --sw-slope so the
+     two curves always coincide, at every width (a fixed size showed as a second, lighter wave at mid widths). */
+  left: calc(-1 * var(--sw-slope) - var(--sw-slope) * 9.5 / 54);
+  width: calc(var(--sw-slope) * 64 / 54);
   height: 100%;
+  max-width: none;
+  object-fit: fill;
   z-index: -1;
   pointer-events: none;
 }
@@ -27973,6 +27984,14 @@ button.m-chip {
   width: 24px;
   height: 24px;
 }
+/* The online dot keeps its own size and place (the avatar rule above must not stretch it). */
+.ma-bizcard-photo.none > img.ma-bizcard-dot {
+  inset: auto;
+  left: 35px;
+  top: 35px;
+  width: 13px;
+  height: 13px;
+}
 
 /* Narrow cards: a value never shrinks below ~120px – it moves under its label instead of breaking per letter. */
 .pp-row {
@@ -28113,4 +28132,187 @@ button.m-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* Mitarbeiter tab: the Stammdaten Workflow dock tab keeps its two lines on narrow screens. */
+.ma-apps-nav .workflow-copy {
+  white-space: nowrap;
+}
+.ma-apps-nav .workflow-dock {
+  min-width: 0;
+  flex: none;
+}
+
+/* Profil side nav: an Inventar area whose mandatory item is missing shows the yellow Offen clock. */
+.pp-tree-item .ma-tree-open {
+  flex: none;
+}
+
+/* Dienstvertrag Live-Vorschau: the contract on a PDF page (MUSTER until signed). */
+.ma-dv-preview .pdf-page.ma-dv-page {
+  width: 100%;
+  padding: 40px 44px 36px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--wino-black-dark);
+  box-shadow: 0 7px 24px rgba(175, 192, 204, 0.45);
+}
+.ma-dv-page header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--wino-bg-light);
+  text-align: center;
+}
+.ma-dv-page header strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+}
+.ma-dv-page header small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+.ma-dv-page h4 {
+  margin: 22px 0 12px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+}
+.ma-dv-page h5 {
+  margin: 14px 0 2px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--wino-black-medium);
+}
+.ma-dv-page p {
+  margin: 0;
+}
+.ma-dv-page p strong {
+  font-weight: 500;
+}
+.ma-dv-page footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wino-bg-light);
+}
+.ma-dv-page footer span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ma-dv-page footer small {
+  font-size: 11px;
+  color: var(--wino-black-light);
+}
+.ma-dv-page footer i {
+  display: block;
+  height: 36px;
+  border-bottom: 1px solid var(--wino-black-light);
+}
+.ma-dv-page footer img {
+  height: 36px;
+  object-fit: contain;
+  object-position: left bottom;
+  border-bottom: 1px solid var(--wino-black-light);
+}
+.ma-koop-freigabe .footer-actions {
+  margin-top: 16px;
+}
+
+/* Card rows: a team member with their avatar ("Ausgegeben von", "Erstellt von"). */
+.pp-person-val {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.pp-person-val .emp-avatar {
+  flex: none;
+}
+.pp-tree-main .ma-tree-open {
+  margin-left: auto;
+  margin-right: 4px;
+}
+
+/* Workflow dock tabs follow the partner tabs (Figma 22880:444969): always 220px wide, × at the same spot, every
+   line on one row and faded out at the end when too long (no "…", no wrapping). */
+.workflow-tab-body {
+  width: 220px;
+  box-sizing: border-box;
+}
+.workflow-tab-body .workflow-main {
+  flex: 1;
+  min-width: 0;
+}
+.workflow-tab-body .workflow-main > .icon {
+  flex: none;
+}
+.workflow-tab-body .workflow-copy {
+  flex: 1;
+  min-width: 0;
+}
+.workflow-tab-body .workflow-copy small,
+.workflow-tab-body .workflow-copy strong {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(90deg, #000 calc(100% - 22px), transparent);
+}
+.workflow-tab-body .close-icon {
+  flex: none;
+}
+
+/* Data cards (Figma Wino - Concepts 21745:244614), Profil and workflows alike: the card is a shape with a soft step
+   at the top right (11px over 38px, then the 12px corner), a 1px #E2E7EC outline and a light-blue (#D3E7F1) tint at
+   the top that fades to white. It is drawn on .pp-card-shape behind the content, so menus are never clipped. */
+.pp-card:has(> .pp-card-shape) {
+  isolation: isolate;
+  border-color: transparent;
+  border-radius: 12px;
+  background: transparent;
+}
+.pp-card-shape,
+.pp-card-shape::after {
+  --pp-notch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='24' viewBox='0 0 40 24'%3E%3Cpath d='M0 0H1.62C4.46 0 7.21 1.01 9.37 2.84L15.66 8.16C17.83 9.99 20.58 11 23.41 11H27.5C34.12 11 40 16.36 40 22.98V24H0Z'/%3E%3C/svg%3E");
+  -webkit-mask:
+    linear-gradient(#000, #000) left top / calc(100% - 40px) 100% no-repeat,
+    linear-gradient(#000, #000) right bottom / 40px calc(100% - 24px) no-repeat,
+    var(--pp-notch) right top / 40px 24px no-repeat;
+  mask:
+    linear-gradient(#000, #000) left top / calc(100% - 40px) 100% no-repeat,
+    linear-gradient(#000, #000) right bottom / 40px calc(100% - 24px) no-repeat,
+    var(--pp-notch) right top / 40px 24px no-repeat;
+}
+.pp-card-shape {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: 12px;
+  background: #e2e7ec;
+  pointer-events: none;
+}
+/* The fill: 1px inside the outline. */
+.pp-card-shape::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 11px;
+  background:
+    linear-gradient(186deg, rgba(211, 231, 241, 0.55) 0, rgba(211, 231, 241, 0) 72px),
+    var(--wino-white);
+}
+.pp-card.selected:has(> .pp-card-shape) {
+  border-color: transparent;
+  box-shadow: none;
+}
+.pp-card.selected > .pp-card-shape {
+  background: #2b7396;
+}
+.pp-card.selected > .pp-card-shape::after {
+  inset: 2px;
 }

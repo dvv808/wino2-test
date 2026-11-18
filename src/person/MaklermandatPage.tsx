@@ -477,7 +477,7 @@ function scrollTo(id: string) {
     ?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function Halo({ size = 130, icon = 54 }: { size?: number; icon?: number }) {
+export function Halo({ size = 130, icon = 54 }: { size?: number; icon?: number }) {
   return (
     <span className="mm-halo" style={{ width: size, height: size }}>
       <Icon src={a.transform} size={icon} />
