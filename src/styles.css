@@ -28375,3 +28375,123 @@ button.m-chip {
   font-weight: 400;
   color: var(--wino-black-medium);
 }
+
+/* Umwandlung: Bewerber zu Mitarbeiter (Wino - Concepts 21760:103411). */
+.umw-content h2.ma-umw-title {
+  display: flex;
+  flex-direction: column;
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 27px;
+  letter-spacing: 0.19px;
+}
+.ma-umw-title strong {
+  font-weight: 500;
+}
+/* The light panel with the card notch (same shape as the data cards, flat light fill, no outline). */
+.umw-panel.ma-umw-panel {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+  border-radius: 24px;
+}
+.ma-umw-panel > .pp-card-shape {
+  background: #f1f5f8;
+  border-radius: 24px;
+}
+.ma-umw-panel > .pp-card-shape::after {
+  background: #f1f5f8;
+  border-radius: 24px;
+}
+/* The compact dark card (Figma 21760:103433): photo + chips / name / birth date, then Telefon / Mail Privat. */
+.ma-bizcard.ma-umw-card {
+  min-height: 0;
+  /* Figma: 207.5px with both contacts; shorter when nothing was entered. */
+  margin: 0 auto 20px;
+  padding: 16px 16px 20px;
+  text-align: left;
+}
+.ma-umw-card > .ma-bizcard-w {
+  top: auto;
+  bottom: 0;
+}
+.ma-umw-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+.ma-umw-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+}
+.ma-umw-copy strong {
+  font-weight: 500;
+}
+.ma-umw-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 14px;
+}
+.ma-umw-chips .chip {
+  color: var(--wino-black-dark);
+}
+.ma-umw-chips .chip.faded {
+  opacity: 0.4;
+}
+.ma-umw-arrow img {
+  filter: brightness(0) invert(1);
+}
+.ma-umw-contacts {
+  z-index: 1;
+  margin: 22px 0 7px 60px;
+}
+.ma-umw-contacts .ma-bizcard-contact {
+  min-height: 36px;
+}
+.ma-umw-id {
+  position: absolute;
+  top: 16px;
+  right: 25px;
+  z-index: 1;
+  font-size: 15px;
+  color: var(--wino-black-light);
+}
+
+/* Document preview modal (a file on a Stammdaten card). */
+.file-preview-body {
+  width: min(880px, 100%);
+}
+.file-preview-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.file-preview-meta {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  letter-spacing: 0.15px;
+  color: var(--wino-black-dark);
+}
+.file-preview-pages {
+  padding: 16px;
+  max-height: calc(100vh - 260px);
+}
+button.pp-val.file {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}

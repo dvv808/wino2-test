@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { StepFade, WaveStepper } from "../stepperOverflow";
 import * as a from "../assets/index";
-import { ContextMenu, DateField, Icon } from "../ui";
+import { ContextMenu, DateField, Icon, Snackbar } from "../ui";
 import { DataCard, focusForm } from "../person/cards";
 import { DmsUpload } from "../dms/upload";
 import { BankFields, ContactFields, Drop, Field, Select, Text } from "../person/forms";
@@ -629,10 +629,13 @@ export function MitarbeiterProfil({
             <ConvertDialog
               person={person}
               onCancel={() => setConverting(false)}
-              onConfirm={(abteilung) => {
-                convertToMitarbeiter(person, abteilung);
+              onConfirm={() => {
+                // The new Mitarbeiter lands on the Profil's Stammdaten page (Beschäftigungsdaten still to fill).
+                convertToMitarbeiter(person, "");
                 setConverting(false);
                 rerender((v) => v + 1);
+                go("stammdaten");
+                window.scrollTo({ top: 0 });
               }}
             />
           ) : null}
@@ -696,33 +699,77 @@ export function convertToMitarbeiter(person: TeamMember, abteilung: string) {
   if (person.stamm) person.stamm = { ...person.stamm, personentyp: "Mitarbeiter" };
 }
 
-const MA_FEATURES = ["Beschäftigungsdaten", "Inventar, Schlüssel & Badges, Benefits", "Wino Zugang", "Dienstvertrag", "HRM Dashboard & Listen"];
+const MA_FEATURES = ["Beschäftigungsdaten", "Inventar, Schlüssel & Badges, Benefits", "Wino Zugang", "Dienstvertrag", "und mehr"];
 
 /** The confirm dialog of the Umwandlung (same as "Umwandlung zu Interessenten" in the Maklermandat). */
-function ConvertDialog({ person, onCancel, onConfirm }: { person: TeamMember; onCancel: () => void; onConfirm: (abteilung: string) => void }) {
-  const [abteilung, setAbteilung] = useState(ABTEILUNG_NAMEN[0]);
+/**
+ * Umwandlung: Bewerber zu Mitarbeiter (Wino - Concepts 21760:103411), the Mitarbeiter version of "Umwandlung zu
+ * Interessenten": the compact dark card with Bewerber → Mitarbeiter, what the person gets, Abbrechen / Bestätigen.
+ * The Abteilung is set right after, in the Beschäftigungsdaten of the Stammdaten Workflow.
+ */
+function ConvertDialog({ person, onCancel, onConfirm }: { person: TeamMember; onCancel: () => void; onConfirm: () => void }) {
+  const s = stammOf(person);
+  const name = [s.vorname, s.nachname].filter(Boolean).join(" ") || person.name;
+  // Only what was entered: Telefon / Mail Privat (Bewerber have no Firma contacts).
+  const contacts = [
+    { caption: "Telefon Privat", value: s.phones.find((c) => filled(c.value))?.value, icon: a.phone },
+    { caption: "Mail Privat", value: s.mails.find((c) => filled(c.value))?.value, icon: a.mail },
+  ].filter((contact): contact is { caption: string; value: string; icon: string } => Boolean(contact.value));
   return (
-    <div className="umw-modal" role="dialog" aria-label="Umwandlung zu Mitarbeiter">
+    <div className="umw-modal" role="dialog" aria-label="Umwandlung: Bewerber zu Mitarbeiter">
       <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onCancel} />
       <div className="umw-body">
         <header className="review-titlebar">
-          <span className="review-titlebar-label">Umwandlung zu Mitarbeiter</span>
+          <span className="review-titlebar-label">Umwandlung: Bewerber zu Mitarbeiter</span>
           <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onCancel}>
             <Icon src={a.iconCloseDark} size={12} />
           </button>
         </header>
         <div className="umw-content">
           <Halo size={96} icon={40} />
-          <h2>
-            Umwandlung
-            <br />
-            zu Mitarbeiter
+          <h2 className="ma-umw-title">
+            <span>Umwandlung:</span>
+            <strong>Bewerber zu Mitarbeiter</strong>
           </h2>
-          <div className="umw-panel">
-            <MaBizCard person={{ ...person, typ: "Mitarbeiter" }} />
-            <Field label="Abteilung">
-              <Select value={abteilung} onChange={setAbteilung} options={ABTEILUNG_NAMEN} />
-            </Field>
+          <div className="umw-panel ma-umw-panel">
+            <span className="pp-card-shape" aria-hidden="true" />
+            {/* Figma 21760:103433: photo, Bewerber → Mitarbeiter, name, birth date, then Telefon / Mail Privat as entered. */}
+            <div className="ma-bizcard ma-umw-card">
+              <img className="ma-bizcard-bg" src={a.maCardBg} alt="" />
+              <img className="ma-bizcard-deco" src={a.maCardDeco} alt="" />
+              <img className="ma-bizcard-w" src={a.maCardW} alt="" />
+              <span className="ma-umw-id">ID: {String(1000 + (hash(person.name) % 9000))}</span>
+              <div className="ma-umw-head">
+                <span className={person.photo ? "ma-bizcard-photo" : "ma-bizcard-photo none"}>
+                  {person.photo ? <img src={person.photo} alt="" /> : <img src={a.bewerberAvatar} alt="" />}
+                </span>
+                <span className="ma-umw-copy">
+                  <span className="ma-umw-chips">
+                    <span className="chip einfach faded">{person.typ ?? "Bewerber"}</span>
+                    <Icon src={a.arrowRight} size={17} className="ma-umw-arrow" />
+                    <span className="chip kunde">Mitarbeiter</span>
+                  </span>
+                  <strong>{name}</strong>
+                  {filled(s.geburt) ? <span>{s.geburt}</span> : null}
+                </span>
+              </div>
+              {contacts.length ? (
+                <div className="ma-bizcard-contacts ma-umw-contacts">
+                  {contacts.map((contact) => (
+                    <div className="ma-bizcard-contact" key={contact.caption}>
+                      <span className="ma-bizcard-icon">
+                        <img src={a.maCardCircle} alt="" />
+                        <Icon src={contact.icon} size={18} />
+                      </span>
+                      <span>
+                        <small>{contact.caption}</small>
+                        <strong>{contact.value}</strong>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <p>Als Mitarbeiter bekommt diese Person Zugang zu weiteren Funktionen:</p>
             <ul className="umw-features">
               {MA_FEATURES.map((feature) => (
@@ -738,7 +785,7 @@ function ConvertDialog({ person, onCancel, onConfirm }: { person: TeamMember; on
           <button type="button" className="btn-secondary" onClick={onCancel}>
             Abbrechen
           </button>
-          <button type="button" className="btn-primary" onClick={() => onConfirm(abteilung)}>
+          <button type="button" className="btn-primary" onClick={onConfirm}>
             Umwandlung bestätigen
           </button>
         </footer>
@@ -826,10 +873,15 @@ export function MitarbeiterStammdatenWorkflow({
   const current = areasOf(person).find((entry) => entry.id === area);
   const isEmptyArea = Boolean(current?.cards.length) && Boolean(current?.cards.every((card) => card.empty));
   const bank = s.bank ?? { inhaber: [s.vorname, s.nachname].filter(Boolean).join(" "), iban: "", bic: "", institut: "" };
-  const save = (close: boolean) => {
+  const [snack, setSnack] = useState<{ id: number; message: string } | null>(null);
+  // As in the partner Stammdaten Workflow: Speichern stays in the workflow, shows a snackbar and the
+  // "Aktuell in Wino" cards on the right show the saved data right away.
+  const save = (publish: boolean) => {
     applyDraft(person, draft);
-    if (close) onClose();
-    else setSaved(close ? null : "Entwurf gespeichert.");
+    if (publish) {
+      setSaved(null);
+      setSnack({ id: Date.now(), message: "Änderungen gespeichert." });
+    } else setSaved("Entwurf gespeichert.");
   };
 
   return (
@@ -1083,6 +1135,7 @@ export function MitarbeiterStammdatenWorkflow({
           </button>
         </div>
       </footer>
+      {snack ? <Snackbar key={snack.id} message={snack.message} onClose={() => setSnack(null)} /> : null}
     </div>
   );
 }

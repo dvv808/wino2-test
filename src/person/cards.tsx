@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { ViewerBar } from "../documents";
 import * as a from "../assets/index";
 import { ContextMenu, Icon, type ContextItem } from "../ui";
 import { docMetaLine, type Block, type Card, type Empty, type Row, type Value } from "./stammdaten";
@@ -65,6 +67,77 @@ function breakable(text: string) {
   );
 }
 
+type FileVal = Extract<Value, { kind: "file" }>;
+
+/** A document on a card: clicking it opens the document preview (never a route or another file). */
+function FileValue({ value, className }: { value: FileVal; className: string }) {
+  const [open, setOpen] = useState(false);
+  const glyph = value.type === "jpg" ? a.jpg : a.pdf;
+  const meta = docMetaLine(value);
+  return (
+    <>
+      <button
+        type="button"
+        className={`${className} file`}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        <img src={glyph} alt="" width={17} height={20} />
+        {meta ? (
+          <span className="pp-file-copy">
+            {value.text}
+            <small>{meta}</small>
+          </span>
+        ) : (
+          value.text
+        )}
+      </button>
+      {open ? <FilePreview value={value} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+/** Document preview modal: title bar, viewer bar with zoom, Typ / Gültigkeit / Aussteller, the pages. */
+export function FilePreview({ value, onClose }: { value: FileVal; onClose: () => void }) {
+  const [zoom, setZoom] = useState(100);
+  const meta = docMetaLine(value);
+  const pages = value.type === "jpg" ? [a.docPage1] : [a.docPage1, a.docPage2];
+  return createPortal(
+    <div className="umw-modal file-preview" role="dialog" aria-label={value.text}>
+      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onClose} />
+      <div className="umw-body file-preview-body">
+        <header className="review-titlebar">
+          <span className="review-titlebar-label">{value.docTyp || "Dokument"}</span>
+          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onClose}>
+            <Icon src={a.iconCloseDark} size={12} />
+          </button>
+        </header>
+        <div className="file-preview-content">
+          {value.docTyp || meta ? (
+            <p className="file-preview-meta">
+              {value.docTyp ? <span className="chip">{value.docTyp}</span> : null}
+              {meta}
+            </p>
+          ) : null}
+          <div className="pdf-frame">
+            <ViewerBar fileName={value.text} zoom={zoom} onZoom={setZoom} />
+            <div className="pdf-pages file-preview-pages">
+              {pages.map((page, index) => (
+                <div className="pdf-page" key={index} style={{ width: `${zoom}%` }}>
+                  <img src={page} alt={`Seite ${index + 1}`} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 function ValueCell({ value, className }: { value: Value; className?: string }) {
   const cls = ["pp-val", className].filter(Boolean).join(" ");
 
@@ -100,23 +173,7 @@ function ValueCell({ value, className }: { value: Value; className?: string }) {
     );
   }
 
-  if (value.kind === "file") {
-    const glyph = value.type === "jpg" ? a.jpg : a.pdf;
-    const meta = docMetaLine(value);
-    return (
-      <a className={`${cls} file`} href="#datei">
-        <img src={glyph} alt="" width={17} height={20} />
-        {meta ? (
-          <span className="pp-file-copy">
-            {value.text}
-            <small>{meta}</small>
-          </span>
-        ) : (
-          value.text
-        )}
-      </a>
-    );
-  }
+  if (value.kind === "file") return <FileValue value={value} className={cls} />;
 
   return (
     <span className={className ? `${className} pp-entity` : "pp-entity"}>

@@ -40,7 +40,7 @@ export function DocumentRail({ title }: { title: string }) {
   );
 }
 
-function ViewerBar({
+export function ViewerBar({
   fileName,
   size = "12,22 KB",
   zoom = 100,
