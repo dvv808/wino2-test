@@ -7,6 +7,7 @@ import { useWorkflow } from "../workflow";
 import { LogoButton, FileIdentity, FileTabs, ProfileMenu, VerlaufCaption, WorkflowDock, MeinBereichTab } from "../chrome";
 import { ManagementAreaIcon } from "../manager/BestandChrome";
 import { DataCard } from "./cards";
+import { kommunikationChoice, withKommunikation } from "./kommunikation";
 import { areaChangesIn, areaStand, type PersonVersion } from "./versions";
 import { draftFor, pendingFor, usePruefungen } from "./pruefung";
 import type { StammdatenAreaId } from "./stammdaten";
@@ -388,7 +389,12 @@ export function PersonPage() {
     openPruefung,
     finanzenProfileOpen,
     backToFinanzen,
+    commsChoice,
+    maklerFinished,
   } = useWorkflow();
+  // Maklervereinbarung complete (Signaturen approved, or a Kunde): its Kommunikationsdaten show on the cards.
+  const maklerDone = maklerFinished || getPartner(filePartnerId).kind === "kunde";
+  const kommunikation = maklerDone ? kommunikationChoice(displaySections, commsChoice) : commsChoice;
   const { links, unlinkLink } = useFamilyLinks();
   const pruefList = usePruefungen();
   const pruefStatus = (pendingFor(pruefList, filePartnerId) ?? draftFor(pruefList, filePartnerId))?.status;
@@ -563,7 +569,7 @@ export function PersonPage() {
                       <div className={empty ? "pp-cards center" : "pp-cards"}>
                         {section.cards.map((card) => (
                           <DataCard
-                            card={card}
+                            card={withKommunikation(card, kommunikation, maklerDone, isCompanyFile)}
                             key={card.id}
                             onEdit={() => openStammdaten(area, card.id)}
                             onDelete={() => setPendingDelete({ area, card })}

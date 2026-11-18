@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import * as a from "../assets/index";
 import { TEAM, isEmployee } from "../manager/hrmTeam";
-import { FILE_PARTNERS, partnerKindText } from "../person/partners";
+import { FILE_PARTNERS, partnerKind, partnerKindText } from "../person/partners";
 
 /** Mobile Kontaktliste (Figma 19075:490158): partners and employees, A to Z, with search and quick filters. */
 type Kontakt = {
@@ -28,7 +28,7 @@ const KONTAKTE: Kontakt[] = [
       name: company ? p.name : lastFirst(p.name),
       line: company ? (p.fn ? `FN ${p.fn}` : p.address?.[1] ?? "") : p.born ?? "",
       kind: company ? "company" : "person",
-      tag: partnerKindText(p.id === "julia" ? "interessent" : p.kind ?? "einfach"),
+      tag: partnerKindText(partnerKind(p)),
     };
   }),
   ...TEAM.filter(isEmployee).map(

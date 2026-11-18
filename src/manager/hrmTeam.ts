@@ -19,6 +19,38 @@ export type Anstellung = {
   urlaub: string;
 };
 
+export type MaChannel = { value: string; note: string; extra?: string };
+
+/** A Mitarbeiter's / Bewerber's Stammdaten, the same fields as a partner's (Wino - Concepts 21739:41943). */
+export type MaStamm = {
+  mandant: string;
+  personentyp: string;
+  hrm: string;
+  titelVor: string;
+  vorname: string;
+  nachname: string;
+  titelNach: string;
+  rufname: string;
+  geschlecht: string;
+  geburt: string;
+  nationalitaet: string;
+  svNummer: string;
+  notiz: string;
+  addressTyp: string;
+  strasse: string;
+  nummer: string;
+  zusatz: string;
+  plz: string;
+  ort: string;
+  land: string;
+  addressNotiz: string;
+  contactNotiz: string;
+  phones: MaChannel[];
+  mails: MaChannel[];
+  websites: MaChannel[];
+  bank: { inhaber: string; iban: string; bic: string; institut: string; notiz?: string } | null;
+};
+
 export type TeamMember = {
   name: string;
   abteilung: string;
@@ -54,6 +86,8 @@ export type TeamMember = {
   angelegt?: Record<string, string>;
   /** Stammdaten section Anstellung, edited in the Mitarbeiter tab. */
   anstellung?: Anstellung;
+  /** Stammdaten (Partner anlegen → Profil → Stammdaten Workflow). Seeded people get theirs from `stammOf`. */
+  stamm?: MaStamm;
 };
 
 export type MitarbeiterTyp = "Mitarbeiter" | "Bewerber" | "Bewerber Potential";
@@ -303,6 +337,7 @@ const FIRST_LAST = ["Christine Auer Hammer-schmidt", "Alexander Doppler", "Tamar
 
 /** Vorname and Nachname of a team member (from "Mitarbeiter anlegen" when entered there). */
 export function nameParts(person: TeamMember) {
+  if (person.stamm) return { vorname: person.stamm.vorname, nachname: person.stamm.nachname };
   if (person.angelegt?.Vorname || person.angelegt?.Nachname) return { vorname: person.angelegt.Vorname ?? "", nachname: person.angelegt.Nachname ?? "" };
   const words = person.name.split(" ");
   if (FIRST_LAST.includes(person.name)) return { vorname: words[0], nachname: words.slice(1).join(" ") };

@@ -27878,16 +27878,17 @@ button.m-chip {
   position: relative;
 }
 
-/* Documents before the Dokumentenfreigabe (step 5): an outlined "MUSTER" runs diagonally over every page. */
+/* Documents before the Dokumentenfreigabe (step 5): an outlined "MUSTER" runs diagonally over every page.
+   The tile is tall enough for the whole rotated word (no clipped M or R); soft, thin outline. */
 .pdf-page.muster::after,
 .pdf-thumb.muster::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 420'%3E%3Ctext x='300' y='250' text-anchor='middle' transform='rotate(-55 300 210)' font-family='Fira Sans, Arial, sans-serif' font-size='150' font-weight='500' letter-spacing='6' fill='none' stroke='%23313537' stroke-opacity='0.75' stroke-width='3'%3EMUSTER%3C/text%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 700'%3E%3Ctext x='300' y='350' dominant-baseline='middle' text-anchor='middle' transform='rotate(-55 300 350)' font-family='Fira Sans, Arial, sans-serif' font-size='130' font-weight='500' letter-spacing='6' fill='none' stroke='%23313537' stroke-opacity='0.35' stroke-width='2'%3EMUSTER%3C/text%3E%3C/svg%3E");
   background-repeat: repeat-y;
-  background-size: 100% 34%;
+  background-size: 100% auto;
   background-position: center top;
 }
 .pdf-thumb.muster {
@@ -27896,4 +27897,220 @@ button.m-chip {
 /* Steps measure their offset against the bar itself (used to keep the active step clear of the pinned last one). */
 .stepper-wrap.overflowing > .stepper {
   position: relative;
+}
+
+/* Mitarbeiter Stammdaten Workflow (Wino - Concepts 21745:72464). */
+.ma-wf .sw-strip > .ma-bizcard {
+  grid-column: 2;
+}
+.ma-wf .sw-form.pa-card h2 {
+  margin-top: 0;
+}
+.ma-wf-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--wino-black-medium);
+}
+.ma-wf-saved {
+  font-size: 13px;
+  color: #348d2c;
+  align-self: center;
+}
+.ma-wf-tab .area-tab-body {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0.13px;
+  font-size: 12px;
+  line-height: 15px;
+}
+.ma-wf-tab .area-tab-body small {
+  display: block;
+  font-size: 12px;
+}
+.ma-wf-tab .close-icon {
+  border: 0;
+  background: none;
+  padding: 0 0 0 6px;
+}
+/* Profilfoto hochladen (Figma): dashed blue drop area; a chosen photo shows as a round preview. */
+.ma-photo-drop {
+  border-color: #6aaed6;
+  border-style: dotted;
+}
+.ma-photo-preview {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Buttons with an icon (e.g. Speichern in the Mitarbeiter Stammdaten Workflow): icon and label on one line. */
+.ma-wf .sw-footer-actions .btn-primary,
+.ma-wf .sw-footer-actions .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Bewerber business card: lower, lighter (Figma 21745:77159). */
+.ma-bizcard.bewerber {
+  min-height: 214px;
+}
+/* No Profilfoto: light avatar disc with the person glyph. */
+.ma-bizcard-photo.none > img {
+  position: absolute;
+  inset: 0;
+  width: 48px;
+  height: 48px;
+}
+.ma-bizcard-photo.none > img.glyph {
+  inset: 12px;
+  width: 24px;
+  height: 24px;
+}
+
+/* Narrow cards: a value never shrinks below ~120px – it moves under its label instead of breaking per letter. */
+.pp-row {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.pp-row > .pp-val {
+  min-width: min(120px, 100%);
+}
+.emp-tab-bewerber {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+/* Leave prompt over a create dialog (umw-modal sits at z-index 80). */
+.wmodal.leave-confirm {
+  z-index: 90;
+}
+
+/* Mitarbeiter tab (Figma 21745:76795): the active app sits as a light tab on the bar's bottom edge. */
+.ma-apps-nav .app-pills {
+  align-self: stretch;
+  align-items: center;
+}
+.app-pill-tab {
+  display: flex;
+  align-items: flex-end;
+  align-self: flex-end;
+  margin: 0 -10px;
+}
+.app-pill-tab .tab-ear.flip {
+  transform: scaleY(-1) rotate(-90deg) rotate(180deg);
+}
+.app-pill.active {
+  background: linear-gradient(180deg, #e2e7ec 0%, #f5f8fa 100%);
+  color: var(--wino-black-dark);
+  border-radius: 12px 12px 0 0;
+  padding: 12px 12px 14px;
+}
+
+/* Maklermandat side nav (Figma 22934:34447): 30px sub items, 9px apart, lighter pill. */
+.pp-tree.mm-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+.mm-tree .pp-tree-item {
+  background: linear-gradient(78deg, rgba(255, 255, 255, 0.6) 46%, rgba(186, 204, 213, 0.6) 97%);
+}
+.mm-tree .pp-tree-item:hover {
+  background: linear-gradient(78deg, rgba(255, 255, 255, 0.9) 46%, rgba(186, 204, 213, 0.8) 97%);
+}
+.mm-tree .pp-tree-name {
+  gap: 6px;
+}
+
+/* Long document names wrap between words and never run under the status icon. */
+.mm-ov-row > .icon {
+  flex: none;
+}
+.mm-ov-copy strong {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Maklervereinbarung summary (Figma 22934:35249): the picked Stammdaten cards stacked, 24px apart. */
+.summary-stamm {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+.summary-stamm .pp-card {
+  width: 100%;
+}
+
+/* Kommunikationsdaten dropdowns (Figma 22934:41508): white list, slate border, wide soft shadow; one block per
+   Stammdaten card with a small title; 46px options with the round icon; the pick on the grey gradient. */
+.comms-menu {
+  padding: 12px 4px 8px;
+  border: 1px solid var(--wino-black-light);
+  border-radius: 8px;
+  box-shadow: 0 7px 24px #afc0cc;
+}
+.comms-menu .comms-group {
+  padding: 0;
+}
+.comms-menu .comms-group + .comms-group {
+  margin-top: 12px;
+  border-top: 0;
+}
+.comms-group-title {
+  margin: 0 12px 8px;
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.11px;
+  color: var(--wino-black-dark);
+}
+.comms-menu .comms-group ul,
+.comms-menu ul.comms-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comms-menu .comms-option {
+  min-height: 46px;
+  padding: 7px 19px 7px 12px;
+  gap: 14px;
+  font-weight: 400;
+  letter-spacing: 0.13px;
+}
+.comms-menu .comms-option.selected {
+  background: linear-gradient(78deg, #fff 13%, #baccd5 97%);
+  font-weight: 400;
+}
+.comms-menu .comms-option-copy > span {
+  display: block;
+}
+.comms-menu .comms-option .icon,
+.comms-menu .comms-option .stack-icon {
+  flex: none;
+}
+.comms-tick.off {
+  opacity: 0;
+}
+
+/* Empty-state pattern (Figma 21755:28744): the "+" pill carries the area icon in white. */
+.sw-plus-icon img {
+  filter: brightness(0) invert(1);
+}
+.btn-primary.sw-plus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }

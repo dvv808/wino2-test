@@ -12,7 +12,7 @@ import type { FinanzenPage, HonorarStepKey, Partner as HonorarPartner } from "./
 import { buildHonorarPartner } from "./person/createDraft";
 import { demoKundenFiles } from "./home/kundenData";
 import * as a from "./assets/index";
-import { FILE_PARTNERS, getPartner, partnerKindText, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
+import { FILE_PARTNERS, getPartner, markKunde, partnerKindText, registerPartner, type FilePartner, type PartnerId } from "./person/partners";
 import { verknuepfungSave } from "./person/verknuepfungSave";
 import {
   MULTI_CARD_AREAS,
@@ -563,6 +563,8 @@ function useWorkflowState() {
   const [partnerCreateOpen, setPartnerCreateOpen] = useState(false);
   const [extraPartners, setExtraPartners] = useState<FilePartner[]>(() => DEMO_KUNDEN.map((entry) => entry.file));
   const file = partnerFiles[filePartnerId] ?? partnerFiles.julia;
+  // A finished Maklervereinbarung makes the partner a Kunde everywhere (chip, lists, search, dashboard).
+  for (const [id, state] of Object.entries(partnerFiles)) if (state.maklerFinished) markKunde(id);
   const { sections, versions, viewingVersionId, stammdatenBaseline, stammdatenPublished } = file;
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
@@ -1416,6 +1418,7 @@ function useWorkflowState() {
       ...all,
       [filePartnerId]: { ...all[filePartnerId], maklerCreated: true, maklerFinished: true },
     }));
+    markKunde(filePartnerId);
   }
 
   function closeMakler() {

@@ -368,3 +368,13 @@ export { default as stepperEndFade } from "./icons/stepper-end-fade.svg";
 export { default as stepperEndPocket } from "./icons/stepper-end-pocket.svg";
 export { default as stepperArrowLeft } from "./icons/stepper-arrow-left.svg";
 export { default as stepperArrowRight } from "./icons/stepper-arrow-right.svg";
+// Bewerber business card (Wino - Concepts 21745:77159): lighter "LightDark" gradient, 552 × 214.
+export { default as maCardBgBewerber } from "./icons/ma-card-bg-bewerber.svg";
+// Bewerber without an uploaded Profilfoto (Wino - Concepts 21748:25274): light disc with the red Winter "W".
+export { default as bewerberAvatar } from "./icons/bewerber-avatar.svg";
+export { default as suitcaseWork } from "./icons/suitcase-work.svg";
+/** Maklermandat side nav (Figma 22934:34447): Icon_Drafts, Icon_DocMissing, Wino_Icon_Logo. */
+export { default as drafts } from "./icons/drafts.svg";
+export { default as docMissing } from "./icons/doc-missing.svg";
+export { default as winoIconLogo } from "./icons/wino-icon-logo.svg";
+export { default as phoneLandline } from "./icons/phone-landline.svg";

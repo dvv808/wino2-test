@@ -5,6 +5,7 @@ import { partnerDashboardHash } from "../routing";
 import { useWorkflow } from "../workflow";
 import { DataCard } from "./cards";
 import { PlausiState } from "./PlausiState";
+import { LeaveConfirm } from "./LeaveConfirm";
 import { CreateContactFields, Field, Select, Text } from "./forms";
 import {
   applyHit,
@@ -274,6 +275,7 @@ export function PartnerCreate() {
   const { partnerCreateOpen, closePartnerCreate, createPartner } = useWorkflow();
   const [step, setStep] = useState<CreateStep>("typ");
   const [draft, setDraft] = useState<PartnerDraft>(EMPTY_DRAFT);
+  const [leaving, setLeaving] = useState(false);
   const steps = stepsFor(draft);
   const cards = useMemo(() => (step === "summary" ? summaryCards(draft) : []), [draft, step]);
 
@@ -308,13 +310,15 @@ export function PartnerCreate() {
     setDraft(EMPTY_DRAFT);
   }
 
+  const ask = () => setLeaving(true);
+
   return (
     <div className="umw-modal pa-modal" role="dialog" aria-label="Neuen Partner anlegen">
-      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={close} />
+      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={ask} />
       <div className="umw-body pa-body">
         <header className="review-titlebar">
           <span className="review-titlebar-label">Neuen Partner anlegen</span>
-          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={close}>
+          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={ask}>
             <Icon src={a.iconCloseDark} size={12} />
           </button>
         </header>
@@ -517,7 +521,7 @@ export function PartnerCreate() {
 
         <footer className="pa-foot">
           {step === "typ" ? (
-            <button type="button" className="btn-secondary" onClick={close}>
+            <button type="button" className="btn-secondary" onClick={ask}>
               Abbrechen
             </button>
           ) : (
@@ -542,6 +546,16 @@ export function PartnerCreate() {
           </span>
         </footer>
       </div>
+      {leaving ? (
+        <LeaveConfirm
+          onStay={() => setLeaving(false)}
+          onLeave={() => {
+            setLeaving(false);
+            close();
+          }}
+          onDraft={step === "typ" ? undefined : () => (setLeaving(false), finish("draft"))}
+        />
+      ) : null}
     </div>
   );
 }

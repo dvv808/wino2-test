@@ -4,7 +4,7 @@ import { ConstructionArt } from "../mein-bereich/MeinBereichView";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { partyChip, partyName, useKonzernLinks, type PartyKind } from "./konzernLinks";
-import { getPartner } from "./partners";
+import { getPartner, partnerKind } from "./partners";
 import { liveDashboardData, liveFileIdentity, type Card } from "./stammdaten";
 
 /** Team Winter: the people at Makler Winter who look after this partner. */
@@ -127,8 +127,9 @@ export function PartnerDashboard({
   const [linkTab, setLinkTab] = useState<"familie" | "konzern">(company ? "konzern" : "familie");
   const [flipped, setFlipped] = useState(false);
 
-  const interessent = filePartnerId === "julia" || (filePartnerId === "ashley" && ashleyConverted) || file.kind === "interessent";
-  const partnerType = interessent ? "Interessent" : file.kind === "kunde" ? "Kunde" : "Einfache Person";
+  const kindNow = partnerKind({ id: filePartnerId, kind: file.kind }, ashleyConverted);
+  const interessent = kindNow === "interessent";
+  const partnerType = interessent ? "Interessent" : kindNow === "kunde" ? "Kunde" : "Einfache Person";
   const fullName = company ? personName : [data.titelVor, personName, data.titelNach].filter(Boolean).join(" ");
   const born = identity.born ?? file.born;
   const [street, city] = identity.address ?? file.address ?? ["", ""];

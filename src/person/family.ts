@@ -1,5 +1,5 @@
 import { austrianCityLine } from "./company";
-import { FILE_PARTNERS, type PartnerId, type PartnerKind } from "./partners";
+import { FILE_PARTNERS, partnerKind, type PartnerId, type PartnerKind } from "./partners";
 
 /**
  * Verknüpfung links Privatperson files together to form a family. Companies are not
@@ -20,7 +20,7 @@ export function familyMember(id: FamilyMemberId): FamilyInfo {
   return {
     id,
     name: partner.name,
-    kind: partner.kind ?? (id === "julia" ? "interessent" : "einfach"),
+    kind: partnerKind(partner),
     born: partner.born ?? "",
     address: (() => {
       const [street, city] = partner.address ?? [];

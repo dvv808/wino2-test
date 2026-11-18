@@ -1,4 +1,4 @@
-import { FILE_PARTNERS, partnerKindText, type PartnerId } from "../person/partners";
+import { FILE_PARTNERS, partnerKind, partnerKindText, type PartnerId } from "../person/partners";
 import { buildKundePartner, type PartnerTyp } from "../person/createDraft";
 
 /**
@@ -84,7 +84,7 @@ export const ascii = (text: string) => text.toLowerCase().replace(/ä/g, "ae").r
 export function kundenRows(ashleyConverted: boolean): Kunde[] {
   const real: Kunde[] = Object.values(FILE_PARTNERS).map((p, i) => {
     const company = p.fileKind === "company";
-    const kind = p.id === "julia" || (p.id === "ashley" && ashleyConverted) ? "interessent" : p.kind ?? "einfach";
+    const kind = partnerKind(p, ashleyConverted);
     const lunixo = p.id.startsWith("lunixo");
     const atkinson = ["julia", "karl", "johanna", "ash", "marcus", "sophie", "udo", "thomas-atkinson", "ashley"].includes(p.id);
     return {

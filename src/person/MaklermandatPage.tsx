@@ -51,8 +51,8 @@ const MANDATE_SECTIONS = [
 
 const SIDE_SUBS = [
   { id: "gueltig", icon: a.confirmOutline, label: "Gültig (0)" },
-  { id: "entwuerfe", icon: a.notes, label: "Entwürfe (0)" },
-  { id: "abgelaufen", icon: a.docList, label: "Abgelaufen" },
+  { id: "entwuerfe", icon: a.drafts, label: "Entwürfe (0)" },
+  { id: "abgelaufen", icon: a.docMissing, label: "Abgelaufen" },
 ] as const;
 
 const FEATURES = [
@@ -513,35 +513,54 @@ function ConvertCard({ onStart }: { onStart: () => void }) {
   );
 }
 
-function OverviewCard() {
+type OverviewRow = { icon: string; label: string; state: string; done: boolean };
+
+/**
+ * Maklermandat Übersicht (Figma 22742:254542). Without a Maklervereinbarung it lists the Interessentenvereinbarung;
+ * once one exists it shows the Maklervereinbarung with its documents instead: "Entwurf" (yellow clock) while it is
+ * a draft, "Fertig" (green tick) once Signaturen is approved or the partner is Kunde.
+ */
+function OverviewCard({ stage }: { stage: "none" | "draft" | "done" }) {
+  const done = stage === "done";
+  const state = done ? "Fertig" : "Entwurf";
+  const groups: { head: OverviewRow; children: OverviewRow[] }[] =
+    stage === "none"
+      ? OVERVIEW.map((entry) => ({
+          head: { icon: entry.icon, label: entry.label, state: entry.state, done: false },
+          children: [{ ...entry.child, done: false }],
+        }))
+      : [
+          {
+            head: { icon: a.iconBrokerContract, label: "Maklervereinbarung", state, done },
+            children: [
+              { icon: a.iconInsurance, label: "Vollmacht: Versicherungsmakler", state, done },
+              { icon: a.iconMandate, label: "AV Vollmacht", state, done },
+              { icon: a.bank, label: "SEPA Vereinbarung", state, done },
+            ],
+          },
+        ];
+  const row = (entry: OverviewRow, nested: boolean) => (
+    <div className={nested ? "mm-ov-row nested" : "mm-ov-row"} key={entry.label}>
+      <span className="mm-contact-icon">
+        <Icon src={entry.icon} size={18} />
+      </span>
+      <span className="mm-ov-copy">
+        <strong>{entry.label}</strong>
+        <small>{entry.state}</small>
+      </span>
+      <Icon src={entry.done ? a.checkGreen : a.onhold} size={20} />
+    </div>
+  );
   return (
     <div className="mm-overview">
       <header>
         <Icon src={a.iconBrokerContract} size={22} />
         Maklermandat Übersicht
       </header>
-      {OVERVIEW.map((entry) => (
-        <div className="mm-ov-group" key={entry.label}>
-          <div className="mm-ov-row">
-            <span className="mm-contact-icon">
-              <Icon src={entry.icon} size={18} />
-            </span>
-            <span className="mm-ov-copy">
-              <strong>{entry.label}</strong>
-              <small>{entry.state}</small>
-            </span>
-            <Icon src={a.onhold} size={20} />
-          </div>
-          <div className="mm-ov-row nested">
-            <span className="mm-contact-icon">
-              <Icon src={entry.child.icon} size={18} />
-            </span>
-            <span className="mm-ov-copy">
-              <strong>{entry.child.label}</strong>
-              <small>{entry.child.state}</small>
-            </span>
-            <Icon src={a.onhold} size={20} />
-          </div>
+      {groups.map((group) => (
+        <div className="mm-ov-group" key={group.head.label}>
+          {row(group.head, false)}
+          {group.children.map((child) => row(child, true))}
         </div>
       ))}
     </div>
@@ -639,11 +658,9 @@ function Sidebar({
             >
               <span className="pp-tree-name">
                 <Icon src={item.icon} size={18} />
-                {item.id === "gueltig"
-                  ? `Gültig (${counts.gueltig})`
-                  : item.id === "entwuerfe"
-                    ? `Entwürfe (${counts.entwuerfe})`
-                    : `Abgelaufen (${counts.abgelaufen})`}
+                {/* Figma 22934:34447: the count only shows when there is something in the group. */}
+                {item.id === "gueltig" ? "Gültig" : item.id === "entwuerfe" ? "Entwürfe" : "Abgelaufen"}
+                {counts[item.id] ? ` (${counts[item.id]})` : ""}
               </span>
               <Icon
                 src={a.chevronDark}
@@ -661,14 +678,14 @@ function Sidebar({
         onClick={() => openPersonArea("inkasso")}
       >
         <span className="pp-area-label">
-          <Icon src={a.tickList} size={18} />
+          <Icon src={a.honorar} size={18} />
           Inkasso
         </span>
         <Icon src={a.chevronDark} size={18} className="caret-side" />
       </button>
       <button type="button" className="pp-area">
         <span className="pp-area-label">
-          <Icon src={a.logoMark} size={18} className="mm-wino" />
+          <Icon src={a.winoIconLogo} size={18} />
           Wino
         </span>
         <Icon src={a.chevronDark} size={18} className="caret-side" />
@@ -917,7 +934,7 @@ export function MaklermandatPage() {
               ) : null}
             </div>
             {ready ? (
-              <OverviewCard />
+              <OverviewCard stage={stage} />
             ) : (
               <ConvertCard onStart={() => setOverlay(true)} />
             )}

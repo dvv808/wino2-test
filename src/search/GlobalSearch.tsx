@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as a from "../assets/index";
 import { familyGender } from "../person/family";
-import { FILE_PARTNERS, type FilePartner, type PartnerId } from "../person/partners";
+import { FILE_PARTNERS, partnerKind, type FilePartner, type PartnerId } from "../person/partners";
 import { Icon, useClickOutside } from "../ui";
 import { useWorkflow } from "../workflow";
 
@@ -50,10 +50,7 @@ const PEOPLE: Partial<Record<PartnerId, string[]>> = {
 
 function tagOf(partner: FilePartner, ashleyConverted: boolean): Tag {
   const company = partner.fileKind === "company";
-  const kind =
-    partner.id === "julia" || (partner.id === "ashley" && ashleyConverted)
-      ? "interessent"
-      : partner.kind ?? "einfach";
+  const kind = partnerKind(partner, ashleyConverted);
   if (kind === "interessent") return { label: "Interessent", tone: "interessent" };
   if (kind === "kunde") {
     if (company) return { label: "Kunde", tone: "kunde" };

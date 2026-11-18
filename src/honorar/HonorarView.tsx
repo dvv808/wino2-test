@@ -207,7 +207,7 @@ export function HonorarView() {
 }
 
 function FinanzenAreaNav() {
-  const { openManager, openFinanzen } = useWorkflow();
+  const { openManager, openFinanzen, setManagerNav } = useWorkflow();
   const areas = [
     "Dashboard",
     "HRM",
@@ -236,7 +236,15 @@ function FinanzenAreaNav() {
               type="button"
               className="area-tab-body"
               onClick={() => {
-                if (area === "Bestand") openManager();
+                // HRM and Bestand both live in the Management view; HRM opens on its dashboard.
+                if (area === "HRM") {
+                  setManagerNav({ area: "hrm", tab: "dashboard" });
+                  openManager();
+                }
+                if (area === "Bestand") {
+                  setManagerNav({ area: "bestand", tab: "freigaben" });
+                  openManager();
+                }
                 if (area === "Finanzen") openFinanzen();
               }}
             >

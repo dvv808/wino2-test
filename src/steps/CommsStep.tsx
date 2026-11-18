@@ -65,7 +65,8 @@ export function CommsSelect({
       document.removeEventListener("keydown", key);
     };
   }, [open]);
-  const count = groups.reduce((sum, group) => sum + group.options.length, 0);
+  const { personName } = useWorkflow();
+  const { isCompany } = useFilePerson();
 
   return (
     <div className="block comms-field" ref={ref}>
@@ -88,7 +89,7 @@ export function CommsSelect({
               <span>{value.value}</span>
               {value.second ? <span>{value.second}</span> : null}
               {/* Figma: whose contact it is, small under the value. */}
-              {value.owner ? <small className="comms-owner">{value.owner}</small> : null}
+              {value.owner || personName ? <small className="comms-owner">{value.owner ?? personName}</small> : null}
             </>
           ) : (
             "Auswahl"
@@ -98,41 +99,13 @@ export function CommsSelect({
       </button>
 
       {open ? (
+        // Figma 22934:41508: one block per Stammdaten card ("Kontaktdaten von Julia", "Hauptwohnsitz von Julia"),
+        // each value with its round icon; the pick on the grey gradient with the dark check.
         <div className={place.up ? "comms-menu up" : "comms-menu"} role="listbox" aria-label={field.label} style={place.up ? { maxHeight: place.max, bottom: place.offset } : { maxHeight: place.max }}>
-          <p className="comms-menu-head">
-            {count} {count === 1 ? "Eintrag" : "Einträge"} aus den Stammdaten
-          </p>
-          {/* "Auswahl" clears the pick again (the step is then open). */}
-          <button
-            type="button"
-            role="option"
-            aria-selected={!value}
-            className={value ? "comms-option comms-none" : "comms-option comms-none selected"}
-            onClick={() => {
-              onPick(undefined);
-              setOpen(false);
-            }}
-          >
-            <span className="comms-option-copy">Auswahl</span>
-            {!value ? <Icon src={a.tick} size={12} className="comms-tick" /> : null}
-          </button>
           {groups.length === 0 ? <p className="comms-menu-empty">{field.empty}</p> : null}
           {groups.map((group) => (
             <section key={group.id} className="comms-group">
-              <header className="comms-group-head">
-                <span className="stack-icon" style={{ width: 28, height: 28 }}>
-                  <img src={a.avatarBg} alt="" width={28} height={28} />
-                  <img src={field.id === "post" ? a.house : a.personSmall} alt="" width={16} height={16} style={{ inset: 6 }} />
-                </span>
-                <span>
-                  <strong>{group.person?.name ?? group.title}</strong>
-                  <small>
-                    {group.person ? group.title : null}
-                    {group.person?.tag ? ` · ${group.person.tag}` : ""}
-                  </small>
-                </span>
-              </header>
-              {group.note ? <p className="comms-group-note">{group.note}</p> : null}
+              <p className="comms-group-title">{groupTitle(group, personName, isCompany)}</p>
               <ul>
                 {group.options.map((option) => {
                   const selected = value?.value === option.value && value.cardId === group.id;
@@ -155,17 +128,12 @@ export function CommsSelect({
                           setOpen(false);
                         }}
                       >
-                        <Icon src={field.icon} size={16} />
+                        <EntityIcon src={optionIcon(field, option.value)} />
                         <span className="comms-option-copy">
                           {option.value}
-                          {option.second ? <small>{option.second}</small> : null}
+                          {option.second ? <span>{option.second}</span> : null}
                         </span>
-                        {option.tags.map((tag) => (
-                          <em key={tag} className="comms-tag">
-                            {tag}
-                          </em>
-                        ))}
-                        {selected ? <Icon src={a.tick} size={12} className="comms-tick" /> : null}
+                        <Icon src={a.confirmOn} size={18} className={selected ? "comms-tick" : "comms-tick off"} />
                       </button>
                     </li>
                   );
@@ -173,14 +141,27 @@ export function CommsSelect({
               </ul>
             </section>
           ))}
-          <button type="button" className="comms-menu-foot" onClick={onEdit}>
-            <Icon src={a.plusCircle} size={16} />
-            In den Stammdaten ergänzen
-          </button>
         </div>
       ) : null}
     </div>
   );
+}
+
+/**
+ * Group heading: the card's title "von" its owner, unless the title already names someone ("Kontaktdaten von
+ * Julia", "Office Lunixo AG"). People go by first name; a company (its address, its channels) by its full name.
+ */
+function groupTitle(group: CommsGroup, fileName: string, company: boolean) {
+  const person = group.person && group.person.tag !== "Kanal" && !(company && group.person.name === fileName) ? group.person.name : undefined;
+  const owner = person ? (company && !group.person?.tag ? person : person.split(" ")[0]) : company ? fileName : fileName.split(" ")[0];
+  if (/\bvon\b/.test(group.title) || (owner && group.title.includes(owner))) return group.title;
+  return owner ? `${group.title} von ${owner}` : group.title;
+}
+
+/** Austrian mobile numbers (+43 6…) get the mobile phone, every other number the handset (Figma Icon_Phone). */
+function optionIcon(field: (typeof FIELDS)[number], value: string) {
+  if (field.id !== "phone") return field.icon;
+  return /^\+?43\s*6|^06/.test(value.replace(/[()]/g, "").trim()) ? a.commsPhone : a.phoneLandline;
 }
 
 /** Vertretungsbefugte Person: one of the company's person contacts (Figma 21095:72728). */
@@ -222,11 +203,8 @@ function RepSelect({
       </button>
       {open ? (
         <div className="comms-menu" role="listbox" aria-label="Vertretungsbefugte Person">
-          <p className="comms-menu-head">
-            {groups.length} {groups.length === 1 ? "Person" : "Personen"} aus den Stammdaten
-          </p>
           {groups.length === 0 ? <p className="comms-menu-empty">Keine Kontaktperson in den Stammdaten.</p> : null}
-          <ul>
+          <ul className="comms-list">
             {groups.map((group) => {
               const name = group.person?.name ?? group.title;
               const selected = value?.value === name;
@@ -248,12 +226,12 @@ function RepSelect({
                       setOpen(false);
                     }}
                   >
-                    <Icon src={a.personSmall} size={16} />
+                    <EntityIcon src={a.personSmall} />
                     <span className="comms-option-copy">
                       {name}
                       <small>{group.title}</small>
                     </span>
-                    {selected ? <Icon src={a.tick} size={12} className="comms-tick" /> : null}
+                    <Icon src={a.confirmOn} size={18} className={selected ? "comms-tick" : "comms-tick off"} />
                   </button>
                 </li>
               );

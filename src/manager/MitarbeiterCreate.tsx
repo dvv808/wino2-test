@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import * as a from "../assets/index";
-import { DateField, Icon, InfoBox } from "../ui";
+import { DateField, Icon } from "../ui";
 import { useWorkflow } from "../workflow";
+import { DataCard } from "../person/cards";
 import { CreateContactFields, Field, Select, Text } from "../person/forms";
 import type { ContactChannel } from "../person/stammdaten";
 import { PlausiState } from "../person/PlausiState";
-import { ABTEILUNGEN, ABTEILUNG_NAMEN, TEAM, registerMember, slugOf, type MitarbeiterTyp, type TeamMember } from "./hrmTeam";
+import { LeaveConfirm } from "../person/LeaveConfirm";
+import { ABTEILUNG_NAMEN, TEAM, registerMember, slugOf, type MaStamm, type MitarbeiterTyp, type TeamMember } from "./hrmTeam";
+import { PhotoUpload, areasOf, setNextView, type AreaId } from "./MitarbeiterProfil";
 
 /**
- * Mitarbeiter anlegen (Management → Module): the Partner-anlegen flow for people who work, or might work, at
- * Makler Winter. Three types: Mitarbeiter, Bewerber and Bewerber Potential (a candidate we would like to win).
- * The Plausibilitätscheck only looks at Wino (the team we already have), not at the WICO.
+ * Partner anlegen for Mitarbeiter (Wino - Concepts 21726:121330 → 21739:41943 → 21745:72129): the partner create
+ * flow for people who work, or might work, at Makler Winter. 1 Personen- & Partnertyp, 2 Daten (Allgemeine
+ * Partnerdaten with Profilfoto, Adressdaten, Kontaktdaten; Plausibilitätscheck on Wino and WICO), 3 Zusammenfassung.
+ * Contact data is private here: a Bewerber has no company phone or mail yet (that comes once they are Mitarbeiter).
  */
 type Step = "typ" | "daten" | "summary";
 const STEPS: { id: Step; label: string }[] = [
@@ -19,8 +23,7 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "summary", label: "Zusammenfassung" },
 ];
 
-// Wino - Concepts 21743:72128: Partnertyp and Personentyp go together. A Mitarbeiter is Personentyp
-// Mitarbeiter; Bewerber and Bewerber Potential start as Privatperson.
+// Partnertyp and Personentyp go together: a Mitarbeiter is Personentyp Mitarbeiter; Bewerber start as Privatperson.
 const TYPEN: MitarbeiterTyp[] = ["Bewerber Potential", "Bewerber", "Mitarbeiter"];
 const PERSONENTYPEN = ["Privatperson", "Unternehmen (Firmenb.)", "Öffentl. Einrichtung", "Vereine (ZVR-Nr.)", "Mitarbeiter"];
 const personentypFor = (typ: MitarbeiterTyp) => (typ === "Mitarbeiter" ? "Mitarbeiter" : "Privatperson");
@@ -32,18 +35,19 @@ type Draft = {
   personentyp: string;
   verantwortlich: string;
   abteilung: string;
-  // Persönliche Daten
   titelVor: string;
   vorname: string;
   nachname: string;
   titelNach: string;
+  rufname: string;
   geschlecht: string;
   gebTag: string;
   gebMonat: string;
   gebJahr: string;
   nationalitaet: string;
   svNummer: string;
-  // Adressdaten (same fields as Partner anlegen)
+  notiz: string;
+  photo: string;
   addressTyp: string;
   strasse: string;
   nummer: string;
@@ -52,25 +56,10 @@ type Draft = {
   ort: string;
   land: string;
   addressNotiz: string;
-  // Kontaktdaten (same panels as Partner anlegen)
   contactNotiz: string;
   phones: ContactChannel[];
   mails: ContactChannel[];
   websites: ContactChannel[];
-  // Bewerbung (Bewerber)
-  stelle: string;
-  bewTag: string;
-  bewMonat: string;
-  bewJahr: string;
-  quelle: string;
-  verfuegbarAb: string;
-  gehalt: string;
-  // Potential (Bewerber Potential)
-  wunschposition: string;
-  kontaktUeber: string;
-  naechsterKontakt: string;
-  bewertung: string;
-  notiz: string;
 };
 
 const EMPTY: Draft = {
@@ -78,17 +67,20 @@ const EMPTY: Draft = {
   typ: "Mitarbeiter",
   personentyp: "Mitarbeiter",
   verantwortlich: "Adams Anna",
-  abteilung: ABTEILUNGEN[0].name,
+  abteilung: ABTEILUNG_NAMEN[0],
   titelVor: "",
   vorname: "",
   nachname: "",
   titelNach: "",
+  rufname: "",
   geschlecht: "",
   gebTag: "",
   gebMonat: "",
   gebJahr: "",
   nationalitaet: "Österreich",
   svNummer: "",
+  notiz: "",
+  photo: "",
   addressTyp: "Hauptwohnsitz",
   strasse: "",
   nummer: "",
@@ -100,24 +92,69 @@ const EMPTY: Draft = {
   contactNotiz: "",
   phones: [{ value: "", note: "", extra: "Mobil" }],
   mails: [{ value: "", note: "" }],
-  websites: [{ value: "", note: "" }],
-  stelle: "Berater/in Versicherungen",
-  bewTag: "",
-  bewMonat: "",
-  bewJahr: "",
-  quelle: "Karriereseite",
-  verfuegbarAb: "",
-  gehalt: "",
-  wunschposition: "Berater/in Versicherungen",
-  kontaktUeber: "Persönliche Empfehlung",
-  naechsterKontakt: "",
-  bewertung: "Sehr interessant",
-  notiz: "",
+  websites: [],
 };
 
-const POSITIONEN = ["Berater/in Versicherungen", "Innendienst", "KFZ Innendienst", "Schadenreferent/in", "Abteilungsleitung", "Lehrling", "Assistenz"];
 const fullName = (d: Draft) => [d.vorname.trim(), d.nachname.trim()].filter(Boolean).join(" ");
 const date = (t: string, m: string, y: string) => (t && m && y ? `${t.padStart(2, "0")}.${m.padStart(2, "0")}.${y}` : "");
+
+/** The draft as the person's Stammdaten record. */
+function stammFrom(d: Draft): MaStamm {
+  return {
+    mandant: d.mandant,
+    personentyp: d.personentyp,
+    hrm: d.verantwortlich,
+    titelVor: d.titelVor,
+    vorname: d.vorname.trim(),
+    nachname: d.nachname.trim(),
+    titelNach: d.titelNach,
+    rufname: d.rufname,
+    geschlecht: d.geschlecht,
+    geburt: date(d.gebTag, d.gebMonat, d.gebJahr),
+    nationalitaet: d.nationalitaet,
+    svNummer: d.svNummer,
+    notiz: d.notiz,
+    addressTyp: d.addressTyp,
+    strasse: d.strasse,
+    nummer: d.nummer,
+    zusatz: d.zusatz,
+    plz: d.plz,
+    ort: d.ort,
+    land: d.land,
+    addressNotiz: d.addressNotiz,
+    contactNotiz: d.contactNotiz,
+    phones: d.phones.map((c) => ({ ...c, value: c.value.trim() && !c.value.startsWith("+") ? `+43 ${c.value.trim()}` : c.value.trim() })),
+    mails: d.mails,
+    websites: d.websites,
+    bank: null,
+  };
+}
+
+/** A not yet saved person, so the Zusammenfassung shows the same cards as the Profil later. */
+function previewPerson(d: Draft): TeamMember {
+  return {
+    name: fullName(d) || "Neue Person",
+    abteilung: d.typ === "Mitarbeiter" ? d.abteilung : "",
+    workflows: 0,
+    role: d.typ,
+    photo: d.photo,
+    urlaubAnspruch: 25,
+    urlaubVerbraucht: 0,
+    krank: 0,
+    krankWoche: 0,
+    krankVorwoche: 0,
+    dv: 0,
+    dvWoche: 0,
+    dvVorwoche: 0,
+    homeoffice: 0,
+    soll: 1640,
+    abschluss: true,
+    fehler: 0,
+    zeitkonto: 0,
+    typ: d.typ,
+    stamm: stammFrom(d),
+  };
+}
 
 /** Wino only: people already in the team whose name matches. */
 function teamHits(d: Draft): TeamMember[] {
@@ -156,16 +193,16 @@ function CheckPanel({ draft, onOpen }: { draft: Draft; onOpen: (m: TeamMember) =
     <aside className="pa-check" aria-busy={loading}>
       <h3>Plausibilitätscheck</h3>
       {loading ? (
-        <PlausiState mode="search" sources={["wino"]}>
-          Suche in Wino…
+        <PlausiState mode="search" sources={["wico", "wino"]}>
+          Suche in Wino und WICO…
         </PlausiState>
       ) : !ready ? (
-        <PlausiState mode="hint" sources={["wino"]}>
-          Durch Dateneingabe erscheinen hier Treffer aus dem Wino.
+        <PlausiState mode="hint" sources={["wico", "wino"]}>
+          Durch Dateneingabe erscheinen hier Treffer aus dem Wino oder WICO.
         </PlausiState>
       ) : hits.length === 0 ? (
-        <PlausiState mode="empty" sources={["wino"]}>
-          Keine Treffer im Wino. Die Person kann neu angelegt werden.
+        <PlausiState mode="empty" sources={["wico", "wino"]}>
+          Keine Treffer im Wino oder WICO.
         </PlausiState>
       ) : (
         hits.map((m) => (
@@ -173,14 +210,10 @@ function CheckPanel({ draft, onOpen }: { draft: Draft; onOpen: (m: TeamMember) =
             <header>
               <span />
               <button type="button" className="pa-hit-open" onClick={() => onOpen(m)}>
-                Mitarbeiter öffnen
+                Partner öffnen
                 <Icon src={a.openTab} size={14} />
               </button>
             </header>
-            <p className="pa-hit-warn">
-              <Icon src={a.attention} size={16} />
-              Bereits in Wino. Diese Person wird nicht neu angelegt.
-            </p>
             <div className="pa-hit-person">
               <span className="emp-avatar ma-hit-avatar">
                 {m.photo ? <img src={m.photo} alt="" /> : <img src={a.clientBlank} alt="" />}
@@ -195,8 +228,8 @@ function CheckPanel({ draft, onOpen }: { draft: Draft; onOpen: (m: TeamMember) =
               </span>
             </div>
             <footer>
-              <Icon src={a.logoMark} size={16} className="mm-wino" />
-              Treffer aus dem Wino
+              <Icon src={a.infoRing20} size={16} />
+              Partner gibt es bereits in Wino
             </footer>
           </article>
         ))
@@ -205,92 +238,24 @@ function CheckPanel({ draft, onOpen }: { draft: Draft; onOpen: (m: TeamMember) =
   );
 }
 
-function SummaryCard({ title, rows }: { title: string; rows: [string, string][] }) {
-  const shown = rows.filter(([, value]) => value.trim());
-  if (!shown.length) return null;
-  return (
-    <article className="pp-card ma-sum-card">
-      <header className="pp-card-head">
-        <span className="pp-card-title">{title}</span>
-      </header>
-      <div className="pp-rows">
-        {shown.map(([label, value]) => (
-          <div className="pp-row" key={label}>
-            <span className="pp-label">{label}</span>
-            <span className="pp-val">{value}</span>
-          </div>
-        ))}
-      </div>
-    </article>
-  );
-}
-
 export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
   const { openMitarbeiter } = useWorkflow();
   const [step, setStep] = useState<Step>("typ");
   const [draft, setDraft] = useState<Draft>(EMPTY);
   const [tried, setTried] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leave = () => setLeaving(true);
   const patch = (partial: Partial<Draft>) => setDraft((d) => ({ ...d, ...partial }));
   const order = STEPS.map((s) => s.id);
   const index = order.indexOf(step);
   const name = fullName(draft);
   const duplicate = teamHits(draft).some((m) => m.name.toLowerCase() === name.toLowerCase());
   const nameMissing = !draft.vorname.trim() || !draft.nachname.trim();
-
-  const personRows: [string, string][] = [
-    ["Titel vor", draft.titelVor],
-    ["Vorname", draft.vorname],
-    ["Nachname", draft.nachname],
-    ["Titel nach", draft.titelNach],
-    ["Geschlecht", draft.geschlecht],
-    ["Geburtsdatum", date(draft.gebTag, draft.gebMonat, draft.gebJahr)],
-    ["Nationalität", draft.nationalitaet],
-    ["SV-Nummer", draft.typ === "Mitarbeiter" ? draft.svNummer : ""],
-    ["Notiz", draft.notiz],
-  ];
-  const filled = (items: ContactChannel[]) => items.map((item) => item.value.trim()).filter(Boolean).join(", ");
-  const adressRows: [string, string][] = [
-    ["Adressart", draft.addressTyp],
-    [
-      "Adresse",
-      [[draft.strasse, draft.nummer].filter(Boolean).join(" "), draft.zusatz, [draft.plz, draft.ort].filter(Boolean).join(" ")]
-        .filter(Boolean)
-        .join(", "),
-    ],
-    ["Land", draft.strasse || draft.plz || draft.ort ? draft.land : ""],
-    ["Notiz zur Adresse", draft.addressNotiz],
-  ];
-  const kontaktRows: [string, string][] = [
-    ["Telefon", filled(draft.phones)],
-    ["E-Mail", filled(draft.mails)],
-    ["Website", filled(draft.websites)],
-    ["Kontaktnotiz", draft.contactNotiz],
-  ];
-  const partnerRows: [string, string][] = [
-    ["Mandant", draft.mandant],
-    ["Partnertyp", draft.typ],
-    ["Personentyp", draft.personentyp],
-    ["HRM Berater", draft.verantwortlich],
-    ["Abteilung", draft.typ === "Mitarbeiter" ? draft.abteilung : ""],
-  ];
-  const typRows: [string, string][] =
-    draft.typ === "Mitarbeiter"
-      ? []
-      : draft.typ === "Bewerber"
-        ? [
-            ["Stelle", draft.stelle],
-            ["Beworben am", date(draft.bewTag, draft.bewMonat, draft.bewJahr)],
-            ["Quelle", draft.quelle],
-            ["Verfügbar ab", draft.verfuegbarAb],
-            ["Gehaltsvorstellung", draft.gehalt ? `EUR ${draft.gehalt} brutto` : ""],
-          ]
-        : [
-            ["Wunschposition", draft.wunschposition],
-            ["Kontakt über", draft.kontaktUeber],
-            ["Nächster Kontakt", draft.naechsterKontakt],
-            ["Einschätzung", draft.bewertung],
-          ];
-  const typTitle = draft.typ === "Bewerber" ? "Bewerbung" : "Potential";
+  // Zusammenfassung (Figma 21745:72129): Systemdaten, Allgemeine Partnerdaten, Hauptwohnsitz, Kontaktdaten.
+  const areas = areasOf(previewPerson(draft));
+  const summary = ["ma-system-daten", "ma-person", "ma-adresse", "ma-kontakt"]
+    .map((id) => areas.flatMap((area) => area.cards).find((card) => card.id === id))
+    .filter((card): card is NonNullable<typeof card> => Boolean(card));
 
   function goNext() {
     if (step === "daten") {
@@ -300,33 +265,39 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
     setStep(order[Math.min(index + 1, order.length - 1)]);
   }
 
-  function finish() {
+  /** draft: saved, the dialog closes; done: the new person's Profil opens; stammdaten: straight into the workflow. */
+  function finish(mode: "draft" | "done" | "stammdaten") {
     if (nameMissing || duplicate) {
       setStep("daten");
       setTried(true);
       return;
     }
-    const angelegt: Record<string, string> = {};
-    for (const [label, value] of [...partnerRows, ...personRows, ...adressRows, ...kontaktRows, ...typRows]) if (value.trim()) angelegt[label] = value;
-    registerMember({
+    const created = registerMember({
       name,
-      role: draft.typ === "Mitarbeiter" ? "Mitarbeiter/in" : draft.typ === "Bewerber" ? `Bewerbung: ${draft.stelle}` : `Potential: ${draft.wunschposition}`,
+      role: draft.typ === "Mitarbeiter" ? "Mitarbeiter/in" : draft.typ,
       abteilung: draft.abteilung,
       typ: draft.typ,
       urlaubAnspruch: 25,
-      angelegt,
+      angelegt: {},
     });
+    created.stamm = stammFrom(draft);
+    created.photo = draft.photo;
     onClose();
-    openMitarbeiter(slugOf(name));
+    if (mode === "draft") return;
+    const slug = slugOf(name);
+    // Vervollständigen starts at the first area that is still empty (Bank for a Bewerber).
+    const firstOpen = areasOf(created).find((area) => area.cards.some((card) => card.empty))?.id as AreaId | undefined;
+    setNextView(slug, mode === "stammdaten" ? { page: "Profil", edit: firstOpen ?? "personendaten" } : { page: "Profil" });
+    openMitarbeiter(slug);
   }
 
   return (
-    <div className="umw-modal pa-modal" role="dialog" aria-label="Neuen Mitarbeiter anlegen">
-      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={onClose} />
+    <div className="umw-modal pa-modal" role="dialog" aria-label="Neuen Partner anlegen">
+      <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={leave} />
       <div className="umw-body pa-body">
         <header className="review-titlebar">
-          <span className="review-titlebar-label">Neuen Mitarbeiter anlegen</span>
-          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={onClose}>
+          <span className="review-titlebar-label">Neuen Partner anlegen</span>
+          <button type="button" className="review-titlebar-close" aria-label="Schließen" onClick={leave}>
             <Icon src={a.iconCloseDark} size={12} />
           </button>
         </header>
@@ -370,20 +341,23 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
             <div className="pa-daten">
               <div className="pa-daten-forms">
                 <section className="pa-card">
-                  <h2>Persönliche Daten</h2>
+                  <h2>Allgemeine Partnerdaten</h2>
                   <Field label="Titel vor">
                     <Select value={draft.titelVor} onChange={(v) => patch({ titelVor: v })} options={["Mag.", "Dr.", "Ing."]} />
                   </Field>
-                  <Field label="Vorname*">
+                  <Field label="Vorname">
                     <Text value={draft.vorname} onChange={(v) => patch({ vorname: v })} />
                   </Field>
-                  <Field label="Nachname*">
+                  <Field label="Nachname">
                     <Text value={draft.nachname} onChange={(v) => patch({ nachname: v })} />
                   </Field>
                   {tried && nameMissing ? <p className="ma-error">Bitte Vor- und Nachname angeben.</p> : null}
                   {tried && duplicate ? <p className="ma-error">{name} gibt es in Wino bereits.</p> : null}
                   <Field label="Titel nach">
                     <Select value={draft.titelNach} onChange={(v) => patch({ titelNach: v })} options={["BA", "MA", "MSc"]} />
+                  </Field>
+                  <Field label="Rufname">
+                    <Text value={draft.rufname} onChange={(v) => patch({ rufname: v })} />
                   </Field>
                   <Field label="Geschlecht">
                     <Select value={draft.geschlecht} onChange={(v) => patch({ geschlecht: v })} options={["Weiblich", "Männlich", "Divers"]} />
@@ -394,14 +368,13 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
                   <Field label="Nationalität">
                     <Select value={draft.nationalitaet} onChange={(v) => patch({ nationalitaet: v })} options={["Österreich", "Deutschland", "Schweiz", "Andere"]} />
                   </Field>
-                  {draft.typ === "Mitarbeiter" ? (
-                    <Field label="Sozialversicherungsnummer">
-                      <Text value={draft.svNummer} onChange={(v) => patch({ svNummer: v })} />
-                    </Field>
-                  ) : null}
-                  <Field label={draft.typ === "Mitarbeiter" ? "Allgemeine Notiz zum Mitarbeiter" : "Notiz zur Person"}>
+                  <Field label="Sozialversicherungsnummer">
+                    <Text value={draft.svNummer} onChange={(v) => patch({ svNummer: v })} />
+                  </Field>
+                  <Field label="Allgemeine Notiz zum Partner">
                     <textarea className="textarea" value={draft.notiz} onChange={(e) => patch({ notiz: e.target.value })} />
                   </Field>
+                  <PhotoUpload photo={draft.photo} onPhoto={(photo) => patch({ photo })} />
                 </section>
 
                 <section className="pa-card">
@@ -445,45 +418,6 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
                     onWebsites={(websites) => patch({ websites })}
                   />
                 </section>
-
-                {draft.typ === "Mitarbeiter" ? null : draft.typ === "Bewerber" ? (
-                  <section className="pa-card">
-                    <h2>Bewerbung</h2>
-                    <Field label="Stelle">
-                      <Select value={draft.stelle} onChange={(v) => patch({ stelle: v })} options={POSITIONEN} />
-                    </Field>
-                    <Field label="Beworben am">
-                      <DateField prefix="Am" day={draft.bewTag} month={draft.bewMonat} year={draft.bewJahr} onDay={(v) => patch({ bewTag: v })} onMonth={(v) => patch({ bewMonat: v })} onYear={(v) => patch({ bewJahr: v })} />
-                    </Field>
-                    <Field label="Quelle">
-                      <Select value={draft.quelle} onChange={(v) => patch({ quelle: v })} options={["Karriereseite", "karriere.at", "AMS", "LinkedIn", "Initiativbewerbung", "Empfehlung"]} />
-                    </Field>
-                    <Field label="Verfügbar ab">
-                      <Text value={draft.verfuegbarAb} onChange={(v) => patch({ verfuegbarAb: v })} />
-                    </Field>
-                    <Field label="Gehaltsvorstellung (EUR brutto/Monat)">
-                      <Text value={draft.gehalt} onChange={(v) => patch({ gehalt: v })} />
-                    </Field>
-                    <InfoBox>Lebenslauf und Zeugnisse werden nach dem Anlegen im Mitarbeiter-Tab unter Dokumente hochgeladen.</InfoBox>
-                  </section>
-                ) : (
-                  <section className="pa-card">
-                    <h2>Potential</h2>
-                    <Field label="Wunschposition">
-                      <Select value={draft.wunschposition} onChange={(v) => patch({ wunschposition: v })} options={POSITIONEN} />
-                    </Field>
-                    <Field label="Kontakt über">
-                      <Select value={draft.kontaktUeber} onChange={(v) => patch({ kontaktUeber: v })} options={["Persönliche Empfehlung", "Messe / Event", "LinkedIn", "Kunde", "Mitbewerber"]} />
-                    </Field>
-                    <Field label="Nächster Kontakt">
-                      <Text value={draft.naechsterKontakt} onChange={(v) => patch({ naechsterKontakt: v })} />
-                    </Field>
-                    <Field label="Einschätzung">
-                      <Select value={draft.bewertung} onChange={(v) => patch({ bewertung: v })} options={["Sehr interessant", "Interessant", "Später nochmal ansprechen"]} />
-                    </Field>
-                  </section>
-                )}
-
               </div>
               <CheckPanel
                 draft={draft}
@@ -499,16 +433,12 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
             <section className="pa-summary">
               <header>
                 <h2>Zusammenfassung</h2>
-                <p>
-                  {draft.typ}: {name || "ohne Namen"}
-                </p>
+                <p>Die bisher erfassten Eingaben:</p>
               </header>
               <div className="pa-summary-cards">
-                <SummaryCard title="Personen- &amp; Partnertyp" rows={partnerRows} />
-                <SummaryCard title="Persönliche Daten" rows={personRows} />
-                <SummaryCard title="Adressdaten" rows={adressRows} />
-                <SummaryCard title="Kontaktdaten" rows={kontaktRows} />
-                {typRows.length ? <SummaryCard title={typTitle} rows={typRows} /> : null}
+                {summary.map((card) => (
+                  <DataCard key={card.id} card={card} full />
+                ))}
               </div>
             </section>
           ) : null}
@@ -516,7 +446,7 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
 
         <footer className="pa-foot">
           {step === "typ" ? (
-            <button type="button" className="btn-secondary" onClick={onClose}>
+            <button type="button" className="btn-secondary" onClick={leave}>
               Abbrechen
             </button>
           ) : (
@@ -525,17 +455,34 @@ export function MitarbeiterCreate({ onClose }: { onClose: () => void }) {
             </button>
           )}
           <span className="pa-foot-right">
-            <button type="button" className="btn-primary" onClick={() => (step === "summary" ? finish() : goNext())}>
-              {step === "summary" ? `${draft.typ} anlegen` : "Weiter"}
+            {step !== "typ" ? (
+              <button type="button" className="btn-secondary" onClick={() => finish("draft")}>
+                Entwurf speichern
+              </button>
+            ) : null}
+            {step === "summary" ? (
+              <button type="button" className="btn-secondary" onClick={() => finish("stammdaten")}>
+                Fertig & Stammdaten vervollständigen
+              </button>
+            ) : null}
+            <button type="button" className="btn-primary" onClick={() => (step === "summary" ? finish("done") : goNext())}>
+              {step === "summary" ? "Fertig" : "Weiter"}
             </button>
           </span>
         </footer>
       </div>
+      {leaving ? (
+        <LeaveConfirm
+          onStay={() => setLeaving(false)}
+          onLeave={onClose}
+          onDraft={nameMissing ? undefined : () => finish("draft")}
+        />
+      ) : null}
     </div>
   );
 }
 
-/** HRM Berater (Wino - Concepts 21743:72128): the team as an avatar dropdown, "Auswählen" on top. */
+/** HRM Zuständigkeit (Wino - Concepts 21726:121330): the team as an avatar dropdown, "Auswählen" on top. */
 function HrBeraterPick({ value, onPick }: { value: string; onPick: (name: string) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -554,14 +501,14 @@ function HrBeraterPick({ value, onPick }: { value: string; onPick: (name: string
   }, [open]);
   return (
     <div className="block comms-field hr-pick" ref={ref}>
-      <span className="field-label">HRM Berater</span>
+      <span className="field-label">HRM Zuständigkeit</span>
       <button type="button" className={`text-field hr-pick-field${open ? " open" : ""}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)}>
         {current ? <img className="hr-pick-avatar" src={current.photo || a.clientBlank} alt="" /> : null}
         <span>{current?.name ?? "Auswählen"}</span>
         <Icon src={a.selectCaret} size={16} className={open ? "kal-open" : undefined} />
       </button>
       {open ? (
-        <div className="comms-menu hr-pick-menu" role="listbox" aria-label="HRM Berater">
+        <div className="comms-menu hr-pick-menu" role="listbox" aria-label="HRM Zuständigkeit">
           <p className="comms-menu-head">Auswählen</p>
           <ul>
             {people.map((m) => {

@@ -366,6 +366,16 @@ function BlockView({ block, previous }: { block: Block; previous?: Block }) {
   );
 }
 
+/**
+ * Empty-state pattern (Figma 21755:28744): in a Stammdaten workflow the form is already open on the left, so the
+ * empty Wino panel's link and "+" pill only lead into it.
+ */
+export function focusForm() {
+  const field = document.querySelector<HTMLElement>(".sw-form input:not([readonly]):not([type=file]), .sw-form select, .sw-form textarea");
+  field?.scrollIntoView({ block: "center", behavior: "smooth" });
+  field?.focus({ preventScroll: true });
+}
+
 function EmptyCard({ empty, onAdd }: { empty: Empty; onAdd?: () => void }) {
   return (
     <article className="pp-card empty">

@@ -4,7 +4,8 @@ import { AppsNav, FileIdentity, FileTabs, LogoButton, ProfileMenu, MeinBereichTa
 import { Icon, Notice, Snackbar } from "../ui";
 import { WicoDeviationBox } from "../Summary";
 import { useWorkflow } from "../workflow";
-import { DataCard } from "./cards";
+import { DataCard, focusForm } from "./cards";
+import { kommunikationChoice, withKommunikation } from "./kommunikation";
 import { DeleteCard } from "./DeleteCard";
 import { FILE_PARTNERS, getPartner, type PartnerId } from "./partners";
 import { partnerDashboardHash } from "../routing";
@@ -97,6 +98,13 @@ import {
 } from "./stammdaten";
 import { GlobalSearch } from "../search/GlobalSearch";
 
+/** Empty-state copy for the areas that start with nothing in Wino. */
+const EMPTY_COPY: Partial<Record<string, { title: string; link: string }>> = {
+  kontakte: { title: "Noch keine Kontakte angelegt", link: "neue Kontakte hier anlegen" },
+  adressen: { title: "Noch keine Adresse angelegt", link: "neue Adressen hier anlegen" },
+  bankverbindungen: { title: "Noch keine Bankverbindung angelegt", link: "neue Bankverbindungen hier anlegen" },
+};
+
 function Identity() {
   return <FileIdentity className="sw-id" />;
 }
@@ -186,7 +194,11 @@ export function StammdatenWorkflow() {
     personName,
     openPartner,
     bankAccountsOf,
+    commsChoice,
+    maklerFinished,
   } = useWorkflow();
+  const maklerDone = maklerFinished || getPartner(filePartnerId).kind === "kunde";
+  const kommunikation = maklerDone ? kommunikationChoice(displaySections, commsChoice) : commsChoice;
   const family = useFamilyLinks();
   const konzern = useKonzernLinks();
   const isCompanyFile = getPartner(filePartnerId).fileKind === "company";
@@ -227,6 +239,15 @@ export function StammdatenWorkflow() {
     [section],
   );
   const selected = cards.find((card) => card.id === stammdatenCardId) ?? cards[0] ?? null;
+  // Empty-state pattern (Figma 21755:28744): nothing in Wino yet → the form is open on the left, the right panel
+  // shows the empty state instead of "Aktuell in Wino".
+  const emptyState: Card | null =
+    cards.length === 0 && EMPTY_COPY[stammdatenArea]
+      ? (section?.cards.find((card) => card.empty) ?? {
+          id: `${stammdatenArea}-leer`,
+          empty: { icon: section?.icon ?? a.stammdaten, lead: "Du kannst", ...EMPTY_COPY[stammdatenArea]! },
+        })
+      : null;
   const blank = BLANK_AREAS.includes(stammdatenArea);
   const isCompany = getPartner(filePartnerId).fileKind === "company";
   // Re-render when a Sonstiges link changes (its store lives outside React context).
@@ -730,11 +751,13 @@ export function StammdatenWorkflow() {
                       <Icon src={a.infoFull} size={18} />
                     </span>
                     {canAdd ? (
-                      <button type="button" className="btn-primary sw-plus" onClick={() => addStammdatenCard()}>
+                      <button type="button" className="btn-primary sw-plus" onClick={() => (emptyState ? focusForm() : addStammdatenCard())}>
+                        {emptyState ? <Icon src={section?.icon ?? a.stammdaten} size={16} className="sw-plus-icon" /> : null}
                         {plusLabel(stammdatenArea)}
                       </button>
                     ) : null}
                   </header>
+                  {emptyState && !canSaveDraft && !canPublish ? null : (
                   <p className={selected?.draft || canSaveDraft || canPublish ? "sw-now unsaved" : "sw-now"}>
                     {canSaveDraft
                       ? "Ungespeicherte Änderungen"
@@ -742,12 +765,14 @@ export function StammdatenWorkflow() {
                         ? "Entwurf"
                         : "Aktuell in Wino"}
                   </p>
+                  )}
                   <div className="sw-cards">
+                    {emptyState ? <DataCard card={emptyState} full onAdd={focusForm} /> : null}
                     {stammdatenArea === "wirtschaftsdaten" ? <WicoDeviationBox /> : null}
                     {cards.map((card) => (
                       <DataCard
                         key={card.id}
-                        card={card}
+                        card={withKommunikation(card, kommunikation, maklerDone, isCompanyFile)}
                         full
                         selected={card.id === selected?.id}
                         onSelect={() => selectStammdatenCard(card.id)}

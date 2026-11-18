@@ -5,6 +5,8 @@ import { useGueltigkeit } from "./steps/Gueltigkeit";
 import { amountOf, ddmmyyyy, euro } from "./lib/maklervereinbarung/gueltigkeit";
 import { FREQUENCY_LABEL, ZAHLWEISE_AB, companyErsteVerrechnung, zahlweise } from "./lib/maklervereinbarung/zahlweise";
 import { FilePersonChip, useFilePerson } from "./chrome";
+import { DataCard } from "./person/cards";
+import { withKommunikation } from "./person/kommunikation";
 
 type Card = "contact" | "versand" | "honorar" | "terms";
 
@@ -169,7 +171,7 @@ function PostBlock() {
               <span className="notice-kicker">Postadresse</span>
               <br />
               <span className="notice-text">
-                {commsChoice.post.cardTitle} – für die Maklervereinbarung als Postadresse gewählt
+                Diese Adresse ist die Postadresse
               </span>
             </p>
           </div>
@@ -429,9 +431,39 @@ export function WicoDeviationBox() {
   );
 }
 
+/**
+ * Zentrale Kontaktdaten of a person (Figma 22934:35249): the Stammdaten cards the picks come from – the contact card
+ * with the "Zentraler Kontakt" box, the address card with the Postadresse pill – instead of a summary of their own.
+ */
+function StammdatenPicks({ highlight, company }: { highlight: boolean; company: boolean }) {
+  const { commsChoice, displaySections } = useWorkflow();
+  const cards = displaySections.flatMap((section) => section.cards);
+  // Unternehmen (Figma 22934:40910): Vertretungsbefugte Person, the Versand channel (e.g. Office), then the address.
+  const ids = [
+    company ? commsChoice.rep?.cardId : undefined,
+    commsChoice.phone?.cardId,
+    commsChoice.mail?.cardId,
+    company ? commsChoice.versandMail?.cardId : undefined,
+    commsChoice.post?.cardId,
+  ].filter(
+    (id, index, all): id is string => Boolean(id) && all.indexOf(id) === index,
+  );
+  return (
+    <div className="summary-stamm">
+      {ids.map((id) => {
+        const card = cards.find((entry) => entry.id === id);
+        return card ? <DataCard key={id} card={withKommunikation(card, commsChoice, true, company)} selected={highlight} full /> : null;
+      })}
+    </div>
+  );
+}
+
 export function Summary({ cards }: { cards: Card[] }) {
-  const { setPdfOpen } = useWorkflow();
+  const { setPdfOpen, commsChoice } = useWorkflow();
+  const person = useFilePerson();
   const highlight = cards[cards.length - 1];
+  // Once something is picked, the summary shows the real Stammdaten cards (person and Unternehmen alike).
+  const stammPicks = Boolean(commsChoice.phone || commsChoice.mail || commsChoice.post || commsChoice.rep || commsChoice.versandMail);
 
   return (
     <aside className="summary">
@@ -450,14 +482,18 @@ export function Summary({ cards }: { cards: Card[] }) {
         </button>
       </div>
 
-      {cards.map((card) => (
+      {cards.map((card) =>
+        card === "versand" && stammPicks ? null : card === "contact" && stammPicks ? (
+          <StammdatenPicks key={card} company={person.isCompany} highlight={highlight === "contact" || highlight === "versand"} />
+        ) : (
         <article className={`summary-card${card === highlight ? " highlight" : ""}`} key={card}>
           {card === "contact" && <ContactCard />}
           {card === "versand" && <VersandCard />}
           {card === "honorar" && <HonorarCard />}
           {card === "terms" && <TermsCard />}
         </article>
-      ))}
+        ),
+      )}
     </aside>
   );
 }

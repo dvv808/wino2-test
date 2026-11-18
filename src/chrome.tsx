@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ManagementAreaIcon } from "./manager/BestandChrome";
 import * as a from "./assets/index";
-import { getPartner } from "./person/partners";
+import { getPartner, partnerKind } from "./person/partners";
 import { partyName } from "./person/konzernLinks";
 import { liveFileIdentity } from "./person/stammdaten";
 import { standDate } from "./person/versions";
@@ -378,10 +378,17 @@ export function MitarbeiterTabs() {
           <div className={active ? "person-tab" : "person-tab inactive"} key={id}>
             <img className="tab-ear left" src={a.tabLeft} alt="" width={10} height={11} />
             <span className="person-tab-body">
-              <span className={person.photo ? "emp-avatar" : "emp-avatar blank"}>
-                <img src={person.photo || a.clientBlank} alt="" />
-                <img className="emp-dot" src={a.statusDot} alt="" />
-              </span>
+              {/* With a Profilfoto: the photo (and the online dot for Mitarbeiter); without: the partner person icon. */}
+              {person.photo ? (
+                <span className="emp-avatar">
+                  <img src={person.photo} alt="" />
+                  {!person.typ || person.typ === "Mitarbeiter" ? <img className="emp-dot" src={a.statusDot} alt="" /> : null}
+                </span>
+              ) : person.typ && person.typ !== "Mitarbeiter" ? (
+                <img className="emp-tab-bewerber" src={a.bewerberAvatar} alt="" width={24} height={24} />
+              ) : (
+                <Icon src={a.person} size={24} />
+              )}
               {active ? (
                 label
               ) : (
@@ -813,13 +820,10 @@ export function useFilePerson() {
   const extra = central.length || usingLive ? Math.max(live.contactTotal - contacts.length, 0) : file.moreContacts;
   const isCompany = file.fileKind === "company";
   const tag: "interessent" | "kunde" | "einfach" | null =
-    filePartnerId === "julia" || (filePartnerId === "ashley" && ashleyConverted) || file.kind === "interessent"
-      ? "interessent"
-      : file.kind === "kunde"
-        ? "kunde"
-        : file.kind === "einfach"
-          ? "einfach"
-          : null;
+    (() => {
+      const kind = partnerKind({ id: filePartnerId, kind: file.kind }, ashleyConverted);
+      return file.kind || kind !== "einfach" ? kind : null;
+    })();
   return { file, personName, born, address, contacts, extra, isCompany, tag };
 }
 
@@ -842,7 +846,7 @@ export function FileIdentity({
   const person = useFilePerson();
   const { file, born, address, contacts, extra, isCompany, personName } = person;
   const shown = contacts.slice(0, 3);
-  const kind = file.kind;
+  const kind = person.tag;
   const interessent = forceInteressent || person.tag === "interessent";
   const compact = /\bcompact\b/.test(className);
   const street = address?.[0] ?? "";

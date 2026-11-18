@@ -211,8 +211,26 @@ export function registerPartner(partner: FilePartner) {
   PARTNER_BY_SLUG.set(partner.slug, partner.id);
 }
 
+/** Partners whose Maklervereinbarung was finished in this session: they are Kunden everywhere. */
+const promoted = new Set<string>();
+
+export function markKunde(id: string) {
+  promoted.add(id);
+}
+
 export function getPartner(id: string): FilePartner {
-  return extraPartners.get(id) ?? FILE_PARTNERS[id as PartnerId] ?? JULIA;
+  const partner = extraPartners.get(id) ?? FILE_PARTNERS[id as PartnerId] ?? JULIA;
+  return promoted.has(partner.id) ? { ...partner, kind: "kunde" } : partner;
+}
+
+/**
+ * The one place that says what a partner is: a finished Maklervereinbarung makes them Kunde; Julia (and Ashley once
+ * converted) are Interessentinnen until then; otherwise the seeded kind.
+ */
+export function partnerKind(partner: Pick<FilePartner, "id" | "kind">, ashleyConverted = false): PartnerKind {
+  if (promoted.has(partner.id)) return "kunde";
+  if (partner.id === "julia" || (partner.id === "ashley" && ashleyConverted)) return "interessent";
+  return partner.kind ?? "einfach";
 }
 
 export function extraPartnerList(): FilePartner[] {
