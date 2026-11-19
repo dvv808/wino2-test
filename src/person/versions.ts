@@ -15,7 +15,7 @@ import {
 export type HistoryEditor = { name: string; photo: string };
 
 export const EDITOR_ADVISOR: HistoryEditor = { name: "Auer Christine", photo: a.empChristine };
-export const EDITOR_MANAGER: HistoryEditor = { name: "Adams Anna", photo: a.reqAnna };
+export const EDITOR_MANAGER: HistoryEditor = { name: "Julia Heigl", photo: a.reqAnna };
 export const EDITOR_LEAD: HistoryEditor = { name: "Dullon Lucy", photo: a.empLucy };
 
 export type MaklerStep = "tasks" | "comms" | "fee" | "terms" | "scope" | "docs" | "sign";

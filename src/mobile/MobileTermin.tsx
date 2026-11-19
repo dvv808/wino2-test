@@ -280,7 +280,7 @@ export function MobileTerminForm({ day: startDay, art, onBack, onSaved }: { day:
           <div className="m-chips">
             {winter.map((name) => (
               <button type="button" key={name} title="Entfernen" onClick={() => setWinter((list) => list.filter((n) => n !== name))}>
-                {name} - {mail(name, "winter.at")}
+                {name} - {mail(name, "makler-winter.at")}
               </button>
             ))}
             {winter.length === 0 ? <em>Keine Teilnehmer</em> : null}

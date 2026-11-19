@@ -2,6 +2,7 @@ import * as a from "../assets/index";
 import { addDays, iso, parseIso, weekStart } from "../home/calendar/calendarData";
 
 /**
+ * Names, Abteilungen and roles: the real Makler Winter team (makler-winter.at → Team); the figures are dummy.
  * Dummy HR figures for the HRM Dashboard (Figma 19056:77709). Wino has no Zeitkonto, Monatsabschluss,
  * Mitarbeitergespräche or team calendar yet, so these stand in until the real lists exist. Live data
  * (Anträge, Lucy's Homeoffice) is added on top in the dashboard.
@@ -98,71 +99,154 @@ type Row = [string, string, string, number, number, number, number, number, numb
 
 const SOLL = 1640;
 const ROWS: Row[] = [
-  ["Christine Auer Hammer-schmidt", "Leitung Beratung & Service", a.empChristineHs, 30, 24, 3, 0, 1, 6, 0, 2, 310, true, 0, 540, { vorTagen: 1, art: "Gespräch", status: "abgeschlossen" }],
-  ["Alexander Doppler", "Leitung Beratung & Service", a.empAlexander, 30, 9, 11, 2, 0, 12, 4, 0, 560, true, 2, -320, { vorTagen: 4, art: "Jahresgespräch", status: "abgeschlossen" }],
-  ["Tamara Auer", "Beraterin", a.empChristine, 25, 21, 2, 0, 0, 3, 0, 0, 120, false, 0, 95, { vorTagen: 7, art: "Gespräch", status: "offen" }],
-  ["Peter Moser", "CEO & Geschäftsführer", a.empPeter, 30, 12, 0, 0, 0, 0, 0, 0, 430, true, 0, 1260],
-  ["Lucy Dallon", "Innendienst", a.empLucy, 25, 6, 5, 0, 2, 8, 2, 0, 505, true, 1, 210, { vorTagen: 19, art: "Jahresgespräch", status: "abgeschlossen" }],
-  ["Jasmin Gratzinger", "Berater", a.empJasmin, 25, 19, 14, 3, 2, 16, 0, 4, 80, false, 4, -610, { vorTagen: 26, art: "Probezeitgespräch", status: "offen" }],
-  ["Adams Anna", "Leitung HR-Management", a.reqAnna, 30, 26, 1, 0, 0, 2, 0, 0, 520, true, 0, 880, { vorTagen: 33, art: "Jahresgespräch", status: "abgeschlossen" }],
-  ["Adams Sonja", "Leitung KFZ-Versicherungen", a.reqSonja, 25, 8, 9, 0, 4, 9, 8, 0, 240, true, 1, -45],
-  ["Bennett Mike", "KFZ-Versicherungen", a.reqMike, 25, 17, 4, 1, 0, 24, 0, 8, 190, false, 3, 130],
-  ["Cooper Ashton", "IT-Administrator", a.reqAshton, 25, 5, 7, 0, 0, 8, 8, 0, 610, true, 0, 365],
-  ["Davis Julia", "Marketing", a.reqDavis, 25, 23, 0, 0, 0, 4, 0, 0, 55, true, 0, 720, { vorTagen: 48, art: "Gespräch", status: "abgeschlossen" }],
-  ["Dennett Lily", "Leitung Personenversicherungen", a.empJasmin, 25, 14, 6, 0, 1, 11, 0, 3, 495, true, 2, -180],
-  ["Garcia Thomas", "Leitung Betriebsversicherungen", a.empPeter, 25, 10, 2, 0, 0, 5, 0, 0, 330, false, 5, -90, { vorTagen: 61, art: "Gespräch", status: "offen" }],
-  ["Patel Aarav", "Leitung Betriebliche Vorsorge", a.empAlexander, 25, 7, 3, 1, 0, 0, 0, 0, 150, true, 0, 45],
+  ["Silvia Fischbacher", "Leiterin Schaden & Leistung", a.empChristineHs, 30, 24, 3, 0, 1, 6, 0, 2, 310, true, 0, 540, { vorTagen: 1, art: "Gespräch", status: "abgeschlossen" }],
+  ["Michael Pitzer", "Vertriebsleiter", a.empAlexander, 30, 9, 11, 2, 0, 12, 4, 0, 560, true, 2, -320, { vorTagen: 4, art: "Jahresgespräch", status: "abgeschlossen" }],
+  ["Gertrud Badura", "Kundenberaterin", a.empChristine, 25, 21, 2, 0, 0, 3, 0, 0, 120, false, 0, 95, { vorTagen: 7, art: "Gespräch", status: "offen" }],
+  ["Philip Winter", "Geschäftsführer", a.empPeter, 30, 12, 0, 0, 0, 0, 0, 0, 430, true, 0, 1260],
+  ["Janine Gungl", "Beraterin Geschäftskunden", a.empJasmin, 25, 19, 14, 3, 2, 16, 0, 4, 80, false, 4, -610, { vorTagen: 26, art: "Probezeitgespräch", status: "offen" }],
+  ["Julia Heigl", "Leitung HR-Management", a.reqAnna, 30, 26, 1, 0, 0, 2, 0, 0, 520, true, 0, 880, { vorTagen: 33, art: "Jahresgespräch", status: "abgeschlossen" }],
+  ["Maria Straka", "Leiterin Finanzen & Controlling", a.reqSonja, 25, 8, 9, 0, 4, 9, 8, 0, 240, true, 1, -45],
+  ["Manuel Scott", "Leiter KFZ-Versicherungen", a.reqMike, 25, 17, 4, 1, 0, 24, 0, 8, 190, false, 3, 130],
+  ["Thomas Haidler", "Leiter IT-Management", a.reqAshton, 25, 5, 7, 0, 0, 8, 8, 0, 610, true, 0, 365],
+  ["Sandra Lechner", "Marketing", a.reqDavis, 25, 23, 0, 0, 0, 4, 0, 0, 55, true, 0, 720, { vorTagen: 48, art: "Gespräch", status: "abgeschlossen" }],
+  ["Margret Moser", "Fachabteilung Personenversicherungen", a.empJasmin, 25, 14, 6, 0, 1, 11, 0, 3, 495, true, 2, -180],
+  ["Michael Slechta", "Sachverständiger Betriebliche Vorsorge", a.empPeter, 25, 10, 2, 0, 0, 5, 0, 0, 330, false, 5, -90, { vorTagen: 61, art: "Gespräch", status: "offen" }],
+  ["Christian Huber", "Büroleiter - Prokurist", a.empAlexander, 25, 7, 3, 1, 0, 0, 0, 0, 150, true, 0, 45],
 ];
 
 export type Abteilung = { name: string; lead: string[]; people: string[]; /** The Bewerber group of the tree: not an Abteilung you can pick. */ bewerber?: true };
 
 /** The company tree of the Mitarbeiter side nav and its filter (Makler Winter → Abteilungen → Mitarbeiter). */
 export const FIRMA = "Makler Winter";
+/**
+ * Bereiche (umbrellas, as on makler-winter.at): not an Abteilung you can pick, they only group them in the
+ * side nav, the filter and the Organigramm.
+ */
+export const BEREICHE: { name: string; abteilungen: string[] }[] = [
+  { name: "Management", abteilungen: ["Unternehmensführung", "Finanzmanagement", "HR-Management", "Office-Management", "IT-Management", "Marketing"] },
+  { name: "Beratung & Service", abteilungen: ["Kundenberater", "Fachabteilung Betriebsversicherungen", "Fachabteilung Betriebliche Vorsorge", "Fachabteilung KFZ-Versicherungen", "Fachabteilung Personenversicherungen", "Schaden & Leistung"] },
+];
+export const bereichOf = (abteilung: string) => BEREICHE.find((b) => b.abteilungen.includes(abteilung))?.name ?? null;
+
 export const ABTEILUNGEN: Abteilung[] = [
-  {
-    name: "Beratung & Service",
-    lead: ["Vorgesetzter der Abteilung: Adams Lucy", "Abteilungsleitung: Christine Auer"],
-    people: ["Christine Auer Hammer-schmidt", "Alexander Doppler", "Tamara Auer"],
-  },
-  { name: "Fachabteilung Betriebliche Vorsorge", lead: ["Abteilungsleitung: Patel Aarav"], people: ["Patel Aarav"] },
-  { name: "Fachabteilung Betriebsversicherungen", lead: ["Abteilungsleitung: Garcia Thomas"], people: ["Garcia Thomas"] },
-  { name: "Fachabteilung KFZ-Versicherungen", lead: ["Abteilungsleitung: Adams Sonja"], people: ["Adams Sonja", "Bennett Mike"] },
-  { name: "Fachabteilung Personenversicherungen", lead: ["Abteilungsleitung: Dennett Lily"], people: ["Dennett Lily"] },
-  { name: "Finanzmanagement", lead: ["Vorgesetzter der Abteilung: Peter Moser"], people: [] },
-  { name: "HR-Management", lead: ["Abteilungsleitung: Adams Anna"], people: ["Adams Anna"] },
-  { name: "IT-Management", lead: ["Abteilungsleitung: Cooper Ashton"], people: ["Cooper Ashton"] },
-  { name: "Kundenberater", lead: ["Vorgesetzter der Abteilung: Peter Moser"], people: ["Jasmin Gratzinger"] },
-  { name: "Marketing", lead: ["Abteilungsleitung: Davis Julia"], people: ["Davis Julia"] },
-  { name: "Office-Management", lead: ["Abteilungsleitung: Lucy Dallon"], people: ["Lucy Dallon"] },
-  { name: "Unternehmensführung", lead: ["Leiter des Unternehmens: Peter Moser"], people: ["Peter Moser"] },
+  // Makler Winter team (makler-winter.at → Kontakt → Team), in its two Bereiche (Management, Beratung & Service).
+  // Lucy Dallon is the prototype user (Kalender, Homeoffice), not part of the HRM team.
+  { name: "Unternehmensführung", lead: ["Leiter des Unternehmens: Philip Winter"], people: ["Philip Winter", "Wolfgang Stadlhofer", "Christian Huber"] },
+  { name: "Finanzmanagement", lead: ["Abteilungsleitung: Maria Straka"], people: ["Maria Straka", "Edith Bindlechner", "Ines Raudaschl", "Alexander Köberl"] },
+  { name: "HR-Management", lead: ["Abteilungsleitung: Julia Heigl"], people: ["Julia Heigl"] },
+  { name: "Office-Management", lead: ["Abteilungsleitung: Birgit Mayerhofer"], people: ["Birgit Mayerhofer", "Gabriele Huber", "Georg Hauffe", "Lena Niederl", "Hanna Kolb"] },
+  { name: "IT-Management", lead: ["Abteilungsleitung: Thomas Haidler"], people: ["Thomas Haidler", "Marcus Knauß", "Lara Schreiber"] },
+  { name: "Marketing", lead: ["Abteilungsleitung: Sandra Lechner"], people: ["Sandra Lechner"] },
+  { name: "Kundenberater", lead: ["Vorgesetzter der Abteilung: Michael Pitzer", "Abteilungsleitung: Sebastian Winter"], people: ["Michael Pitzer", "Sebastian Winter", "Anton Barthelme", "Helmut Michael Bartl", "Manfred Baumann", "Daniel Schütter", "Gerald Heigl", "Josip Vrhovac", "Janine Gungl", "Marco Edelsbrunner", "Michael Plamenig", "Alexander Vötsch", "Uwe Bliem", "Gertrud Badura", "Antonio Solaja", "Horst Kübler", "Christine Walcher", "Ramona Schwaab", "Thomas Langanger"] },
+  { name: "Fachabteilung Betriebsversicherungen", lead: ["Abteilungsleitung: Renate Gerhardter", "Abteilungsleitung: Ramona Huber"], people: ["Renate Gerhardter", "Ramona Huber", "Philipp Knauß", "Hannes Sailer", "Adrian Wass", "Carina Lindner", "Hana Beganovic", "Marko Brtan", "Sarah Auer", "Lisbeth Bacher", "Bettina Aplinc", "Katharina Fliegel", "Fabian Wieser", "Pia Pesendorfer", "Marianne Gruber", "Olivia Zink", "Aleksander Stoch", "Elisabeth Stocker-Baier"] },
+  { name: "Fachabteilung Betriebliche Vorsorge", lead: ["Abteilungsleitung: Michael Slechta"], people: ["Michael Slechta", "Christina Bernhard"] },
+  { name: "Fachabteilung KFZ-Versicherungen", lead: ["Abteilungsleitung: Manuel Scott"], people: ["Manuel Scott", "Carina Winter", "Reinhard Fritz", "Theresa Perhab", "Lucia Salatovic", "Natalie Wegscheider", "Martina Bechter", "Simon Helpferer", "Therese Aigner", "Birgit Hofer", "Franz Jaksic", "David Filipovic", "Lukas Vrhovac"] },
+  { name: "Fachabteilung Personenversicherungen", lead: ["Abteilungsleitung: Margret Moser"], people: ["Margret Moser", "Martina Habersatter", "Edith Puschnigg", "Nick Hofmann", "Leon Grgic", "Paul Steger"] },
+  { name: "Schaden & Leistung", lead: ["Abteilungsleitung: Silvia Fischbacher"], people: ["Silvia Fischbacher", "Elfriede Winter", "Michael Steiner", "Carina Reif", "Sarah Pehab", "Jakob Steinberger", "Philipp Stocker", "Michael Weber", "Nelly Moser", "Larissa Scott", "Alexandra Eder"] },
   // Last in the tree, but a group of its own in the filter: everyone who is not (yet) employed.
   { name: "Bewerber", lead: ["Zuständig: HR-Management"], people: [], bewerber: true },
 ];
 
 /**
- * Makler Winter has 100 Mitarbeiter. Headcount per Abteilung (business standard for a broker of that size):
- * the Kundenberater and the Fachabteilungen are the big teams, Unternehmensführung, HR and Marketing are small.
- * The 14 named people above come first; the rest are generated (seeded, the same on every load).
+ * As on makler-winter.at (Team page): academic titles (shown in the Stammdaten, not in the name), Firmen-Mail and
+ * Durchwahl. Elisabeth Stocker-Baier (in Karenz) has no contact there.
  */
-const HEADCOUNT: Record<string, number> = {
-  "Beratung & Service": 12,
-  "Fachabteilung Betriebliche Vorsorge": 8,
-  "Fachabteilung Betriebsversicherungen": 10,
-  "Fachabteilung KFZ-Versicherungen": 12,
-  "Fachabteilung Personenversicherungen": 10,
-  Finanzmanagement: 6,
-  "HR-Management": 4,
-  "IT-Management": 5,
-  Kundenberater: 20,
-  Marketing: 4,
-  "Office-Management": 5,
-  Unternehmensführung: 4,
+export const WEB: Record<string, { titelVor: string; titelNach: string; mail: string; phone: string }> = {"Philip Winter": {"titelVor": "", "titelNach": "", "mail": "philip.winter@makler-winter.at", "phone": "+43 3687 23753 155"}, "Wolfgang Stadlhofer": {"titelVor": "Mag.", "titelNach": "", "mail": "wolfgang.stadlhofer@makler-winter.at", "phone": "+43 3687 23753 212"}, "Christian Huber": {"titelVor": "", "titelNach": "", "mail": "christian.huber@makler-winter.at", "phone": "+43 3687 23753 114"}, "Maria Straka": {"titelVor": "", "titelNach": "", "mail": "maria.straka@makler-winter.at", "phone": "+43 3687 23753 242"}, "Edith Bindlechner": {"titelVor": "", "titelNach": "", "mail": "edith.bindlechner@makler-winter.at", "phone": "+43 3687 23753 115"}, "Ines Raudaschl": {"titelVor": "", "titelNach": "", "mail": "ines.raudaschl@makler-winter.at", "phone": "+43 3687 23753 146"}, "Alexander Köberl": {"titelVor": "Akad. VersMakler", "titelNach": "", "mail": "alexander.koeberl@makler-winter.at", "phone": "+43 3687 23753 116"}, "Julia Heigl": {"titelVor": "", "titelNach": "", "mail": "julia.heigl@makler-winter.at", "phone": "+43 3687 23753 148"}, "Birgit Mayerhofer": {"titelVor": "", "titelNach": "", "mail": "birgit.mayerhofer@makler-winter.at", "phone": "+43 3687 23753 129"}, "Gabriele Huber": {"titelVor": "", "titelNach": "", "mail": "gabriele.huber@makler-winter.at", "phone": "+43 3687 23753 110"}, "Georg Hauffe": {"titelVor": "", "titelNach": "", "mail": "georg.hauffe@makler-winter.at", "phone": "+43 3687 23753 158"}, "Lena Niederl": {"titelVor": "", "titelNach": "", "mail": "lena.niederl@makler-winter.at", "phone": "+43 3687 23753 153"}, "Hanna Kolb": {"titelVor": "", "titelNach": "", "mail": "hanna.kolb@makler-winter.at", "phone": "+43 3687 23753 190"}, "Thomas Haidler": {"titelVor": "Ing.", "titelNach": "", "mail": "thomas.haidler@makler-winter.at", "phone": "+43 3687 23753 124"}, "Marcus Knauß": {"titelVor": "", "titelNach": "", "mail": "marcus.knauss@makler-winter.at", "phone": "+43 3687 23753 117"}, "Lara Schreiber": {"titelVor": "", "titelNach": "", "mail": "lara.schreiber@makler-winter.at", "phone": "+43 3687 23753 177"}, "Sandra Lechner": {"titelVor": "", "titelNach": "", "mail": "sandra.lechner@makler-winter.at", "phone": "+43 3687 23753 171"}, "Michael Pitzer": {"titelVor": "Akad. VersMakler", "titelNach": "", "mail": "michael.pitzer@makler-winter.at", "phone": "+43 3687 23753 163"}, "Sebastian Winter": {"titelVor": "", "titelNach": "", "mail": "sebastian.winter@makler-winter.at", "phone": "+43 3687 23753 159"}, "Anton Barthelme": {"titelVor": "", "titelNach": "", "mail": "anton.barthelme@makler-winter.at", "phone": "+43 3687 23753 125"}, "Helmut Michael Bartl": {"titelVor": "Akad. Vkfm.", "titelNach": "", "mail": "helmut.bartl@makler-winter.at", "phone": "+43 3687 23753 162"}, "Manfred Baumann": {"titelVor": "", "titelNach": "", "mail": "manfred.baumann@makler-winter.at", "phone": "+43 3687 23753 111"}, "Daniel Schütter": {"titelVor": "", "titelNach": "", "mail": "daniel.schuetter@makler-winter.at", "phone": "+43 3687 23753 240"}, "Gerald Heigl": {"titelVor": "", "titelNach": "", "mail": "gerald.heigl@makler-winter.at", "phone": "+43 3687 23753 160"}, "Josip Vrhovac": {"titelVor": "", "titelNach": "", "mail": "josip.vrhovac@makler-winter.at", "phone": "+43 3687 23753 113"}, "Janine Gungl": {"titelVor": "Akad. VersMaklerin", "titelNach": "", "mail": "janine.gungl@makler-winter.at", "phone": "+43 3687 23753 517"}, "Marco Edelsbrunner": {"titelVor": "Akad. Vkfm.", "titelNach": "", "mail": "marco.edelsbrunner@makler-winter.at", "phone": "+43 3687 23753 521"}, "Michael Plamenig": {"titelVor": "", "titelNach": "", "mail": "michael.plamenig@makler-winter.at", "phone": "+43 3687 23753 131"}, "Alexander Vötsch": {"titelVor": "Akad. Vkfm.", "titelNach": "", "mail": "alexander.voetsch@makler-winter.at", "phone": "+43 3687 23753 511"}, "Uwe Bliem": {"titelVor": "", "titelNach": "", "mail": "uwe.bliem@makler-winter.at", "phone": "+43 3687 23753 139"}, "Gertrud Badura": {"titelVor": "", "titelNach": "", "mail": "gertrud.badura@makler-winter.at", "phone": "+43 3687 23753 150"}, "Antonio Solaja": {"titelVor": "", "titelNach": "", "mail": "antonio.solaja@makler-winter.at", "phone": "+43 3687 23753 176"}, "Horst Kübler": {"titelVor": "", "titelNach": "", "mail": "horst.kuebler@makler-winter.at", "phone": "+43 3687 23753 175"}, "Christine Walcher": {"titelVor": "", "titelNach": "", "mail": "christine.walcher@makler-winter.at", "phone": "+43 3687 23753 135"}, "Ramona Schwaab": {"titelVor": "Akad. Vkff.", "titelNach": "", "mail": "ramona.schwaab@makler-winter.at", "phone": "+43 3687 23753 245"}, "Thomas Langanger": {"titelVor": "", "titelNach": "", "mail": "thomas.langanger@makler-winter.at", "phone": "+43 3687 23753 153"}, "Richard Zechmann": {"titelVor": "Ing.", "titelNach": "", "mail": "richard.zechmann@makler-winter.at", "phone": "+43 3687 23753 149"}, "Thomas Reingruber": {"titelVor": "", "titelNach": "", "mail": "thomas.reingruber@makler-winter.at", "phone": "+43 3687 23753 169"}, "Renate Gerhardter": {"titelVor": "", "titelNach": "", "mail": "renate.gerhardter@makler-winter.at", "phone": "+43 3687 23753 244"}, "Ramona Huber": {"titelVor": "Akad. Vkff.", "titelNach": "", "mail": "ramona.huber@makler-winter.at", "phone": "+43 3687 23753 151"}, "Philipp Knauß": {"titelVor": "", "titelNach": "", "mail": "philipp.knauss@makler-winter.at", "phone": "+43 3687 23753 119"}, "Hannes Sailer": {"titelVor": "", "titelNach": "", "mail": "hannes.sailer@makler-winter.at", "phone": "+43 3687 23753 181"}, "Adrian Wass": {"titelVor": "", "titelNach": "", "mail": "adrian.wass@makler-winter.at", "phone": "+43 3687 23753 182"}, "Carina Lindner": {"titelVor": "", "titelNach": "", "mail": "carina.lindner@makler-winter.at", "phone": "+43 3687 23753 180"}, "Hana Beganovic": {"titelVor": "", "titelNach": "", "mail": "hana.beganovic@makler-winter.at", "phone": "+43 3687 23753 233"}, "Marko Brtan": {"titelVor": "", "titelNach": "", "mail": "marko.brtan@makler-winter.at", "phone": "+43 3687 23753 230"}, "Sarah Auer": {"titelVor": "", "titelNach": "", "mail": "sarah.auer@makler-winter.at", "phone": "+43 3687 23753 228"}, "Lisbeth Bacher": {"titelVor": "", "titelNach": "", "mail": "lisbeth.bacher@makler-winter.at", "phone": "+43 3687 23753 173"}, "Bettina Aplinc": {"titelVor": "", "titelNach": "", "mail": "bettina.aplinc@makler-winter.at", "phone": "+43 3687 23753 514"}, "Katharina Fliegel": {"titelVor": "", "titelNach": "", "mail": "katharina.fliegel@makler-winter.at", "phone": "+43 3687 23753 138"}, "Fabian Wieser": {"titelVor": "", "titelNach": "", "mail": "fabian.wieser@makler-winter.at", "phone": "+43 3687 23753 132"}, "Pia Pesendorfer": {"titelVor": "", "titelNach": "", "mail": "pia.pesendorfer@makler-winter.at", "phone": "+43 3687 23753 516"}, "Marianne Gruber": {"titelVor": "", "titelNach": "", "mail": "marianne.gruber@makler-winter.at", "phone": "+43 3687 23753 518"}, "Olivia Zink": {"titelVor": "Akad. Vkff.", "titelNach": "", "mail": "olivia.zink@makler-winter.at", "phone": "+43 3687 23753 513"}, "Aleksander Stoch": {"titelVor": "", "titelNach": "MSc", "mail": "aleksander.stoch@makler-winter.at", "phone": "+43 3687 23753 191"}, "Elisabeth Stocker-Baier": {"titelVor": "", "titelNach": "", "mail": "", "phone": ""}, "Michael Slechta": {"titelVor": "Akad. Vkfm.", "titelNach": "", "mail": "michael.slechta@makler-winter.at", "phone": "+43 3687 23753 211"}, "Christina Bernhard": {"titelVor": "Dr.", "titelNach": "", "mail": "christina.bernhard@makler-winter.at", "phone": "+43 3687 23753 157"}, "Manuel Scott": {"titelVor": "Akad. VersMakler", "titelNach": "", "mail": "manuel.scott@makler-winter.at", "phone": "+43 3687 23753 168"}, "Carina Winter": {"titelVor": "", "titelNach": "", "mail": "carina.winter@makler-winter.at", "phone": "+43 3687 23753 118"}, "Reinhard Fritz": {"titelVor": "", "titelNach": "", "mail": "reinhard.fritz@makler-winter.at", "phone": "+43 3687 23753 167"}, "Theresa Perhab": {"titelVor": "", "titelNach": "", "mail": "theresa.perhab@makler-winter.at", "phone": "+43 3687 23753 166"}, "Lucia Salatovic": {"titelVor": "", "titelNach": "", "mail": "lucia.salatovic@makler-winter.at", "phone": "+43 3687 23753 127"}, "Natalie Wegscheider": {"titelVor": "", "titelNach": "", "mail": "natalie.wegscheider@makler-winter.at", "phone": "+43 3687 23753 164"}, "Martina Bechter": {"titelVor": "", "titelNach": "", "mail": "martina.bechter@makler-winter.at", "phone": "+43 3687 23753 185"}, "Simon Helpferer": {"titelVor": "", "titelNach": "", "mail": "simon.helpferer@makler-winter.at", "phone": "+43 3687 23753 178"}, "Therese Aigner": {"titelVor": "", "titelNach": "", "mail": "therese.aigner@makler-winter.at", "phone": "+43 3687 23753 152"}, "Birgit Hofer": {"titelVor": "", "titelNach": "", "mail": "birgit.hofer@makler-winter.at", "phone": "+43 3687 23753 161"}, "Franz Jaksic": {"titelVor": "", "titelNach": "", "mail": "franz.jaksic@makler-winter.at", "phone": "+43 3687 23753 154"}, "David Filipovic": {"titelVor": "", "titelNach": "", "mail": "david.filipovic@makler-winter.at", "phone": "+43 3687 23753 156"}, "Lukas Vrhovac": {"titelVor": "", "titelNach": "", "mail": "lukas.vrhovac@makler-winter.at", "phone": "+43 3687 23753 165"}, "Margret Moser": {"titelVor": "", "titelNach": "", "mail": "margret.moser@makler-winter.at", "phone": "+43 3687 23753 170"}, "Martina Habersatter": {"titelVor": "", "titelNach": "", "mail": "martina.habersatter@makler-winter.at", "phone": "+43 3687 23753 241"}, "Edith Puschnigg": {"titelVor": "", "titelNach": "", "mail": "edith.puschnigg@makler-winter.at", "phone": "+43 3687 23753 174"}, "Nick Hofmann": {"titelVor": "", "titelNach": "", "mail": "nick.hofmann@makler-winter.at", "phone": "+43 3687 23753 134"}, "Leon Grgic": {"titelVor": "", "titelNach": "", "mail": "leon.grgic@makler-winter.at", "phone": "+43 3687 23753 187"}, "Paul Steger": {"titelVor": "", "titelNach": "", "mail": "paul.steger@makler-winter.at", "phone": "+43 3687 23753 136"}, "Silvia Fischbacher": {"titelVor": "Mag.", "titelNach": "", "mail": "silvia.fischbacher@makler-winter.at", "phone": "+43 3687 23753 222"}, "Elfriede Winter": {"titelVor": "", "titelNach": "", "mail": "elfriede.winter@makler-winter.at", "phone": "+43 3687 23753 512"}, "Michael Steiner": {"titelVor": "", "titelNach": "", "mail": "michael.steiner@makler-winter.at", "phone": "+43 3687 23753 223"}, "Carina Reif": {"titelVor": "Mag.", "titelNach": "", "mail": "carina.reif@makler-winter.at", "phone": "+43 3687 23753 126"}, "Sarah Pehab": {"titelVor": "", "titelNach": "", "mail": "sarah.pehab@makler-winter.at", "phone": "+43 3687 23753 137"}, "Jakob Steinberger": {"titelVor": "", "titelNach": "", "mail": "jakob.steinberger@makler-winter.at", "phone": "+43 3687 23753 519"}, "Philipp Stocker": {"titelVor": "Mag.", "titelNach": "", "mail": "philipp.stocker@makler-winter.at", "phone": "+43 3687 23753 183"}, "Michael Weber": {"titelVor": "", "titelNach": "", "mail": "michael.weber@makler-winter.at", "phone": "+43 3687 23753 515"}, "Nelly Moser": {"titelVor": "", "titelNach": "", "mail": "nelly.moser@makler-winter.at", "phone": "+43 3687 23753 186"}, "Larissa Scott": {"titelVor": "Akad. VersMaklerin", "titelNach": "", "mail": "larissa.scott@makler-winter.at", "phone": "+43 3687 23753 179"}, "Alexandra Eder": {"titelVor": "Mag.", "titelNach": "", "mail": "alexandra.eder@makler-winter.at", "phone": "+43 3687 23753 121"}};
+
+/** Roles as on makler-winter.at (Team page), for everyone not in ROWS. */
+const ROLLE: Record<string, string> = {
+  "Elisabeth Stocker-Baier": "Fachabteilung Betriebsversicherungen – derzeit in Karenz",
+  "Philip Winter": "Geschäftsführer",
+  "Wolfgang Stadlhofer": "Geschäftsführer",
+  "Christian Huber": "Büroleiter - Prokurist",
+  "Maria Straka": "Leiterin Finanzen & Controlling",
+  "Edith Bindlechner": "Finanzen & Controlling",
+  "Ines Raudaschl": "Finanzen & Controlling",
+  "Alexander Köberl": "Finanzen & Controlling",
+  "Julia Heigl": "HR-Management",
+  "Birgit Mayerhofer": "Leiterin Office-Management",
+  "Gabriele Huber": "Office-Management",
+  "Georg Hauffe": "Office-Management",
+  "Lena Niederl": "Office-Management",
+  "Hanna Kolb": "In Ausbildung",
+  "Thomas Haidler": "Leiter IT-Management",
+  "Marcus Knauß": "IT-Management",
+  "Lara Schreiber": "IT-Management",
+  "Sandra Lechner": "Marketing",
+  "Michael Pitzer": "Vertriebsleiter",
+  "Sebastian Winter": "Leiter Privatkunden",
+  "Anton Barthelme": "Berater Geschäftskunden",
+  "Helmut Michael Bartl": "Berater Geschäftskunden",
+  "Manfred Baumann": "Berater Geschäftskunden",
+  "Daniel Schütter": "Berater Geschäftskunden",
+  "Gerald Heigl": "Berater Geschäftskunden",
+  "Josip Vrhovac": "Berater Geschäftskunden",
+  "Janine Gungl": "Beraterin Geschäftskunden",
+  "Marco Edelsbrunner": "Berater Geschäftskunden",
+  "Michael Plamenig": "Berater Geschäftskunden",
+  "Alexander Vötsch": "Berater Geschäftskunden",
+  "Uwe Bliem": "Kundenberater",
+  "Gertrud Badura": "Kundenberaterin",
+  "Antonio Solaja": "Kundenberater",
+  "Horst Kübler": "Kundenberater",
+  "Christine Walcher": "Kundenberaterin",
+  "Ramona Schwaab": "Kundenberaterin",
+  "Thomas Langanger": "Kundenberater",
+  "Renate Gerhardter": "Leiterin Betriebsversicherungen",
+  "Ramona Huber": "Leiterin Betriebsversicherungen",
+  "Philipp Knauß": "Fachabteilung Betriebsversicherungen",
+  "Hannes Sailer": "Fachabteilung Betriebsversicherungen",
+  "Adrian Wass": "Fachabteilung Betriebsversicherungen",
+  "Carina Lindner": "Fachabteilung Betriebsversicherungen",
+  "Hana Beganovic": "Fachabteilung Betriebsversicherungen",
+  "Marko Brtan": "Fachabteilung Betriebsversicherungen",
+  "Sarah Auer": "Fachabteilung Betriebsversicherungen",
+  "Lisbeth Bacher": "Fachabteilung Betriebsversicherungen",
+  "Bettina Aplinc": "Fachabteilung Betriebsversicherungen",
+  "Katharina Fliegel": "Fachabteilung Betriebsversicherungen",
+  "Fabian Wieser": "Fachabteilung Betriebsversicherungen",
+  "Pia Pesendorfer": "Fachabteilung Betriebsversicherungen",
+  "Marianne Gruber": "Fachabteilung Betriebsversicherungen",
+  "Olivia Zink": "Fachabteilung Betriebsversicherungen",
+  "Aleksander Stoch": "Fachabteilung Betriebsversicherungen",
+  "Michael Slechta": "Sachverständiger Betriebliche Vorsorge",
+  "Christina Bernhard": "Fachabteilung Betriebliche Vorsorge",
+  "Manuel Scott": "Leiter KFZ-Versicherungen",
+  "Carina Winter": "Fachabteilung KFZ-Versicherungen",
+  "Reinhard Fritz": "Fachabteilung KFZ-Versicherungen",
+  "Theresa Perhab": "Fachabteilung KFZ-Versicherungen",
+  "Lucia Salatovic": "Fachabteilung KFZ-Versicherungen",
+  "Natalie Wegscheider": "Fachabteilung KFZ-Versicherungen",
+  "Martina Bechter": "Fachabteilung KFZ-Versicherungen",
+  "Simon Helpferer": "Fachabteilung KFZ-Versicherungen",
+  "Therese Aigner": "Fachabteilung KFZ-Versicherungen",
+  "Birgit Hofer": "Fachabteilung KFZ-Versicherungen",
+  "Franz Jaksic": "Fachabteilung KFZ-Versicherungen",
+  "David Filipovic": "Fachabteilung KFZ-Versicherungen",
+  "Lukas Vrhovac": "Fachabteilung KFZ-Versicherungen",
+  "Margret Moser": "Fachabteilung Personenversicherungen",
+  "Martina Habersatter": "Fachabteilung Personenversicherungen",
+  "Edith Puschnigg": "Fachabteilung Personenversicherungen",
+  "Nick Hofmann": "Fachabteilung Personenversicherungen",
+  "Leon Grgic": "Fachabteilung Personenversicherungen",
+  "Paul Steger": "In Ausbildung",
+  "Silvia Fischbacher": "Leiterin Schaden & Leistung",
+  "Elfriede Winter": "Schaden & Leistung",
+  "Michael Steiner": "Schaden & Leistung",
+  "Carina Reif": "Schaden & Leistung",
+  "Sarah Pehab": "Schaden & Leistung",
+  "Jakob Steinberger": "Schaden & Leistung",
+  "Philipp Stocker": "Schaden & Leistung",
+  "Michael Weber": "Schaden & Leistung",
+  "Nelly Moser": "Schaden & Leistung",
+  "Larissa Scott": "Schaden & Leistung",
+  "Alexandra Eder": "Schaden & Leistung"
 };
 
 /** The Abteilungen you can assign someone to (everything but the Bewerber group). */
 export const ABTEILUNG_NAMEN = ABTEILUNGEN.filter((d) => !d.bewerber).map((d) => d.name);
 
-const WORKFLOW_COUNT: Record<string, number> = { "Tamara Auer": 2, "Peter Moser": 3, "Jasmin Gratzinger": 2, "Bennett Mike": 1 };
+const WORKFLOW_COUNT: Record<string, number> = { "Gertrud Badura": 2, "Philip Winter": 3, "Janine Gungl": 2, "Manuel Scott": 1 };
 
 export const TEAM: TeamMember[] = ROWS.map(
   ([name, role, photo, urlaubAnspruch, urlaubVerbraucht, krank, krankWoche, krankVorwoche, dv, dvWoche, dvVorwoche, homeoffice, abschluss, fehler, zeitkonto, gespraech]) => ({
@@ -172,44 +256,23 @@ export const TEAM: TeamMember[] = ROWS.map(
   }),
 );
 
-const VORNAMEN = ["Anna", "Lukas", "Sophie", "Florian", "Lena", "Maximilian", "Katharina", "Tobias", "Julia", "Stefan", "Elena", "Markus", "Sarah", "David", "Theresa", "Michael", "Laura", "Andreas", "Verena", "Patrick", "Nina", "Christoph", "Lisa", "Matthias", "Hannah", "Daniel", "Magdalena", "Bernhard", "Johanna", "Simon", "Eva", "Georg", "Marie", "Philipp", "Carina", "Martin", "Sabine", "Thomas", "Melanie", "Fabian"];
-const NACHNAMEN = ["Gruber", "Huber", "Wagner", "Pichler", "Steiner", "Moser", "Mayer", "Hofer", "Leitner", "Berger", "Fuchs", "Eder", "Fischer", "Schmid", "Winkler", "Weber", "Schwarz", "Maier", "Schneider", "Reiter", "Mayr", "Schmidt", "Wimmer", "Egger", "Brunner", "Lang", "Baumgartner", "Auer", "Binder", "Lechner", "Wolf", "Wallner", "Aigner", "Ebner", "Koller", "Lehner", "Haas", "Schuster", "Holzer", "Strasser"];
-const ROLLEN: Record<string, string[]> = {
-  "Beratung & Service": ["Berater/in", "Kundenservice", "Innendienst"],
-  "Fachabteilung Betriebliche Vorsorge": ["Referent/in Vorsorge", "Sachbearbeiter/in"],
-  "Fachabteilung Betriebsversicherungen": ["Referent/in Betriebsversicherungen", "Sachbearbeiter/in", "Schadenreferent/in"],
-  "Fachabteilung KFZ-Versicherungen": ["KFZ-Versicherungen", "KFZ Innendienst", "Schadenreferent/in KFZ"],
-  "Fachabteilung Personenversicherungen": ["Referent/in Personenversicherungen", "Sachbearbeiter/in"],
-  Finanzmanagement: ["Buchhaltung", "Controlling", "Leitung Finanzen"],
-  "HR-Management": ["HR-Referent/in", "Lohnverrechnung"],
-  "IT-Management": ["IT-Support", "Systemadministration"],
-  Kundenberater: ["Kundenberater/in", "Junior Kundenberater/in", "Senior Kundenberater/in"],
-  Marketing: ["Marketing", "Content & Social Media"],
-  "Office-Management": ["Empfang", "Assistenz", "Office-Management"],
-  Unternehmensführung: ["Prokurist/in", "Geschäftsführung", "Assistenz der Geschäftsführung"],
-};
 
 (function fillTeam() {
   const random = seeded(4242);
   const pick = <T,>(list: T[]) => list[Math.floor(random() * list.length)];
   const between = (min: number, max: number) => min + Math.floor(random() * (max - min + 1));
   const used = new Set(TEAM.map((m) => m.name));
-  let n = 0;
   for (const dept of ABTEILUNGEN) {
-    const want = HEADCOUNT[dept.name] ?? 0;
-    while (dept.people.length < want) {
-      let name = "";
-      do name = `${NACHNAMEN[(n * 7 + between(0, 39)) % NACHNAMEN.length]} ${pick(VORNAMEN)}`;
-      while (used.has(name));
+    for (const name of dept.people) {
+      if (used.has(name)) continue;
       used.add(name);
-      n++;
       const anspruch = random() < 0.3 ? 30 : 25;
       const krankWoche = random() < 0.12 ? between(1, 3) : 0;
       const dvWoche = random() < 0.15 ? between(2, 8) : 0;
       const gespraechArt = pick(["Gespräch", "Jahresgespräch", "Probezeitgespräch"] as const);
       TEAM.push({
         name,
-        role: pick(ROLLEN[dept.name] ?? ["Mitarbeiter/in"]),
+        role: ROLLE[name] ?? "Mitarbeiter/in",
         photo: "",
         abteilung: dept.name,
         workflows: random() < 0.2 ? between(1, 3) : 0,
@@ -228,7 +291,6 @@ const ROLLEN: Record<string, string[]> = {
         zeitkonto: between(-480, 1200),
         gespraech: random() < 0.75 ? { vorTagen: between(2, 300), art: gespraechArt, status: random() < 0.75 ? "abgeschlossen" : "offen" } : undefined,
       });
-      dept.people.push(name);
     }
   }
 })();
@@ -335,16 +397,14 @@ export function registerMember(entry: { name: string; role: string; abteilung: s
 }
 
 
-/** Named people written "Vorname Nachname"; everyone else (and every generated person) is "Nachname Vorname". */
-const FIRST_LAST = ["Christine Auer Hammer-schmidt", "Alexander Doppler", "Tamara Auer", "Peter Moser", "Lucy Dallon", "Jasmin Gratzinger"];
 
 /** Vorname and Nachname of a team member (from "Mitarbeiter anlegen" when entered there). */
 export function nameParts(person: TeamMember) {
   if (person.stamm) return { vorname: person.stamm.vorname, nachname: person.stamm.nachname };
   if (person.angelegt?.Vorname || person.angelegt?.Nachname) return { vorname: person.angelegt.Vorname ?? "", nachname: person.angelegt.Nachname ?? "" };
+  // Everyone is written "Vorname Nachname" (as on makler-winter.at); the last word is the Nachname.
   const words = person.name.split(" ");
-  if (FIRST_LAST.includes(person.name)) return { vorname: words[0], nachname: words.slice(1).join(" ") };
-  return { vorname: words.slice(1).join(" "), nachname: words[0] };
+  return { vorname: words.slice(0, -1).join(" "), nachname: words.at(-1) ?? "" };
 }
 
 /** Three Bewerber from the start (Benjamin Atkinson is the Bewerber of the Figma screens). */

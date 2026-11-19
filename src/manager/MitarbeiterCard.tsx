@@ -2,7 +2,7 @@ import { useState } from "react";
 import * as a from "../assets/index";
 import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
-import { ABTEILUNGEN, member, slugOf, type TeamMember } from "./hrmTeam";
+import { ABTEILUNGEN, WEB, member, slugOf, type TeamMember } from "./hrmTeam";
 
 /**
  * The profile card of the Mitarbeiter tab: the partner dashboard card (Figma 20638:17154) for an employee.
@@ -19,10 +19,11 @@ const ascii = (text: string) =>
     .replace(/[^a-z]+/g, "");
 const hash = (text: string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 
-/** Demo contact data: the name as written → tamara.auer@winter.at, and a Durchwahl. */
+/** Firmen contact: as on makler-winter.at, else made up the same way (vorname.nachname@makler-winter.at, Durchwahl). */
 export function contactOf(person: TeamMember) {
-  const mail = `${person.name.split(" ").map(ascii).filter(Boolean).join(".")}@winter.at`;
-  const phone = `+43 3687 222 ${String(100 + (hash(person.name) % 400))}`;
+  const web = WEB[person.name];
+  const mail = web?.mail || `${person.name.split(" ").map(ascii).filter(Boolean).join(".")}@makler-winter.at`;
+  const phone = web?.phone || `+43 3687 23753 ${String(100 + (hash(person.name) % 400))}`;
   return { phone, mail };
 }
 

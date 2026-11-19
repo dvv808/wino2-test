@@ -137,7 +137,7 @@ function StatePill({ state, overdue = false }: { state: StepState; overdue?: boo
   return <StatusPill status={state} short />;
 }
 
-/** Real photos only; people without one show their initials (Sandra's seed photo belongs to Adams Anna). */
+/** Real photos only; people without one show their initials (Sandra's seed photo belongs to Julia Heigl). */
 const PHOTOS: Record<string, string> = { [ME]: a.empLucy, [ROLE_USER.advisor]: a.reqMike };
 
 /**

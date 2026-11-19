@@ -11,6 +11,7 @@ import type { Ansicht } from "../types/dms";
 import { useDms } from "../dms/store";
 import { GlobalSearch } from "../search/GlobalSearch";
 import { ConstructionArt } from "../mein-bereich/MeinBereichView";
+import { OrganigrammBerechtigungen } from "./OrganigrammBerechtigungen";
 
 /** Admin areas: Spaces (DMS), plus HRM Admin and Rollen & Berechtigungen (content follows). */
 const AREAS = ["Spaces", "HRM Admin", "Rollen & Berechtigungen"] as const;
@@ -97,7 +98,19 @@ export function AdminView() {
           })}
         </nav>
 
-        {area !== "Spaces" ? (
+        {area === "HRM Admin" ? (
+          <>
+            <div className="module-nav">
+              <button type="button" className="module-pill active">
+                <Icon src={a.mOvGroup} size={24} />
+                Organigramm Berechtigungen
+              </button>
+            </div>
+            <div className="content-shell admin-body">
+              <OrganigrammBerechtigungen />
+            </div>
+          </>
+        ) : area !== "Spaces" ? (
           <div className="content-shell mb-body">
             <section className="mb-empty">
               <ConstructionArt />

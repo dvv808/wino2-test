@@ -55,7 +55,7 @@ export function seedTermine(today: string): MobileTermin[] {
     {
       id: "s1", day: day(0), start: h(9), end: h(10), art: art[3], title: "Wochenstart Team Beratung", ort: "Büro Schladming, Salzburgerstraße 304",
       beschreibung: "Wochenplanung, offene Anträge und die Termine der Woche durchgehen.", teams: true,
-      winter: [lucy, { name: "Tamara Auer", status: "ja" }, { name: "Alexander Doppler", status: "offen" }],
+      winter: [lucy, { name: "Gertrud Badura", status: "ja" }, { name: "Michael Pitzer", status: "offen" }],
     },
     {
       id: "s2", day: day(0), start: h(13, 30), end: h(15), art: art[0], title: "Julia Atkinson", ort: "Mondseestrasse 32, A-5310 Mondsee",
@@ -65,11 +65,11 @@ export function seedTermine(today: string): MobileTermin[] {
     {
       id: "s3", day: day(1), start: h(9), end: h(11), art: art[0], title: "Lunixo AG", ort: "Getreidegasse 12, A-5020 Salzburg",
       abfahrt: h(7), ankunft: h(14, 30), abfahrtOrt: "zu Hause", ankunftOrt: "Büro", teams: true,
-      winter: [lucy, { name: "Christine Auer Hammer-schmidt", status: "offen" }], extern: [{ name: "Lunixo AG", status: "nein" }, { name: "Julia Atkinson", status: "ja" }],
+      winter: [lucy, { name: "Silvia Fischbacher", status: "offen" }], extern: [{ name: "Lunixo AG", status: "nein" }, { name: "Julia Atkinson", status: "ja" }],
     },
     {
-      id: "s4", day: day(1), start: h(15), end: h(16), art: art[5], title: "Tamara Auer", ort: "Büro Schladming, Besprechungszimmer 01",
-      beschreibung: "Jahresgespräch: Ziele 2027 und Weiterbildungswünsche.", winter: [lucy, { name: "Tamara Auer", status: "ja" }],
+      id: "s4", day: day(1), start: h(15), end: h(16), art: art[5], title: "Gertrud Badura", ort: "Büro Schladming, Besprechungszimmer 01",
+      beschreibung: "Jahresgespräch: Ziele 2027 und Weiterbildungswünsche.", winter: [lucy, { name: "Gertrud Badura", status: "ja" }],
     },
     {
       id: "s5", day: day(2), start: h(8, 30), end: h(12, 30), art: art[2], title: "Schulung Versicherungsrecht", ort: "WIFI Salzburg, Julius-Raab-Platz 2",
@@ -82,20 +82,20 @@ export function seedTermine(today: string): MobileTermin[] {
     {
       id: "s7", day: day(3), start: h(10), end: h(11, 30), art: art[0], title: "Lunixo Holding", ort: "Mirabellplatz 4, A-5020 Salzburg",
       abfahrt: h(9), ankunft: h(12, 30), abfahrtOrt: "Büro", ankunftOrt: "Büro",
-      winter: [lucy, { name: "Peter Moser", status: "ja" }], extern: [{ name: "Lunixo Holding", status: "ja" }],
+      winter: [lucy, { name: "Philip Winter", status: "ja" }], extern: [{ name: "Lunixo Holding", status: "ja" }],
     },
     {
       id: "s8", day: day(3), start: h(16), end: h(17), art: art[4], title: "Projekt Wino 2", ort: "Büro Schladming", teams: true,
-      beschreibung: "Abstimmung zum neuen Kalender und zur mobilen Version.", winter: [lucy, { name: "Jasmin Gratzinger", status: "offen" }],
+      beschreibung: "Abstimmung zum neuen Kalender und zur mobilen Version.", winter: [lucy, { name: "Janine Gungl", status: "offen" }],
     },
     {
       id: "s9", day: day(4), start: h(8), end: h(9), art: art[3], title: "Jour fixe Unternehmensleitung", ort: "Büro Schladming", teams: true,
-      winter: [{ name: "Peter Moser", status: "ja", host: true }, { name: "Lucy Dallon", status: "ja" }, { name: "Adams Anna", status: "nein" }],
+      winter: [{ name: "Philip Winter", status: "ja", host: true }, { name: "Lucy Dallon", status: "ja" }, { name: "Julia Heigl", status: "nein" }],
     },
     { id: "s10", day: day(4), start: h(11), end: h(12), art: art[7], title: "Zahnarzt", ort: "Dr. Huber, Hauptplatz 5, Schladming" },
     {
       id: "s11", day: day(4), start: h(17), end: h(21), art: art[8], title: "Firmenfeier Makler Winter", ort: "Hotel Post, Schladming",
-      beschreibung: "Jahresabschlussfeier mit dem ganzen Team.", winter: [{ name: "Peter Moser", status: "ja", host: true }, lucy, { name: "Tamara Auer", status: "offen" }],
+      beschreibung: "Jahresabschlussfeier mit dem ganzen Team.", winter: [{ name: "Philip Winter", status: "ja", host: true }, lucy, { name: "Gertrud Badura", status: "offen" }],
     },
   ];
 }

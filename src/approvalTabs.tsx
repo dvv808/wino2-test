@@ -257,7 +257,7 @@ export const ADVISOR = {
 };
 
 export const MANAGER = {
-  name: "Adams Anna",
+  name: "Julia Heigl",
   role: "Geschäftsleitung",
   photo: a.reqAnna,
 };

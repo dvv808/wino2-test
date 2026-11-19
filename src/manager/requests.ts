@@ -135,8 +135,8 @@ const MARTINA: RequestRow["partner"] = {
   kind: "person",
 };
 
-const ASHTON = { name: "Cooper Ashton", role: "IT-Administrator", photo: a.reqAshton };
-const DAVIS = { name: "Davis Julia", role: "Marketing", photo: a.reqDavis };
+const ASHTON = { name: "Thomas Haidler", role: "IT-Administrator", photo: a.reqAshton };
+const DAVIS = { name: "Sandra Lechner", role: "Marketing", photo: a.reqDavis };
 
 /** Requests from other advisors, so the Bestandsmanager's inbox is not empty. */
 export const DEMO_REQUESTS: RequestRow[] = [
@@ -147,7 +147,7 @@ export const DEMO_REQUESTS: RequestRow[] = [
     types: ["Interessent"],
     art: "Maklervereinbarung",
     schritt: SCHRITT.docs,
-    requester: { name: "Adams Anna", role: "Geschäftsleitung", photo: a.reqAnna },
+    requester: { name: "Julia Heigl", role: "Geschäftsleitung", photo: a.reqAnna },
     date: "12.03.2027",
     time: "13:33",
     status: "offen",
@@ -160,7 +160,7 @@ export const DEMO_REQUESTS: RequestRow[] = [
     types: ["Interessent"],
     art: "Maklervereinbarung",
     schritt: SCHRITT.sign,
-    requester: { name: "Adams Anna", role: "Geschäftsleitung", photo: a.reqAnna },
+    requester: { name: "Julia Heigl", role: "Geschäftsleitung", photo: a.reqAnna },
     date: "–",
     time: "–",
     status: "offen",

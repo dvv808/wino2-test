@@ -14,6 +14,7 @@ import { INV_AREAS, hasM365, hasOfficeKey, invAreaDone, invCards, inventarOf, ty
 import { KOOP_AREAS, koopAreaDone, koopCards, vertragOf, vertragSigned, zugangAktiv, zugangOf, type KoopAreaId } from "./kooperation";
 import {
   ABTEILUNGEN,
+  WEB,
   ABTEILUNG_NAMEN,
   TEAM,
   isEmployee,
@@ -38,16 +39,16 @@ const POSITIONEN = ["Berater/in Versicherungen", "Innendienst", "KFZ Innendienst
 const hash = (text: string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const pick = <T,>(list: T[], seed: number) => list[Math.abs(seed) % list.length];
 const pad = (n: number) => String(n).padStart(2, "0");
-const FEMALE = /^(Anna|Sophie|Lena|Katharina|Julia|Elena|Sarah|Theresa|Laura|Verena|Nina|Lisa|Hannah|Magdalena|Johanna|Eva|Marie|Carina|Sabine|Melanie|Christine|Tamara|Lucy|Jasmin|Sonja|Lily)$/;
+const FEMALE = /^(Anna|Sophie|Lena|Katharina|Julia|Elena|Sarah|Theresa|Therese|Laura|Verena|Nina|Lisa|Hannah|Hanna|Hana|Magdalena|Johanna|Eva|Marie|Maria|Carina|Sabine|Melanie|Christine|Christina|Tamara|Lucy|Jasmin|Sonja|Lily|Edith|Ines|Birgit|Gabriele|Lara|Sandra|Janine|Gertrud|Ramona|Renate|Lisbeth|Bettina|Pia|Marianne|Olivia|Lucia|Natalie|Martina|Margret|Silvia|Elfriede|Larissa|Alexandra|Nelly|Elisabeth)$/;
 const ascii = (text: string) => text.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
 
 export const HRM_NAMES = () => TEAM.filter((m) => m.abteilung === "HR-Management").map((m) => m.name);
 
-/** The head of the person's Abteilung (from the side nav's lead line), or Peter Moser for the heads themselves. */
+/** The head of the person's Abteilung (from the side nav's lead line), or Philip Winter for the heads themselves. */
 function vorgesetztOf(person: TeamMember) {
   const dept = ABTEILUNGEN.find((d) => d.name === person.abteilung);
   const lead = dept?.lead.map((line) => line.split(": ")[1]).find((name) => name && name !== person.name && TEAM.some((m) => m.name === name));
-  return lead ?? (person.name === "Peter Moser" ? "" : "Peter Moser");
+  return lead ?? (person.name === "Philip Winter" ? "" : "Philip Winter");
 }
 
 const EMPTY_ANSTELLUNG: Anstellung = { position: "", vorgesetzt: "", eintrittTag: "", eintrittMonat: "", eintrittJahr: "", ausmass: "", wochenstunden: "", standort: "", urlaub: "" };
@@ -66,8 +67,9 @@ export function anstellungOf(person: TeamMember): Anstellung {
       eintrittTag: "01",
       eintrittMonat: pad((hash(person.name) % 12) + 1),
       eintrittJahr: String(2008 + (hash(person.name) % 18)),
-      ausmass: "Vollzeit",
-      wochenstunden: "38,5",
+      // "In Ausbildung" on makler-winter.at = Lehrling; "in Karenz" = Karenz.
+      ausmass: /Ausbildung/.test(person.role) ? "Lehrling" : /Karenz/.test(person.role) ? "Karenz" : "Vollzeit",
+      wochenstunden: /Karenz/.test(person.role) ? "0" : "38,5",
       standort: "Schladming",
       urlaub: String(person.urlaubAnspruch || 25),
     }
@@ -103,11 +105,11 @@ export function stammOf(person: TeamMember): MaStamm {
   return {
     mandant: "Makler Winter",
     personentyp: employee ? "Mitarbeiter" : "Privatperson",
-    hrm: "Adams Anna",
-    titelVor: "",
+    hrm: "Julia Heigl",
+    titelVor: WEB[person.name]?.titelVor ?? "",
     vorname,
     nachname,
-    titelNach: "",
+    titelNach: WEB[person.name]?.titelNach ?? "",
     rufname: "",
     geschlecht: FEMALE.test(vorname.split(" ")[0]) ? "Weiblich" : "Männlich",
     geburt: dmy(h, 1968, 36),
@@ -1058,7 +1060,7 @@ export function MitarbeiterStammdatenWorkflow({
                       />
                     </Field>
                     <Field label="Beschäftigungsausmaß">
-                      <Select value={draft.anstellung.ausmass} onChange={(v) => patchA({ ausmass: v, wochenstunden: v === "Vollzeit" ? "38,5" : "20" })} options={["Vollzeit", "Teilzeit", "Geringfügig"]} />
+                      <Select value={draft.anstellung.ausmass} onChange={(v) => patchA({ ausmass: v, wochenstunden: v === "Vollzeit" || v === "Lehrling" ? "38,5" : v === "Karenz" ? "0" : "20" })} options={["Vollzeit", "Teilzeit", "Geringfügig", "Lehrling", "Karenz"]} />
                     </Field>
                     <Field label="Wochenstunden">
                       <Text value={draft.anstellung.wochenstunden} onChange={(v) => patchA({ wochenstunden: v })} />
@@ -1088,7 +1090,7 @@ export function MitarbeiterStammdatenWorkflow({
                     <Select value={s.personentyp} onChange={(v) => patch({ personentyp: v })} options={["Privatperson", "Unternehmen (Firmenb.)", "Öffentl. Einrichtung", "Vereine (ZVR-Nr.)", "Mitarbeiter"]} />
                   </Field>
                   <Field label="HRM Zuständigkeit">
-                    <Select value={s.hrm} onChange={(v) => patch({ hrm: v })} options={HRM_NAMES().length ? HRM_NAMES() : ["Adams Anna"]} />
+                    <Select value={s.hrm} onChange={(v) => patch({ hrm: v })} options={HRM_NAMES().length ? HRM_NAMES() : ["Julia Heigl"]} />
                   </Field>
                 </>
               )}

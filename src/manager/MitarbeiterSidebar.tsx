@@ -3,7 +3,7 @@ import * as a from "../assets/index";
 import { loadAntraege, onAntraegeChange } from "../home/calendar/homeoffice";
 import { Icon } from "../ui";
 import { homeofficeRows, useHrDemo } from "./hrmAntraege";
-import { ABTEILUNGEN, ABTEILUNG_NAMEN, FIRMA, TEAM, isEmployee, member, slugOf, type Abteilung, type TeamMember } from "./hrmTeam";
+import { ABTEILUNGEN, ABTEILUNG_NAMEN, BEREICHE, bereichOf, FIRMA, TEAM, isEmployee, member, slugOf, type Abteilung, type TeamMember } from "./hrmTeam";
 import { useWorkflow } from "../workflow";
 import { AbteilungScope, setSelected, setZeitpunkt, useAuswahlRaw, type Zeitpunkt } from "./mitarbeiterAuswahl";
 
@@ -149,11 +149,22 @@ function FilterBox({ selected, onSave, onClose }: { selected: string[]; onSave: 
           </button>
         </div>
         {firmaOpen || searching
-          ? depts.map(({ dept, people }) => {
+          ? depts.map(({ dept, people }, index) => {
               const names = people.map((m) => m.name);
               const isOpen = searching || open.includes(dept.name);
+              const bereich = bereichOf(dept.name);
+              const startsBereich = bereich && bereich !== bereichOf(depts[index - 1]?.dept.name ?? "");
+              const bereichNames = depts.filter((x) => bereichOf(x.dept.name) === bereich).flatMap((x) => x.people.map((m) => m.name));
               return (
                 <div className="ms-tree-dept" key={dept.name}>
+                  {startsBereich ? (
+                    <div className="ms-tree-row bereich">
+                      <Tick checked={bereichNames.every(has)} label={`${bereich} auswählen`} onChange={() => toggle(bereichNames)} />
+                      <span className="ms-bereich-label">
+                        {bereich} ({bereichNames.length})
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="ms-tree-row">
                     <Tick checked={names.every(has)} label={`${dept.name} auswählen`} onChange={() => toggle(names)} />
                     <button
@@ -330,11 +341,22 @@ export function MitarbeiterSidebar() {
       ) : null}
 
       <div className={any ? "mitarbeiter-body tabbed" : "mitarbeiter-body"}>
-        {depts.map(({ dept, all, people }) => {
+        {depts.map(({ dept, all, people }, index) => {
           const names = all.map((m) => m.name);
           const isOpen = !closed.includes(dept.name) || query.trim().length > 0;
+          const bereich = bereichOf(dept.name);
+          const startsBereich = bereich && bereich !== bereichOf(depts[index - 1]?.dept.name ?? "");
+          const bereichAll = depts.filter((x) => bereichOf(x.dept.name) === bereich).flatMap((x) => x.all.map((m) => m.name));
           return (
             <section className="dept" key={dept.name}>
+              {startsBereich ? (
+                <div className="ms-bereich">
+                  <Tick checked={bereichAll.every((n) => selected.includes(n))} label={`${bereich} auswählen`} onChange={() => toggle(bereichAll)} />
+                  <span>
+                    {bereich} <small>{BEREICHE.find((b) => b.name === bereich)?.abteilungen.length} Abteilungen · {bereichAll.length} Mitarbeiter</small>
+                  </span>
+                </div>
+              ) : null}
               <div className="dept-head">
                 <span className="dept-name">
                   <Tick checked={names.every((n) => selected.includes(n))} label={`${dept.name} auswählen`} onChange={() => toggle(names)} />

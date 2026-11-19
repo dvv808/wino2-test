@@ -1,10 +1,10 @@
 import * as a from "../assets/index";
 import type { Card } from "../person/stammdaten";
-import { isEmployee, type TeamMember } from "./hrmTeam";
+import { WEB, isEmployee, type TeamMember } from "./hrmTeam";
 import { hrmOf, personValue } from "./inventar";
 
 /** The one signed in to Wino in the HRM area (HR lead): new Dienstverträge are created by her. */
-export const WINO_USER = "Adams Anna";
+export const WINO_USER = "Julia Heigl";
 
 /**
  * Mitarbeiter Kooperation: the Wino Zugang and the Dienstvertrag. Read by the Profil, edited in their own workflows,
@@ -54,10 +54,11 @@ export type Dienstvertrag = {
 };
 
 export const ROLLEN = ["Berater/in", "Innendienst", "Abteilungsleitung", "HR-Management", "Finanzmanagement", "Administrator"];
-export const ARTEN = ["Vollzeit", "Teilzeit", "Geringfügig", "Lehrling"];
+export const ARTEN = ["Vollzeit", "Teilzeit", "Geringfügig", "Lehrling", "Karenz"];
 export const PROBEZEITEN = ["Keine", "1 Monat"];
 export const KUENDIGUNG = ["4 Wochen", "6 Wochen", "2 Monate", "3 Monate"];
-export const UNTERNEHMEN = ["Makler Winter GmbH", "Winter Versicherungsmakler GmbH"];
+/** Legal name (Impressum of makler-winter.at). */
+export const UNTERNEHMEN = ["Winter Versicherungsmakler Ges.m.b.H."];
 
 const hash = (text: string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
 const ascii = (text: string) => text.toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, ".").replace(/^\.|\.$/g, "");
@@ -65,7 +66,7 @@ const ascii = (text: string) => text.toLowerCase().replace(/ä/g, "ae").replace(
 export function blankZugang(person: TeamMember): WinoZugang {
   return {
     benutzer: ascii(person.name),
-    mail: `${ascii(person.name)}@winter.at`,
+    mail: WEB[person.name]?.mail || `${ascii(person.name)}@makler-winter.at`,
     mandant: "Makler Winter",
     rolle: /leitung/i.test(person.role) ? "Abteilungsleitung" : person.abteilung === "HR-Management" ? "HR-Management" : "Berater/in",
     abteilung: person.abteilung,

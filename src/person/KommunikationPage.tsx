@@ -19,9 +19,9 @@ type Attachment = { name: string; type: "pdf" | "jpg"; docTyp?: string };
 type Message = { id: string; from: Sender; to: Sender[]; cc?: Sender[]; day: string; time: string; long: string; body: string[]; attachment?: Attachment };
 type Thread = { id: string; subject: string; tags: string[]; unread: boolean; event?: boolean; messages: Message[] };
 
-const LUCY: Sender = { name: "Lucy Dullon", mail: "lucy.dullon@winter.at", photo: a.empLucy };
-const CHRISTINE: Sender = { name: "Christine Auer", mail: "christine.auer@winter.at", photo: a.empChristine };
-const ANNA: Sender = { name: "Anna Adams", mail: "anna.adams@winter.at", photo: a.reqAnna };
+const LUCY: Sender = { name: "Lucy Dullon", mail: "lucy.dullon@makler-winter.at", photo: a.empLucy };
+const CHRISTINE: Sender = { name: "Gertrud Badura", mail: "gertrud.badura@makler-winter.at", photo: a.empChristine };
+const ANNA: Sender = { name: "Julia Heigl", mail: "julia.heigl@makler-winter.at", photo: a.reqAnna };
 
 const DISCLAIMER =
   "Disclaimer: Diese E-Mail und jegliche Anhänge sind vertraulich und ausschließlich für den/die genannten Adressaten bestimmt. Sollten Sie nicht der vorgesehene Empfänger sein, ist jegliche Offenlegung, Vervielfältigung, Weiterleitung oder Nutzung des Inhalts dieser E-Mail unzulässig. Bitte informieren Sie den Absender umgehend und löschen Sie diese E-Mail. Wir weisen darauf hin, dass die Sicherheit von Übertragungen per E-Mail nicht gewährleistet werden kann und bitten um Ihr Verständnis.";
@@ -112,7 +112,7 @@ function threadsFor(partner: Sender, partnerId: string, mailTime?: string): Thre
       tags: ["#Termin"],
       unread: true,
       messages: [
-        { id: "m3b", from: partner, to: [CHRISTINE], day: "Di", time: "15:51", long: "Dienstag, 15:51", body: ["Hallo Frau Auer,", "der Termin passt mir gut, ich komme ins Büro.", `Liebe Grüße, ${first}`] },
+        { id: "m3b", from: partner, to: [CHRISTINE], day: "Di", time: "15:51", long: "Dienstag, 15:51", body: ["Hallo Frau Badura,", "der Termin passt mir gut, ich komme ins Büro.", `Liebe Grüße, ${first}`] },
         { id: "m3a", from: CHRISTINE, to: [partner], day: "Mi", time: "09:33", long: "Mittwoch, 09:33", body: [`Hallo ${first},`, "hiermit bestätige ich unser Beratungsgespräch am Freitag um 10:00 Uhr im Büro Mondsee.", ...sign(CHRISTINE)] },
       ],
     },

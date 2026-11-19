@@ -31,3 +31,13 @@ export function useKeptState<T>(key: string, initial: T): [T, Dispatch<SetStateA
   }, [key, value]);
   return [value, setValue];
 }
+
+/** Set a kept value before its page mounts (e.g. open Admin on a given area). */
+export function setKept<T>(key: string, value: T) {
+  memory.set(key, value);
+  try {
+    sessionStorage.setItem(PREFIX + key, JSON.stringify(value));
+  } catch {
+    // Memory only.
+  }
+}

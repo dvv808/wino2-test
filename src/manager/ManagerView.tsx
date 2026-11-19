@@ -8,6 +8,7 @@ import { DeleteWarning } from "./DeleteWarning";
 import { FreigabenPanel, type BestandListenTab } from "./FreigabenPanel";
 import { FreigabePage } from "./FreigabePage";
 import { HrmListen } from "./HrmListen";
+import { HrmSettings, SETTINGS_TABS, type SettingsArea } from "./HrmSettings";
 import { PruefungFreigabe } from "./PruefungFreigabe";
 import { usePruefungen } from "../person/pruefung";
 import { MitarbeiterSidebar } from "./MitarbeiterSidebar";
@@ -59,6 +60,8 @@ export function ManagerView() {
   const { managerNav, setManagerNav } = useWorkflow();
   const area = managerNav.area === "hrm" ? "HRM" : "Bestand";
   const listenTab = (managerNav.area === "bestand" ? managerNav.tab : "freigaben") as BestandListenTab;
+  /** HRM → Settings (management/hrm/organigramm | regelung). */
+  const settingsArea = area === "HRM" && (SETTINGS_TABS as string[]).includes(managerNav.tab) ? (managerNav.tab as SettingsArea) : null;
   const setListenTab = (tab: BestandListenTab) => setManagerNav({ area: "bestand", tab });
   /** Homeoffice-Anträge from the Kalender, shared through the same store. */
   const [homeoffice, setHomeoffice] = useState(loadAntraege);
@@ -143,8 +146,18 @@ export function ManagerView() {
           active={area}
           onArea={(next) => setManagerNav(next === "HRM" ? { area: "hrm", tab: "dashboard" } : { area: "bestand", tab: "freigaben" })}
         />
-        <BestandModuleNav />
+        <BestandModuleNav
+          settings={settingsArea !== null}
+          onSettings={area === "HRM" ? () => setManagerNav({ area: "hrm", tab: "organigramm" }) : undefined}
+          onListen={() => setManagerNav(area === "HRM" ? { area: "hrm", tab: "dashboard" } : { area: "bestand", tab: "freigaben" })}
+        />
 
+        {settingsArea ? (
+          <div className="content-shell bestand-body hrm-settings">
+            <HrmSettings area={settingsArea} onArea={(tab) => setManagerNav({ area: "hrm", tab })} />
+          </div>
+        ) : (
+        <>
         {/* Side nav logic as in Forderungen: the shelve toggle in the page title hides it; shelved, the
             title opens it as a dropdown. */}
         <HonorarSideContext.Provider
@@ -166,6 +179,8 @@ export function ManagerView() {
           )}
         </div>
         </HonorarSideContext.Provider>
+        </>
+        )}
       </div>
 
       {deleting ? (

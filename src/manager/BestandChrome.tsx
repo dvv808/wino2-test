@@ -208,7 +208,7 @@ export function BestandAreaNav({ active: current = "Bestand", onArea }: { active
   );
 }
 
-export function BestandModuleNav() {
+export function BestandModuleNav({ settings = false, onSettings, onListen }: { settings?: boolean; onSettings?: () => void; onListen?: () => void } = {}) {
   const [menu, setMenu] = useState(false);
   const [create, setCreate] = useState(false);
   // The picked module shows in the pill; "Mitarbeiter anlegen" is an action, not a module.
@@ -216,7 +216,7 @@ export function BestandModuleNav() {
   const ref = useClickOutside<HTMLDivElement>(menu, () => setMenu(false));
   return (
     <div className="module-nav">
-      <button type="button" className="module-pill active">
+      <button type="button" className={settings ? "module-pill" : "module-pill active"} onClick={onListen}>
         <Icon src={a.tickList} size={24} />
         Dashboard &amp; Listen
       </button>
@@ -263,7 +263,7 @@ export function BestandModuleNav() {
         ))}
       </div>
 
-      <button type="button" className="module-pill">
+      <button type="button" className={settings ? "module-pill active" : "module-pill"} onClick={onSettings}>
         <Icon src={a.settings} size={24} />
         Settings
       </button>

@@ -66,7 +66,7 @@ const EMPTY: Draft = {
   mandant: "Makler Winter",
   typ: "Mitarbeiter",
   personentyp: "Mitarbeiter",
-  verantwortlich: "Adams Anna",
+  verantwortlich: "Julia Heigl",
   abteilung: ABTEILUNG_NAMEN[0],
   titelVor: "",
   vorname: "",

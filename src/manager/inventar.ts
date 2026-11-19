@@ -36,7 +36,7 @@ export type InvItem = {
 };
 
 /** The HR manager responsible for the person (HRM Zuständigkeit), else the HR lead. */
-export const hrmOf = (person: TeamMember) => person.stamm?.hrm || "Adams Anna";
+export const hrmOf = (person: TeamMember) => person.stamm?.hrm || "Julia Heigl";
 
 /** The head of the person's Abteilung (Abteilungsleitung / Vorgesetzte/r from the side nav's lead lines). */
 export function leadOf(person: TeamMember) {

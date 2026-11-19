@@ -28,11 +28,11 @@ export type Kunde = {
 };
 
 /** Kundenberater: the Kürzel (first two letters of Nachname and Vorname) and the photo. */
-export const BERATER = ["Lucy Dallon", "Jasmin Gratzinger", "Tamara Auer", "Alexander Doppler", "Adams Anna"];
+export const BERATER = ["Lucy Dallon", "Janine Gungl", "Gertrud Badura", "Michael Pitzer", "Julia Heigl"];
 export const kuerzel = (name: string) => {
   const [first, ...rest] = name.split(" ");
   const last = rest.join(" ") || first;
-  return name === "Adams Anna" ? "ADAN" : `${last.slice(0, 2)}${first.slice(0, 2)}`.toUpperCase();
+  return name === "Julia Heigl" ? "ADAN" : `${last.slice(0, 2)}${first.slice(0, 2)}`.toUpperCase();
 };
 
 const DEMO: [string, string, boolean, string[], string, string, string, string, boolean?, boolean?][] = [
