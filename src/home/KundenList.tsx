@@ -38,7 +38,7 @@ function chipClass(tag: string) {
 }
 
 export function KundenList() {
-  const { ashleyConverted, openFileIds, openPartner } = useWorkflow();
+  const { ashleyConverted, openFileIds, openPartner, openPartnerCreate } = useWorkflow();
   const [hot, setHot] = useState<Hot | null>(null);
   const all = useMemo(() => kundenRows(ashleyConverted), [ashleyConverted]);
   const rows = all.filter((r) => (hot === "zuletzt" ? !!r.id && openFileIds.includes(r.id) : hot === "haeufig" ? !!r.id && OFTEN.includes(r.id) : true));
@@ -132,6 +132,7 @@ export function KundenList() {
         <h1>
           Kunden <span>{rows.length.toLocaleString("de-DE")} Ergebnisse</span>
         </h1>
+        <div className="kd-head-actions">
         <div className="kd-hot" role="group" aria-label="Schnellfilter">
           {HOT.map((h) => (
             <button type="button" key={h.label} className={hot === h.id ? "kd-hot-pill active" : "kd-hot-pill"} onClick={() => setHot(h.id)}>
@@ -139,6 +140,11 @@ export function KundenList() {
               {h.label}
             </button>
           ))}
+        </div>
+        {/* Partner anlegen (was in the logo menu until the logo became the Home button). */}
+        <button type="button" className="btn-primary kd-create" onClick={openPartnerCreate}>
+          Partner anlegen
+        </button>
         </div>
       </header>
       {hot && hotLabel ? (

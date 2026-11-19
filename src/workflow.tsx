@@ -51,9 +51,12 @@ import {
   INITIAL_VERSIONS,
   ASHLEY_VERSIONS,
   blankFileVersions,
+  ashVersions,
   EDITOR_ADVISOR,
   currentVersion,
   historyFromStammdatenSave,
+  createdFileVersions,
+  partnerMail,
   lunixoVersions,
   thomasVersions,
   wicoDeviationHistoryEntry,
@@ -460,8 +463,8 @@ function seedPartnerFiles(): Record<PartnerId, PartnerFile> {
             `${vorname} ${nachname}`,
             id === "udo" ? cloneUdoSections() : cloneAshleySections(vorname, nachname, `partner-${id}`),
           ),
-          versions: blankFileVersions(vorname, nachname, `partner-${id}`, `${id}-v1`),
-          viewingVersionId: `${id}-v1`,
+          versions: id === "ash" ? ashVersions() : blankFileVersions(vorname, nachname, `partner-${id}`, `${id}-v1`),
+          viewingVersionId: id === "ash" ? "ash-v7" : `${id}-v1`,
           stammdatenBaseline: null,
           stammdatenPublished: null,
         },
@@ -1692,6 +1695,14 @@ function useWorkflowState() {
             }
           : undefined,
     });
+
+    // A partner created in Partner anlegen without a mail gets Kommunikation (and its Reisepass mail) with the first one.
+    const created = getPartner(filePartnerId);
+    if (created.createdAt && !versions.some((v) => v.place.app === "kommunikation") && partnerMail(published)) {
+      const [first] = created.name.split(" ");
+      const mailEntry = createdFileVersions(first, created.name.split(" ").slice(1).join(" "), "", `${filePartnerId}-mail-${Date.now()}`, at, "mail").at(-1)!;
+      entries.push(mailEntry);
+    }
 
     if (entries.length) {
       setVersions((current) => current.concat(entries));

@@ -41,6 +41,8 @@ export type FilePartner = {
   /** Firmenbuchnummer, shown for company files. */
   fn?: string;
   website?: string;
+  /** Created in Partner anlegen (dd.mm.yyyy hh:mm): Kommunikation then starts with the Reisepass mail. */
+  createdAt?: string;
 };
 
 export const JULIA: FilePartner = {

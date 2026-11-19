@@ -1,5 +1,5 @@
 import * as a from "../assets/index";
-import { blankFileVersions, type PersonVersion } from "./versions";
+import { createdFileVersions, type PersonVersion } from "./versions";
 import {
   listedPartners,
   partnerKindText,
@@ -866,8 +866,12 @@ export function buildCreatedPartner(draft: PartnerDraft, seq: number, asDraft = 
   };
   const cardId = `partner-${id}`;
   const sections = draftSections(draft, cardId, asDraft);
-  const versions: PersonVersion[] = blankFileVersions(vorname, nachname, cardId, `${id}-v1`);
-  return { file, sections, versions, viewingVersionId: `${id}-v1` };
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const at = { date: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`, time: `${pad(now.getHours())}:${pad(now.getMinutes())}` };
+  file.createdAt = `${at.date} ${at.time}`;
+  const versions: PersonVersion[] = createdFileVersions(vorname, nachname, cardId, `${id}-v1`, at, file.email);
+  return { file, sections, versions, viewingVersionId: versions[versions.length - 1].id };
 }
 
 /** A Wino file for a Honorar partner (Forderungen tables), so its open-tab icon opens a real partner tab. */

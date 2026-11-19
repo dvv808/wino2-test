@@ -5,7 +5,7 @@ import type { StepId, View, WorkflowPane } from "./workflow";
 import type { FinanzenPage, HonorarStepKey } from "./types/honorar";
 
 /** Profil is the default person module; Workflows & To-Dos is the advisor inbox. */
-export type PersonModule = "profil" | "workflows" | "dashboard";
+export type PersonModule = "profil" | "workflows" | "dashboard" | "kommunikation";
 export type PersonArea = "stammdaten" | "maklermandat" | "inkasso";
 
 /**
@@ -212,6 +212,7 @@ export function routeToHash({
     const root = personRoot(partnerId);
     if (personModule === "workflows") return `#/${root}/${PERSON_WORKFLOWS}`;
     if (personModule === "dashboard") return `#/${root}/dashboard`;
+    if (personModule === "kommunikation") return `#/${root}/kommunikation`;
     if (personArea === "inkasso") return `#/${root}/${INKASSO_AREA}`;
     if (personArea === "maklermandat") return `#/${root}/${MAKLERMANDAT_AREA}`;
     return `#/${root}/${PERSON_AREA}`;
@@ -290,6 +291,9 @@ export function hashToRoute(hash: string): Route {
   }
   if (parts[0] === "person" && parts[2] === "konzern" && parts[3]) {
     return { view: "konzernHub", partnerId: partnerOf(parts), konzernHubId: parts[3], personArea: "stammdaten" };
+  }
+  if (parts[0] === "person" && parts[2] === "kommunikation") {
+    return { view: "person", partnerId: partnerOf(parts), personModule: "kommunikation" };
   }
   if (parts[0] === "person" && parts[2] === "dashboard") {
     return { view: "person", partnerId: partnerOf(parts), personModule: "dashboard" };

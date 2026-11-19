@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ManagementAreaIcon } from "./manager/BestandChrome";
 import * as a from "./assets/index";
-import { getPartner, partnerKind } from "./person/partners";
+import { getPartner, partnerKind, partnerKindText } from "./person/partners";
 import { partyName } from "./person/konzernLinks";
 import { liveFileIdentity } from "./person/stammdaten";
 import { standDate } from "./person/versions";
@@ -19,8 +19,16 @@ export const APPS = ["Person", "Verträge", "Schäden", "Angebote"];
  * are never broken inside. Companies and insurers: wrap only between words. Whatever is still too long fades out
  * under a gradient (no "…").
  */
-export function TabLabel({ name, company, first, last }: { name: string; company?: boolean; first?: string; last?: string }) {
+export function TabLabel({ name, company, first, last, sub }: { name: string; company?: boolean; first?: string; last?: string; sub?: string }) {
   if (company) return <span className="tab-label wrap">{name}</span>;
+  // Partnertyp under the name (first try on Ash Atkinson's tab): name on one line, type below.
+  if (sub)
+    return (
+      <span className="tab-label two">
+        <span>{name}</span>
+        <span className="tab-label-sub"><span className="chip einfach">{sub}</span></span>
+      </span>
+    );
   const words = name.trim().split(/\s+/);
   const top = first ?? words[0];
   const bottom = last ?? words.slice(1).join(" ");
@@ -83,7 +91,7 @@ export function FileTabs() {
         const name = active ? personName : getPartner(id).name;
         const isCompany = getPartner(id).fileKind === "company";
         const tabIcon = isCompany ? a.company : a.person;
-        const label = <TabLabel name={name} company={isCompany} />;
+        const label = <TabLabel name={name} company={isCompany} sub={id === "ash" ? partnerKindText(partnerKind(getPartner(id))) : undefined} />;
         if (active) {
           const closeActive = () => {
             if (openFileIds.length === 1 && finanzenProfileOpen) closeFinanzenProfile();

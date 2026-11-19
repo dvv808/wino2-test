@@ -3,6 +3,7 @@ import type { StammdatenAreaId } from "./stammdaten";
 import {
   applyPartner,
   areaForSection,
+  docMetaLine,
   areaTitle,
   partnerForm,
   valueText,
@@ -22,7 +23,8 @@ export type MaklerStep = "tasks" | "comms" | "fee" | "terms" | "scope" | "docs" 
 export type HistoryPlace =
   | { app: "stammdaten"; area: StammdatenAreaId; cardId?: string }
   | { app: "makler"; step: MaklerStep }
-  | { app: "person"; sectionId?: string };
+  | { app: "person"; sectionId?: string }
+  | { app: "kommunikation"; channel: "email" | "telefonie" };
 
 /** One published change. Only `legal` entries bump the person version number. */
 export type HistoryKind = "added" | "changed" | "removed";
@@ -53,7 +55,7 @@ export const INITIAL_VERSIONS: PersonVersion[] = [
     kind: "added",
     date: "03.06.2019",
     time: "09:14",
-    field: "Person",
+    field: "Partner erstellt",
     to: "Julia Berger",
     placeLabel: "Stammdaten · Partnerdaten",
     place: { app: "stammdaten", area: "personendaten", cardId: "partner-julia" },
@@ -368,7 +370,7 @@ export function blankFileVersions(
       kind: "added",
       date: "15.09.2026",
       time: "09:04",
-      field: "Partner added",
+      field: "Partner erstellt",
       to: `${vorname} ${nachname}`,
       placeLabel: "Stammdaten · Partnerdaten",
       place: { app: "stammdaten", area: "personendaten", cardId },
@@ -385,7 +387,7 @@ export const ASHLEY_VERSIONS: PersonVersion[] = blankFileVersions("Ashley", "Joh
 export function thomasVersions(): PersonVersion[] {
   const base = { number: 1, legal: false, vorname: "Thomas", nachname: "Debrezina", editor: EDITOR_ADVISOR };
   return [
-    { ...base, id: "t01", legal: true, kind: "added", date: "14.03.2018", time: "10:02", field: "Person", to: "Mag. Thomas Debrezina", placeLabel: "Stammdaten · Partnerdaten", place: { app: "stammdaten", area: "personendaten", cardId: "partner-thomas" } },
+    { ...base, id: "t01", legal: true, kind: "added", date: "14.03.2018", time: "10:02", field: "Partner erstellt", to: "Mag. Thomas Debrezina", placeLabel: "Stammdaten · Partnerdaten", place: { app: "stammdaten", area: "personendaten", cardId: "partner-thomas" } },
     { ...base, id: "t02", kind: "added", date: "14.03.2018", time: "10:06", field: "Hauptwohnsitz", to: "Linzer Gasse 21, A-5020 Salzburg", placeLabel: "Stammdaten · Adressen", place: { app: "stammdaten", area: "adressen", cardId: "adresse-thomas-haupt" } },
     { ...base, id: "t03", kind: "added", date: "14.03.2018", time: "10:09", field: "Kontakt", to: "+43 664 31 07 479 · thomas.debrezina@gmx.at", placeLabel: "Stammdaten · Kontakte", place: { app: "stammdaten", area: "kontakte", cardId: "kontakt-thomas" } },
     { ...base, id: "t04", kind: "added", date: "20.03.2018", time: "14:30", field: "Bankverbindung", to: "Raiffeisenverband Salzburg · AT 3535 00000 0123 4567 8901", placeLabel: "Stammdaten · Bankverbindung", place: { app: "stammdaten", area: "bankverbindungen", cardId: "bank-thomas-raiffeisen" } },
@@ -622,7 +624,17 @@ function flattenCard(card: Card) {
 
   (card.blocks ?? []).forEach((block, bi) => {
     if ("rows" in block) {
-      block.rows.forEach((row, ri) => add(`${bi}:${row.label}:${ri}`, row.label, valueText(row.value)));
+      block.rows.forEach((row, ri) => {
+        const value = row.value;
+        // A file is the same entry whatever its label: the label turns from the file name into its Typ
+        // (Führerschein …) once one is picked, so files are keyed by name and record Typ and validity as the value.
+        if (typeof value !== "string" && value.kind === "file") {
+          const meta = [value.docTyp, docMetaLine(value)].filter(Boolean).join(" · ");
+          add(`${bi}:file:${value.text}`, "Dokument", meta ? `${value.text} · ${meta}` : value.text);
+          return;
+        }
+        add(`${bi}:${row.label}:${ri}`, row.label, valueText(value));
+      });
     }
     if (block.kind === "note") add(`${bi}:note`, block.caption, block.text);
     if (block.kind === "person") {
@@ -803,4 +815,50 @@ export function overlayPersonVersion(sections: Section[], version: PersonVersion
       }),
     };
   });
+}
+
+/** Ash Atkinson's Verlauf: created with Julia's file (2019), bank account and own contact card added later. */
+export function ashVersions(): PersonVersion[] {
+  const base = { number: 1, legal: false, vorname: "Ash", nachname: "Atkinson", editor: EDITOR_ADVISOR };
+  return [
+    { ...base, id: "ash-v1", legal: true, kind: "added", date: "03.06.2019", time: "09:32", field: "Partner erstellt", to: "Ash Atkinson · Einfache Person · Privatperson", placeLabel: "Stammdaten · Partnerdaten", place: { app: "stammdaten", area: "personendaten", cardId: "partner-ash" } },
+    { ...base, id: "ash-v2", kind: "added", date: "03.06.2019", time: "09:35", field: "Hauptwohnsitz", to: "Mondseestrasse 32, A-5310 Mondsee · Postadresse", placeLabel: "Stammdaten · Adressen", place: { app: "stammdaten", area: "adressen" } },
+    { ...base, id: "ash-v3", kind: "added", date: "03.06.2019", time: "09:38", field: "Verknüpfung Familie", to: "Julia Atkinson · Mutter", placeLabel: "Stammdaten · Verknüpfung", place: { app: "stammdaten", area: "verknuepfung" } },
+    { ...base, id: "ash-v4", kind: "added", date: "03.06.2019", time: "09:41", field: "Systemdaten", to: "Mandat Makler Winter · Vermittler Winter · Kundenberater Lucy Dullon", placeLabel: "Stammdaten · Systemdaten", place: { app: "stammdaten", area: "systemdaten" } },
+    { ...base, id: "ash-v5", kind: "added", date: "14.03.2024", time: "11:12", field: "Bankverbindung", to: "Sparkasse Mondsee · AT 2120 2050 0000 3311 45", placeLabel: "Stammdaten · Bankverbindung", place: { app: "stammdaten", area: "bankverbindungen" }, editor: EDITOR_LEAD },
+    { ...base, id: "ash-v6", kind: "added", date: "08.09.2025", time: "15:20", field: "Kontakt", to: "Mobil +43 664 1305423 · ash.atkinson@mail.at", placeLabel: "Stammdaten · Kontakte", place: { app: "stammdaten", area: "kontakte" }, editor: EDITOR_LEAD },
+    // Kommunikation: Ash mails the Reisepass to Lucy (the one mail in Ash's E-Mail page).
+    { ...base, id: "ash-v7", kind: "added", date: "19.11.2026", time: "10:15", field: "E-Mail empfangen", to: "Mein Reisepass · Anhang Reisepass_Ash_Atkinson.jpg", placeLabel: "Kommunikation · E-Mail", place: { app: "kommunikation", channel: "email" }, editor: EDITOR_LEAD },
+  ];
+}
+
+/** The Reisepass mail every new partner with a mail address starts with (Kommunikation · E-Mail). */
+export const REISEPASS_MAIL = { subject: "Mein Reisepass", file: (name: string) => `Reisepass_${name.trim().replace(/\s+/g, "_")}.jpg` };
+
+/**
+ * Verlauf of a partner created in Partner anlegen: "Partner erstellt" first, then (with a mail address) the
+ * Reisepass mail two minutes later.
+ */
+export function createdFileVersions(vorname: string, nachname: string, cardId: string, id: string, at: { date: string; time: string }, mail?: string): PersonVersion[] {
+  const base = { number: 1, legal: false, vorname, nachname, editor: EDITOR_ADVISOR };
+  const [h, m] = at.time.split(":").map(Number);
+  const later = new Date(2000, 0, 1, h, m + 2);
+  const mailTime = `${String(later.getHours()).padStart(2, "0")}:${String(later.getMinutes()).padStart(2, "0")}`;
+  const name = `${vorname} ${nachname}`.trim();
+  return [
+    { ...base, id, legal: true, kind: "added", date: at.date, time: at.time, field: "Partner erstellt", to: name, placeLabel: "Stammdaten · Partnerdaten", place: { app: "stammdaten", area: "personendaten", cardId } },
+    ...(mail
+      ? [{ ...base, id: `${id}-mail`, kind: "added" as const, date: at.date, time: mailTime, field: "E-Mail empfangen", to: `${REISEPASS_MAIL.subject} · Anhang ${REISEPASS_MAIL.file(name)}`, placeLabel: "Kommunikation · E-Mail", place: { app: "kommunikation" as const, channel: "email" as const }, editor: EDITOR_LEAD }]
+      : []),
+  ];
+}
+
+/** The partner's own mail address from the Stammdaten (first Mail row); Kommunikation needs one. */
+export function partnerMail(sections: Section[]): string | null {
+  for (const section of sections)
+    for (const card of section.cards)
+      for (const block of card.blocks ?? [])
+        if (block.kind === "rows")
+          for (const row of block.rows) if (/mail/i.test(row.label) && typeof row.value === "string" && row.value.includes("@")) return row.value;
+  return null;
 }

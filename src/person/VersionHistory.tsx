@@ -6,6 +6,8 @@ import { Icon } from "../ui";
 import { useWorkflow } from "../workflow";
 import { latestEntry, personNameFromVersion, standDate, type HistoryKind, type PersonVersion } from "./versions";
 import { areaTitle } from "./stammdaten";
+import { VerlaufTable } from "./VerlaufTable";
+import { getPartner } from "./partners";
 
 const KIND: Record<HistoryKind, { label: string; icon: string }> = {
   added: { label: "Hinzugefügt", icon: a.badgeAdd },
@@ -21,7 +23,7 @@ const KIND_FILTERS: { value: "" | HistoryKind; label: string }[] = [
 ];
 
 type ColKey = "date" | "kind" | "area" | "field" | "person";
-type SourceKey = "" | "stammdaten" | "makler" | "person";
+type SourceKey = "" | "stammdaten" | "makler" | "person" | "kommunikation";
 
 type Filters = {
   source: SourceKey;
@@ -48,6 +50,7 @@ const SOURCE_LABEL: Record<Exclude<SourceKey, "">, string> = {
   stammdaten: "Stammdaten",
   makler: "Maklervereinbarung",
   person: "Person",
+  kommunikation: "Kommunikation",
 };
 
 function sourceOf(version: PersonVersion): Exclude<SourceKey, ""> {
@@ -641,7 +644,7 @@ export function VersionWindow() {
 }
 
 export function VersionLayer() {
-  const { isHistorical } = useWorkflow();
+  const { isHistorical, filePartnerId } = useWorkflow();
 
   useEffect(() => {
     document.body.classList.toggle("historical-version", isHistorical);
@@ -651,7 +654,8 @@ export function VersionLayer() {
   return (
     <>
       <HistoricalBanner />
-      <VersionWindow />
+      {/* Ash Atkinson: the Verlauf is being rebuilt from scratch as a plain table. */}
+      {filePartnerId === "ash" || getPartner(filePartnerId).createdAt ? <VerlaufTable /> : <VersionWindow />}
     </>
   );
 }

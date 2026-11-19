@@ -100,7 +100,7 @@ function FileValue({ value, className }: { value: FileVal; className: string }) 
 }
 
 /** Document preview modal: title bar, viewer bar with zoom, Typ / Gültigkeit / Aussteller, the pages. */
-export function FilePreview({ value, onClose }: { value: FileVal; onClose: () => void }) {
+export function FilePreview({ value, onClose, placeholder }: { value: FileVal; onClose: () => void; placeholder?: boolean }) {
   const [zoom, setZoom] = useState(100);
   const meta = docMetaLine(value);
   const pages = value.type === "jpg" ? [a.docPage1] : [a.docPage1, a.docPage2];
@@ -121,6 +121,14 @@ export function FilePreview({ value, onClose }: { value: FileVal; onClose: () =>
               {meta}
             </p>
           ) : null}
+          {placeholder ? (
+            // Placeholder only: a file icon and a note that the file's preview would show here.
+            <div className="file-preview-placeholder">
+              <img src={value.type === "jpg" ? a.jpg : a.pdf} alt="" width={56} height={66} />
+              <strong>{value.text}</strong>
+              <span>Hier wird die Vorschau der Datei angezeigt.</span>
+            </div>
+          ) : (
           <div className="pdf-frame">
             <ViewerBar fileName={value.text} zoom={zoom} onZoom={setZoom} />
             <div className="pdf-pages file-preview-pages">
@@ -131,6 +139,7 @@ export function FilePreview({ value, onClose }: { value: FileVal; onClose: () =>
               ))}
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>,

@@ -15,6 +15,7 @@ import { DeleteCard } from "./DeleteCard";
 import { InkassoMain } from "./InkassoMain";
 import { MaklermandatPage } from "./MaklermandatPage";
 import { PartnerDashboard } from "./PartnerDashboard";
+import { KommunikationPage, partnerMail } from "./KommunikationPage";
 import { WorkflowsPage } from "./WorkflowsPage";
 import { getPartner } from "./partners";
 import { familyKindLabel, familyMember, type FamilyMemberId } from "./family";
@@ -107,7 +108,7 @@ const AREAS = ["Person", "Verträge", "Schäden", "Angebote"];
 const MODULES = [
   { label: "Dashboard", icon: a.dashboard, module: "dashboard" as const },
   { label: "Profil", icon: a.moduleProfile, module: "profil" as const },
-  { label: "Kommunikation", icon: a.moduleCommunication },
+  { label: "Kommunikation", icon: a.moduleCommunication, module: "kommunikation" as const },
   { label: "Workflows & To-Dos", icon: a.moduleWorkflow, module: "workflows" as const },
   { label: "Dateien", icon: a.moduleFile },
   { label: "Controlling", icon: a.moduleControlling },
@@ -145,8 +146,10 @@ function PersonAreaNav() {
 }
 
 function PersonModuleNav() {
-  const { personModule, openPersonModule, openVersionHistory } = useWorkflow();
-  const active = personModule === "workflows" || personModule === "dashboard" ? personModule : "profil";
+  const { personModule, openPersonModule, openVersionHistory, sections } = useWorkflow();
+  // Kommunikation is available once the partner has a mail address in the Stammdaten.
+  const hasMail = Boolean(partnerMail(sections));
+  const active = personModule === "workflows" || personModule === "dashboard" || personModule === "kommunikation" ? personModule : "profil";
 
   return (
     <div className="module-nav">
@@ -155,6 +158,8 @@ function PersonModuleNav() {
           type="button"
           className={module.module === active ? "module-pill active" : "module-pill"}
           key={module.label}
+          disabled={module.module === "kommunikation" && !hasMail}
+          title={module.module === "kommunikation" && !hasMail ? "Verfügbar, sobald eine E-Mail-Adresse angelegt ist" : undefined}
           onClick={module.module ? () => openPersonModule(module.module) : undefined}
         >
           <Icon src={module.icon} size={24} />
@@ -482,6 +487,8 @@ export function PersonPage() {
 
         {personModule === "dashboard" ? (
           <PartnerDashboard key={filePartnerId} familyCards={familyCards} holdingName={holdingName} />
+        ) : personModule === "kommunikation" ? (
+          <KommunikationPage key={filePartnerId} />
         ) : personModule === "workflows" ? (
           <WorkflowsPage />
         ) : personArea === "inkasso" ? (
