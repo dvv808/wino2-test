@@ -357,7 +357,44 @@ function EmptySlot({ group, fn }: { group: OrgGroup; fn: OrgFn }) {
 }
 
 function PeopleList({ group, people, query }: { group: OrgGroup; people: OrgPerson[]; query: string }) {
+  const [removing, setRemoving] = useState<OrgPerson | null>(null);
+  const fns = removing?.fns.map((fn) => ROLE_LABEL[fn]).join(", ");
   return (
+    <>
+      {removing ? (
+        <div className="wmodal" role="dialog" aria-label="Person entfernen">
+          <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setRemoving(null)} />
+          <div className="wmodal-body">
+            <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setRemoving(null)}>
+              <img src={a.iconCloseDark} alt="" width={16} height={16} />
+            </button>
+            <h2>
+              {removing.name} wirklich aus „{group.name}“ entfernen?
+            </h2>
+            <p>
+              {fns
+                ? `${removing.name} verliert damit die Funktion ${fns} in dieser Gruppe und die Berechtigungen, die daran hängen. `
+                : `${removing.name} ist danach kein Mitglied dieser Gruppe mehr. `}
+              Die Person selbst bleibt in Wino.
+            </p>
+            <footer className="wmodal-foot centered">
+              <button type="button" className="btn-secondary" onClick={() => setRemoving(null)}>
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => {
+                  org.removePerson(group.id, removing.name);
+                  setRemoving(null);
+                }}
+              >
+                Entfernen
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
     <ul className="og-people">
       {people.map((person) => (
         <li key={person.name} className="og-person">
@@ -366,12 +403,13 @@ function PeopleList({ group, people, query }: { group: OrgGroup; people: OrgPers
             {isLead(person) ? <span className="og-chip lead">Führung</span> : <span className="og-chip">Mitglied</span>}
             {group.level === 3 ? null : <FnControls group={group} person={person} />}
           </span>
-          <button type="button" className="og-icon-btn" aria-label={`${person.name} entfernen`} title="Aus der Gruppe entfernen" onClick={() => org.removePerson(group.id, person.name)}>
+          <button type="button" className="og-icon-btn" aria-label={`${person.name} entfernen`} title="Aus der Gruppe entfernen" onClick={() => setRemoving(person)}>
             <Icon src={a.iconCloseDark} size={16} />
           </button>
         </li>
       ))}
     </ul>
+    </>
   );
 }
 

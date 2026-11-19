@@ -93,6 +93,11 @@ function seed(): OrgGroup[] {
       if (!who || !member(who)) continue;
       give(who, /vorgesetzt/i.test(kind) ? "vorgesetzter" : "leiter");
     }
+    // KFZ: Silvia Fischbacher (Leiterin Schaden & Leistung) is Vorgesetzte, Reinhard Fritz Leiter Stv.
+    if (dept.name === "Fachabteilung KFZ-Versicherungen") {
+      give("Silvia Fischbacher", "vorgesetzter");
+      give("Reinhard Fritz", "leiterStv");
+    }
     // Every Abteilung has a Leiter and a Vorgesetzter: without a named Leiter the first Mitglied leads,
     // without a Vorgesetzter it is the Geschäftsführer (who need not be Mitglied).
     if (!people.some((p) => p.fns.includes("leiter"))) {
@@ -105,8 +110,6 @@ function seed(): OrgGroup[] {
       const stv = people.find((p) => !p.fns.length);
       if (stv) stv.fns = ["leiterStv"];
     }
-    // KFZ: Silvia Fischbacher is Leiterin Stv. (she leads Schaden & Leistung).
-    if (dept.name === "Fachabteilung KFZ-Versicherungen") give("Silvia Fischbacher", "leiterStv");
     groups.push({ id: `h2-${groups.length}`, level: 2, name: dept.name, people, extras: [] });
   }
   // H3 "Weitere": these five always exist (cannot be deleted); everyone in them is Mitglied only.
@@ -121,16 +124,26 @@ function seed(): OrgGroup[] {
   return groups;
 }
 
-let groups: OrgGroup[] = seed();
-/** Global Berechtigungen per Ebene, inherited by every group of that Ebene. */
-let levels: Record<OrgLevel, string[]> = { 1: ["vollzugriff", "dms"], 2: ["antraege", "kalender", "listen"], 3: [] };
-let types: Record<OrgRole, string[]> = { mitglied: [], vorgesetzter: ["urlaub"], leiter: ["urlaub"], leiterStv: [] };
-let dms: Record<PermScope, DmsAccess> = { "level:1": "all" };
-const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((listener) => listener());
+type OrgStore = {
+  groups: OrgGroup[];
+  /** Global Berechtigungen per Ebene, inherited by every group of that Ebene. */
+  levels: Record<OrgLevel, string[]>;
+  types: Record<OrgRole, string[]>;
+  dms: Record<PermScope, DmsAccess>;
+  listeners: Set<() => void>;
+};
+/** One store per page, kept on globalThis so a hot reload of this module never splits it (buttons and lists stay in sync). */
+const S: OrgStore = ((globalThis as { __winoOrganigramm?: OrgStore }).__winoOrganigramm ??= {
+  groups: seed(),
+  levels: { 1: ["vollzugriff", "dms"], 2: ["antraege", "kalender", "listen"], 3: [] },
+  types: { mitglied: [], vorgesetzter: ["urlaub"], leiter: ["urlaub"], leiterStv: [] },
+  dms: { "level:1": "all" },
+  listeners: new Set(),
+});
+const notify = () => S.listeners.forEach((listener) => listener());
 
 function set(next: OrgGroup[]) {
-  groups = next;
+  S.groups = next;
   notify();
 }
 
@@ -138,29 +151,29 @@ function useStore<T>(read: () => T): T {
   const [, setTick] = useState(0);
   useEffect(() => {
     const listener = () => setTick((n) => n + 1);
-    listeners.add(listener);
+    S.listeners.add(listener);
     return () => {
-      listeners.delete(listener);
+      S.listeners.delete(listener);
     };
   }, []);
   return read();
 }
 
-export const useOrganigramm = () => useStore(() => groups);
-export const useLevelPerms = () => useStore(() => levels);
-export const useTypePerms = () => useStore(() => types);
-export const useDmsAccess = () => useStore(() => dms);
+export const useOrganigramm = () => useStore(() => S.groups);
+export const useLevelPerms = () => useStore(() => S.levels);
+export const useTypePerms = () => useStore(() => S.types);
+export const useDmsAccess = () => useStore(() => S.dms);
 
-const patch = (id: string, change: (group: OrgGroup) => OrgGroup) => set(groups.map((group) => (group.id === id ? change(group) : group)));
+const patch = (id: string, change: (group: OrgGroup) => OrgGroup) => set(S.groups.map((group) => (group.id === id ? change(group) : group)));
 
 export const org = {
   rename: (id: string, name: string) => patch(id, (g) => ({ ...g, name })),
   addGroup: (level: 2 | 3) => {
     const group: OrgGroup = { id: newId(), level, name: level === 2 ? "Neue Abteilung" : "Neue Gruppe", people: [], extras: [] };
-    set([...groups, group]);
+    set([...S.groups, group]);
     return group.id;
   },
-  removeGroup: (id: string) => set(groups.filter((g) => g.id !== id || g.fixed)),
+  removeGroup: (id: string) => set(S.groups.filter((g) => g.id !== id || g.fixed)),
   addPerson: (id: string, person: OrgPerson) =>
     patch(id, (g) => (g.people.some((p) => p.name === person.name) ? g : { ...g, people: [...g.people, person] })),
   /** Swap a person in place (keeps the functions). */
@@ -180,25 +193,25 @@ export const org = {
   removeGroupPerm: (id: string, perm: string) => patch(id, (g) => ({ ...g, extras: g.extras.filter((e) => e !== perm) })),
   /** Added to the Ebene: every group there inherits it, so it leaves the groups' own list. */
   addLevelPerm: (level: OrgLevel, perm: string) => {
-    if (levels[level].includes(perm)) return;
-    levels = { ...levels, [level]: [...levels[level], perm] };
-    set(groups.map((g) => (g.level === level ? { ...g, extras: g.extras.filter((e) => e !== perm) } : g)));
+    if (S.levels[level].includes(perm)) return;
+    S.levels = { ...S.levels, [level]: [...S.levels[level], perm] };
+    set(S.groups.map((g) => (g.level === level ? { ...g, extras: g.extras.filter((e) => e !== perm) } : g)));
   },
   removeLevelPerm: (level: OrgLevel, perm: string) => {
-    levels = { ...levels, [level]: levels[level].filter((p) => p !== perm) };
+    S.levels = { ...S.levels, [level]: S.levels[level].filter((p) => p !== perm) };
     notify();
   },
   addTypePerm: (role: OrgRole, perm: string) => {
-    if (types[role].includes(perm)) return;
-    types = { ...types, [role]: [...types[role], perm] };
+    if (S.types[role].includes(perm)) return;
+    S.types = { ...S.types, [role]: [...S.types[role], perm] };
     notify();
   },
   removeTypePerm: (role: OrgRole, perm: string) => {
-    types = { ...types, [role]: types[role].filter((p) => p !== perm) };
+    S.types = { ...S.types, [role]: S.types[role].filter((p) => p !== perm) };
     notify();
   },
   setDms: (scope: PermScope, access: DmsAccess) => {
-    dms = { ...dms, [scope]: access };
+    S.dms = { ...S.dms, [scope]: access };
     notify();
   },
 };
@@ -208,7 +221,7 @@ export const org = {
  * "Urlaub genehmigen" (Leiter Stv. always). Ebene / Gruppe Berechtigungen do not grant it for other groups.
  */
 export function urlaubApprovers(group: OrgGroup) {
-  return group.people.filter((p) => p.fns.some((fn) => types[fn].includes("urlaub") || AUTO_TYPE_PERMS[fn]?.includes("urlaub")));
+  return group.people.filter((p) => p.fns.some((fn) => S.types[fn].includes("urlaub") || AUTO_TYPE_PERMS[fn]?.includes("urlaub")));
 }
 
 /** The Führung of a group (Vorgesetzter, Leiter, Leiter Stv.). */
