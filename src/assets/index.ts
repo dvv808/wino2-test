@@ -46,6 +46,7 @@ export { default as info } from "./icons/info.svg";
 export { default as infoRing } from "./icons/info-ring.svg";
 export { default as phone } from "./icons/phone.svg";
 export { default as comment } from "./icons/comment.svg";
+export { default as commentAntrag } from "./icons/comment-antrag.svg";
 export { default as house } from "./icons/house.svg";
 export { default as openTabLg } from "./icons/open-tab-lg.svg";
 export { default as personSmall } from "./icons/person-small.svg";

@@ -1,4 +1,5 @@
 import { useContext, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import * as a from "../assets/index";
 import { DmsTable, type DmsColumn } from "../dms/ui";
 import { Icon, Snackbar } from "../ui";
@@ -8,7 +9,7 @@ import { HrmDashboard } from "./HrmDashboard";
 import { HnKicker } from "../honorar/ui";
 import { AbteilungScope, inAuswahl, inZeitpunkt, setSelected, useAuswahl, useAuswahlRaw } from "./mitarbeiterAuswahl";
 import { ABTEILUNGEN } from "./hrmTeam";
-import { STATUS_LABEL, STATUS_ICON, ART_ICON, HR, homeofficeRows, useHrDemo, type HrStatus, type HrAntrag } from "./hrmAntraege";
+import { COMMENT_ARTS, STATUS_LABEL, STATUS_ICON, ART_ICON, HR, homeofficeRows, useHrDemo, type HrStatus, type HrAntrag } from "./hrmAntraege";
 
 /**
  * Management → HRM → HRM Listen → Anträge (Figma section "MANAGEMENT - ANTRÄGE", 17588:78920).
@@ -228,6 +229,14 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
     .filter((r) => inAuswahl(selected, r.person.name) && inZeitpunkt(zeitpunkt, r.day))
     .sort((x, y) => y.day.localeCompare(x.day));
   const rows = statusFilter ? all.filter((r) => r.status === statusFilter) : all;
+  /** The Antrag whose comment is open in the overlay. */
+  const commented = comment ? all.find((r) => r.id === comment) ?? null : null;
+  useEffect(() => {
+    if (!comment) return;
+    const key = (event: KeyboardEvent) => event.key === "Escape" && setComment(null);
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [comment]);
   const count = (s: HrStatus) => all.filter((r) => r.status === s).length;
   const card = (s: HrStatus) => ({ active: statusFilter === s, onClick: () => setStatusFilter((c) => (c === s ? null : s)) });
 
@@ -267,33 +276,27 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
     },
     {
       key: "art",
-      label: "Antragsart",
+      label: "Antragsart & Kommentar",
       width: "minmax(220px, 220fr)",
-      text: (r) => r.art,
+      text: (r) => `${r.art} ${COMMENT_ARTS.includes(r.art) ? r.kommentar ?? "" : ""}`,
       render: (r) => (
         <span className="hrm-art">
           <img src={ART_ICON[r.art]} alt="" width={r.art === "Homeoffice" ? 11 : 16} height={r.art === "Homeoffice" ? 11 : 16} />
           {r.art}
-          {r.kommentar ? (
-            <span className="hrm-comment-wrap">
-              <button
-                type="button"
-                className="hrm-comment-btn"
-                aria-label="Kommentar ansehen"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setComment(comment === r.id ? null : r.id);
-                }}
-              >
-                <img src={a.comment} alt="" width={13} height={14} />
-              </button>
-              {comment === r.id ? (
-                <span className="hrm-comment-pop" role="dialog" aria-label="Kommentar">
-                  <small>Kommentar von {r.person.name}</small>
-                  {r.kommentar}
-                </span>
-              ) : null}
-            </span>
+          {r.kommentar && COMMENT_ARTS.includes(r.art) ? (
+            <button
+              type="button"
+              className="hrm-comment-btn"
+              aria-label={`Kommentar von ${r.person.name} ansehen`}
+              title="Kommentar ansehen"
+              onClick={(event) => {
+                event.stopPropagation();
+                setComment(r.id);
+              }}
+            >
+              {/* Figma 22975:205862: 28px circle, Icon_Comment */}
+              <img src={a.commentAntrag} alt="" width={12.54} height={13.5} />
+            </button>
           ) : null}
         </span>
       ),
@@ -338,8 +341,50 @@ export function HrmListen({ tab, onTab: setTab }: { tab: string; onTab: (tab: st
   ];
 
   return (
-    <section className={tab === "dashboard" ? "freigaben hrm-listen hrm-dash" : "freigaben hrm-listen"} onClick={() => setComment(null)}>
+    <section className={tab === "dashboard" ? "freigaben hrm-listen hrm-dash" : "freigaben hrm-listen"}>
       <HnKicker>HRM Listen</HnKicker>
+      {commented
+        ? createPortal(
+            <div className="wmodal" role="dialog" aria-label="Kommentar zum Antrag">
+              <button type="button" className="wmodal-scrim" aria-label="Schließen" onClick={() => setComment(null)} />
+              <div className="wmodal-body hrm-comment-modal">
+                <button type="button" className="wmodal-close" aria-label="Schließen" onClick={() => setComment(null)}>
+                  <img src={a.iconCloseDark} alt="" width={16} height={16} />
+                </button>
+                <h2>Kommentar zum Antrag</h2>
+                <div className="hrm-cm-person">
+                  <span className="hrm-cm-avatar">
+                    <img className={commented.person.photo ? undefined : "blank"} src={commented.person.photo || a.clientBlank} alt="" />
+                  </span>
+                  <span>
+                    <strong>{commented.person.name}</strong>
+                    <small>{commented.person.role}</small>
+                  </span>
+                </div>
+                <div className="hrm-cm-meta">
+                  <span className="hrm-art">
+                    <img src={ART_ICON[commented.art]} alt="" width={commented.art === "Homeoffice" ? 11 : 16} height={commented.art === "Homeoffice" ? 11 : 16} />
+                    {commented.art}
+                  </span>
+                  <span>
+                    {commented.datum} · {commented.zeit}
+                  </span>
+                  <StatusChip status={commented.status} />
+                </div>
+                <blockquote className="hrm-cm-text">
+                  <Icon src={a.comment} size={16} />
+                  {commented.kommentar}
+                </blockquote>
+                <footer className="wmodal-foot centered">
+                  <button type="button" className="btn-secondary" onClick={() => setComment(null)}>
+                    Schließen
+                  </button>
+                </footer>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       <div className="freigaben-tabs">
         {TABS.map((t) => (
           <button type="button" key={t.id} className={t.id === tab ? "fg-tab active" : "fg-tab"} onClick={() => setTab(t.id)}>

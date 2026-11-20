@@ -61,7 +61,7 @@ export const DEMO: HrAntrag[] = [
   { id: "hr-9", person: { name: "Christian Huber", role: "Leitung Betriebliche Vorsorge", photo: a.empAlexander }, art: "Urlaub", day: "2027-01-08", datum: "08.01.2027 - 12.01.2027", zeit: "4 Tage", anhang: ["lalala.pdf"], status: "genehmigt", statusKommentar: "Bitte in Zukunft Dateien richtig benennen. Danke." },
   // Kundenberater / Schaden & Leistung – so the department tab (Figma 17685:116438) has its own requests.
   { id: "hr-10", person: { name: "Michael Pitzer", role: "Vertriebsleiter", photo: a.empAlexander }, art: "Krank", day: "2026-05-03", datum: "03.05.2026 - 07.05.2026", zeit: "4 Tage 4 Stunden", anhang: ["arztzeugnis.pdf", "bestätigung...2023.pdf"], status: "beantragt" },
-  { id: "hr-11", person: { name: "Gertrud Badura", role: "Beraterin", photo: a.empChristine }, art: "Urlaub", day: "2026-12-22", datum: "22.12.2026 - 31.12.2026", zeit: "6 Tage", anhang: [], status: "beantragt", kommentar: "Weihnachtsurlaub mit der Familie." },
+  { id: "hr-11", person: { name: "Gertrud Badura", role: "Beraterin", photo: a.empChristine }, art: "Urlaub", day: "2026-12-22", datum: "22.12.2026 - 31.12.2026", zeit: "6 Tage", anhang: [], status: "beantragt" },
   { id: "hr-12", person: { name: "Silvia Fischbacher", role: "Leiterin Schaden & Leistung", photo: a.empChristineHs }, art: "DV Arzt", day: "2026-09-14", datum: "14.09.2026", zeit: "08:00 - 10:00 (2h)", anhang: ["bestätigung.pdf"], status: "genehmigt" },
 ];
 
@@ -70,8 +70,17 @@ export const DEMO: HrAntrag[] = [
  * This year's history for every Mitarbeiter (seeded, the same on every load), so each person's own dashboard
  * has Homeoffice, Krankenstände, Urlaube and Dienstverhinderungen. Past ones are decided, a few new ones wait.
  */
+/** Only Homeoffice and DV Sonstiges Anträge carry a comment (the others have no comment field). */
+export const COMMENT_ARTS = ["Homeoffice", "DV Sonstiges"];
+/** What people write into those Anträge. Own RNG so the figures stay the same. */
+const KOMMENTARE: Record<string, string[]> = {
+  Homeoffice: ["Handwerker kommt am Vormittag.", "Bin den ganzen Tag telefonisch erreichbar.", "Kind ist krank zu Hause, Arbeit läuft normal weiter.", "Arbeite an der Jahresauswertung, brauche Ruhe.", "Paketzustellung, bin ab 08:00 online."],
+  "DV Sonstiges": ["Behördenweg.", "Übersiedlung, brauche einen Umzugstag.", "Termin beim Notar."],
+};
+
 function history(): HrAntrag[] {
   const random = seeded(2026);
+  const say = seeded(77);
   const rows: HrAntrag[] = [];
   const today = new Date().toISOString().slice(0, 10);
   const year = today.slice(0, 4);
@@ -105,7 +114,8 @@ function history(): HrAntrag[] {
           zeit,
           anhang: art === "Krank" && days > 2 ? ["arztzeugnis.pdf"] : [],
           status,
-          kommentar: art === "DV Sonstiges" ? "Behördenweg." : undefined,
+          kommentar:
+            art === "DV Sonstiges" || (art === "Homeoffice" && say() < 0.4) ? KOMMENTARE[art][Math.floor(say() * KOMMENTARE[art].length)] : undefined,
         });
       }
     });

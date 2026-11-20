@@ -15,7 +15,7 @@ export type OrgLevel = 1 | 2 | 3;
 export type OrgRole = "mitglied" | "vorgesetzter" | "leiter" | "leiterStv";
 /** A Führung function; a person without one is plain Mitglied. */
 export type OrgFn = Exclude<OrgRole, "mitglied">;
-export type OrgPerson = { name: string; fns: OrgFn[]; /** Not on the payroll: only in H3 groups. */ extern?: boolean; info?: string };
+export type OrgPerson = { name: string; fns: OrgFn[]; /** Mitglied of the group; a Vorgesetzter can hold the function without being Mitglied. */ member: boolean; /** Not on the payroll: only in H3 groups. */ extern?: boolean; info?: string };
 export type OrgGroup = { id: string; level: OrgLevel; /** H3 base groups: always there, not deletable. */ fixed?: boolean; name: string; people: OrgPerson[]; /** Admin: Berechtigungen of this group only, on top of its Ebene. */ extras: string[] };
 
 export const ROLE_LABEL: Record<OrgRole, string> = { mitglied: "Mitglied", vorgesetzter: "Vorgesetzter", leiter: "Leiter", leiterStv: "Leiter Stv." };
@@ -24,7 +24,7 @@ export const FNS: OrgFn[] = ["vorgesetzter", "leiter", "leiterStv"];
 /** Every H1 / H2 group always has these functions. */
 export const REQUIRED_FNS: OrgFn[] = ["vorgesetzter", "leiter"];
 export const isLead = (person: OrgPerson) => person.fns.length > 0;
-export const hasRole = (person: OrgPerson, role: OrgRole) => (role === "mitglied" ? !isLead(person) : person.fns.includes(role));
+export const hasRole = (person: OrgPerson, role: OrgRole) => (role === "mitglied" ? person.member : person.fns.includes(role));
 
 export const LEVEL_LABEL: Record<OrgLevel, string> = { 1: "H1", 2: "H2", 3: "H3" };
 
@@ -77,16 +77,17 @@ function seed(): OrgGroup[] {
     people: [...(top?.people ?? []), "Silvia Fischbacher"].map((name) => ({
       name,
       fns: name === BOSS ? ["vorgesetzter", "leiter"] : name === "Wolfgang Stadlhofer" ? ["leiterStv"] : [],
+      member: true,
     })),
     extras: [],
   });
   for (const dept of ABTEILUNGEN) {
     if (dept.bewerber || dept === top) continue;
-    const people: OrgPerson[] = dept.people.map((name) => ({ name, fns: [] }));
+    const people: OrgPerson[] = dept.people.map((name) => ({ name, fns: [], member: true }));
     const give = (name: string, fn: OrgFn) => {
       const inGroup = people.find((p) => p.name === name);
       if (inGroup) inGroup.fns = [...new Set([...inGroup.fns, fn])];
-      else people.unshift({ name, fns: [fn] });
+      else people.unshift({ name, fns: [fn], member: false });
     };
     for (const line of dept.lead) {
       const [kind, who] = line.split(":").map((part) => part.trim());
@@ -110,10 +111,16 @@ function seed(): OrgGroup[] {
       const stv = people.find((p) => !p.fns.length);
       if (stv) stv.fns = ["leiterStv"];
     }
+    // Each employee is Mitglied of one group only: Silvia Fischbacher is Mitglied of the Geschäftsführung and
+    // leads Schaden & Leistung without being Mitglied there.
+    if (dept.name === "Schaden & Leistung") {
+      const silvia = people.find((p) => p.name === "Silvia Fischbacher");
+      if (silvia) silvia.member = false;
+    }
     groups.push({ id: `h2-${groups.length}`, level: 2, name: dept.name, people, extras: [] });
   }
   // H3 "Weitere": these five always exist (cannot be deleted); everyone in them is Mitglied only.
-  const ext = (name: string, info: string): OrgPerson => ({ name, fns: [], extern: true, info });
+  const ext = (name: string, info: string): OrgPerson => ({ name, fns: [], member: true, extern: true, info });
   groups.push(
     { id: "h3-extern", level: 3, fixed: true, name: "Externe \"Mitarbeiter\" / Kooperationspartner", people: [ext("Richard Zechmann", "Kooperationspartner"), ext("Thomas Reingruber", "Kooperationspartner")], extras: [] },
     { id: "h3-ehemalig", level: 3, fixed: true, name: "Ehemalige Mitarbeiter (Abteilung)", people: [ext("Lindner Paul", "Ehemals Kundenberater"), ext("Hofmann Eva", "Ehemals Office-Management")], extras: [] },
@@ -164,6 +171,20 @@ export const useLevelPerms = () => useStore(() => S.levels);
 export const useTypePerms = () => useStore(() => S.types);
 export const useDmsAccess = () => useStore(() => S.dms);
 
+/**
+ * Each employee is Mitglied of exactly one group: becoming Mitglied in one group ends the membership everywhere
+ * else (they keep their functions there; without a function they leave that group).
+ */
+function claimMember(next: OrgGroup[], id: string, name: string): OrgGroup[] {
+  return next.map((g) =>
+    g.id === id
+      ? g
+      : { ...g, people: g.people.map((p) => (p.name === name ? { ...p, member: false } : p)).filter((p) => p.member || p.fns.length) },
+  );
+}
+/** The group where someone is Mitglied (other than the given one). */
+export const memberOf = (name: string, except?: string) => S.groups.find((g) => g.id !== except && g.people.some((p) => p.name === name && p.member)) ?? null;
+
 const patch = (id: string, change: (group: OrgGroup) => OrgGroup) => set(S.groups.map((group) => (group.id === id ? change(group) : group)));
 
 export const org = {
@@ -174,20 +195,39 @@ export const org = {
     return group.id;
   },
   removeGroup: (id: string) => set(S.groups.filter((g) => g.id !== id || g.fixed)),
-  addPerson: (id: string, person: OrgPerson) =>
-    patch(id, (g) => (g.people.some((p) => p.name === person.name) ? g : { ...g, people: [...g.people, person] })),
+  addPerson: (id: string, person: OrgPerson) => {
+    const g = S.groups.find((x) => x.id === id);
+    if (!g || g.people.some((p) => p.name === person.name)) return;
+    const added = S.groups.map((x) => (x.id === id ? { ...x, people: [...x.people, person] } : x));
+    set(person.member ? claimMember(added, id, person.name) : added);
+  },
   /** Swap a person in place (keeps the functions). */
-  replacePerson: (id: string, name: string, next: OrgPerson) =>
-    patch(id, (g) => (g.people.some((p) => p.name === next.name) ? g : { ...g, people: g.people.map((p) => (p.name === name ? { ...next, fns: p.fns } : p)) })),
+  replacePerson: (id: string, name: string, next: OrgPerson) => {
+    const g = S.groups.find((x) => x.id === id);
+    const old = g?.people.find((p) => p.name === name);
+    if (!g || !old || g.people.some((p) => p.name === next.name)) return;
+    const swapped = S.groups.map((x) => (x.id === id ? { ...x, people: x.people.map((p) => (p.name === name ? { ...next, fns: p.fns, member: p.member } : p)) } : x));
+    set(old.member ? claimMember(swapped, id, next.name) : swapped);
+  },
   removePerson: (id: string, name: string) => patch(id, (g) => ({ ...g, people: g.people.filter((p) => p.name !== name) })),
+  /** Someone who is not Mitglied and loses the last function leaves the group (they held nothing else there). */
   setFns: (id: string, name: string, fns: OrgFn[]) =>
-    patch(id, (g) => ({ ...g, people: g.people.map((p) => (p.name === name ? { ...p, fns: FNS.filter((fn) => fns.includes(fn)) } : p)) })),
+    patch(id, (g) => ({
+      ...g,
+      people: g.people
+        .map((p) => (p.name === name ? { ...p, fns: FNS.filter((fn) => fns.includes(fn)) } : p))
+        .filter((p) => p.member || p.fns.length),
+    })),
+  setMember: (id: string, name: string, member: boolean) => {
+    const next = S.groups.map((g) => (g.id === id ? { ...g, people: g.people.map((p) => (p.name === name ? { ...p, member: member || !p.fns.length } : p)) } : g));
+    set(member ? claimMember(next, id, name) : next);
+  },
   /** Fill a function slot: the person gets it (added to the group if not in it yet). */
   assign: (id: string, person: OrgPerson, fn: OrgFn) =>
     patch(id, (g) =>
       g.people.some((p) => p.name === person.name)
         ? { ...g, people: g.people.map((p) => (p.name === person.name ? { ...p, fns: FNS.filter((f) => f === fn || p.fns.includes(f)) } : p)) }
-        : { ...g, people: [{ ...person, fns: [fn] }, ...g.people] },
+        : { ...g, people: [{ ...person, fns: [fn], member: false }, ...g.people] },
     ),
   addGroupPerm: (id: string, perm: string) => patch(id, (g) => (g.extras.includes(perm) ? g : { ...g, extras: [...g.extras, perm] })),
   removeGroupPerm: (id: string, perm: string) => patch(id, (g) => ({ ...g, extras: g.extras.filter((e) => e !== perm) })),

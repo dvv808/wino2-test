@@ -5,8 +5,8 @@ import { ProfileShelfProvider, ShelfBody, ShelfTitle } from "../person/ProfileSh
 import { ContextMenu, Icon, useClickOutside } from "../ui";
 import { useWorkflow } from "../workflow";
 import { setKept } from "../lib/keptState";
-import { BEREICHE, FIRMA, TEAM, bereichOf, isEmployee, member } from "./hrmTeam";
-import { FNS, LEVEL_LABEL, ROLE_LABEL, isLead, leadsOf, missingFns, org, useOrganigramm, type OrgFn, type OrgGroup, type OrgLevel, type OrgPerson } from "./organigramm";
+import { FIRMA, TEAM, isEmployee, member } from "./hrmTeam";
+import { FNS, LEVEL_LABEL, ROLE_LABEL, isLead, memberOf, leadsOf, missingFns, org, useOrganigramm, type OrgFn, type OrgGroup, type OrgLevel, type OrgPerson } from "./organigramm";
 
 /**
  * HRM → Settings: side nav Organigramm | Regelung / Plausis (im Aufbau).
@@ -120,9 +120,9 @@ function Organigramm() {
   return (
     <div className="og-body">
       <p className="og-intro">
-        Im Organigramm legst du fest, wer zu welcher Ebene gehört. Personen einer Gruppe sind <strong>Mitglied</strong>; zusätzlich hat jede Abteilung einen{" "}
-        <strong>Vorgesetzten</strong> und einen <strong>Leiter</strong>, optional einen <strong>Leiter Stv.</strong> – dafür muss man nicht Mitglied der Gruppe sein, und eine Person kann
-        mehrere Funktionen haben. Was diese Personen dürfen, legst du im Admin unter Organigramm Berechtigungen fest.
+        Das Organigramm regelt nur die <strong>Urlaubsgenehmigung</strong>: wer die Urlaubsanträge welcher Abteilung genehmigen darf. Es vergibt keine allgemeinen
+        Wino-Rechte – die werden separat verwaltet. Jede Abteilung hat einen <strong>Vorgesetzten</strong> und einen <strong>Leiter</strong>, optional einen{" "}
+        <strong>Leiter Stv.</strong>; dafür muss man nicht <strong>Mitglied</strong> der Gruppe sein, und eine Person kann mehrere Funktionen haben. Mitglied ist jede Person nur in <strong>einer</strong> Gruppe.
       </p>
 
       <div className="og-search">
@@ -145,17 +145,8 @@ function Organigramm() {
       ) : null}
 
       {!q || of(2).length ? (
-        <Level level="H2" title="Abteilungen" hint="Alle H2-Gruppen liegen auf derselben Ebene unter der Geschäftsführung, gruppiert nach Bereich (Management, Beratung & Service)." onAdd={q ? undefined : () => add(2)} addLabel="H2 hinzufügen">
-          {[...BEREICHE.map((b) => b.name), null].map((bereich) => {
-            const list = of(2).filter((x) => bereichOf(x.group.name) === bereich);
-            if (!list.length) return null;
-            return (
-              <div className="og-bereich-block" key={bereich ?? "ohne"}>
-                <span className="og-bereich">{bereich ?? "Ohne Bereich"}</span>
-                {list.map((x) => card(x, true))}
-              </div>
-            );
-          })}
+        <Level level="H2" title="Abteilungen" hint="Alle H2-Gruppen liegen auf derselben Ebene unter der Geschäftsführung. Vorgesetzter und Leiter sind Pflicht, Leiter Stv. optional." onAdd={q ? undefined : () => add(2)} addLabel="H2 hinzufügen">
+          {of(2).map((x) => card(x, true))}
         </Level>
       ) : null}
 
@@ -170,7 +161,7 @@ function Organigramm() {
 
 /** What the search looks at for a person: name, job, Funktionen ("Leiter", "Mitglied"), Extern info. */
 const personText = (p: OrgPerson) =>
-  [p.name, p.extern ? p.info ?? "Extern" : member(p.name)?.role ?? "", p.fns.length ? p.fns.map((fn) => ROLE_LABEL[fn]).join(" ") + " Führung" : "Mitglied"].join(" ").toLowerCase();
+  [p.name, p.extern ? p.info ?? "Extern" : member(p.name)?.role ?? "", p.fns.map((fn) => ROLE_LABEL[fn]).join(" "), p.fns.length ? "Führung" : "", p.member ? "Mitglied" : "Kein Mitglied"].join(" ").toLowerCase();
 
 /** Marks the search text inside a label. */
 function Hl({ text, query }: { text: string; query: string }) {
@@ -400,7 +391,21 @@ function PeopleList({ group, people, query }: { group: OrgGroup; people: OrgPers
         <li key={person.name} className="og-person">
           <PersonSwap group={group} person={person} query={query} />
           <span className="og-perm">
-            {isLead(person) ? <span className="og-chip lead">Führung</span> : <span className="og-chip">Mitglied</span>}
+            {group.level === 3 ? (
+              <span className="og-chip">Mitglied</span>
+            ) : (
+              <select
+                className={person.member ? "og-select og-member" : "og-select og-member no"}
+                value={person.member ? "ja" : "nein"}
+                aria-label={`Mitgliedschaft von ${person.name}`}
+                onChange={(event) => org.setMember(group.id, person.name, event.target.value === "ja")}
+              >
+                <option value="ja">{!person.member && memberOf(person.name, group.id) ? `Mitglied (statt ${memberOf(person.name, group.id)?.name})` : "Mitglied"}</option>
+                <option value="nein" disabled={!person.fns.length}>
+                  Kein Mitglied
+                </option>
+              </select>
+            )}
             {group.level === 3 ? null : <FnControls group={group} person={person} />}
           </span>
           <button type="button" className="og-icon-btn" aria-label={`${person.name} entfernen`} title="Aus der Gruppe entfernen" onClick={() => setRemoving(person)}>
@@ -431,23 +436,29 @@ function FnControls({ group, person }: { group: OrgGroup; person: OrgPerson }) {
   return (
     <span className="og-fns">
       {person.fns.map((fn, index) => (
-        <select
-          key={fn}
-          className="og-select"
-          value={fn}
-          aria-label={`Funktion ${index + 1} von ${person.name}`}
-          onChange={(event) => {
-            const next = event.target.value as OrgFn | "";
-            set(next ? person.fns.map((f) => (f === fn ? next : f)) : person.fns.filter((f) => f !== fn));
-          }}
-        >
-          <option value="">{person.fns.length > 1 ? "Funktion entfernen" : "Keine Funktion"}</option>
-          {FNS.filter((f) => f === fn || !person.fns.includes(f)).map((f) => (
-            <option key={f} value={f}>
-              {ROLE_LABEL[f]}
-            </option>
-          ))}
-        </select>
+        <span className="og-fn" key={fn}>
+          <select
+            className="og-select"
+            value={fn}
+            aria-label={`Funktion ${index + 1} von ${person.name}`}
+            onChange={(event) => set(person.fns.map((f) => (f === fn ? (event.target.value as OrgFn) : f)))}
+          >
+            {FNS.filter((f) => f === fn || !person.fns.includes(f)).map((f) => (
+              <option key={f} value={f}>
+                {ROLE_LABEL[f]}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="og-fn-x"
+            aria-label={`${ROLE_LABEL[fn]} von ${person.name} entfernen`}
+            title={`${ROLE_LABEL[fn]} entfernen`}
+            onClick={() => set(person.fns.filter((f) => f !== fn))}
+          >
+            <Icon src={a.iconCloseDark} size={12} />
+          </button>
+        </span>
       ))}
       {free.length ? (
         <button type="button" className="og-fn-add" title="Weitere Funktion hinzufügen" aria-label={`Weitere Funktion für ${person.name}`} onClick={() => set([...person.fns, free[0]])}>
@@ -517,19 +528,20 @@ function PersonPicker({ group, floating, includeMembers, exclude = [], onPick }:
       <ul>
         {extern ? (
           <li>
-            <button type="button" onClick={() => onPick({ name: query.trim(), fns: [], extern: true, info: "Extern" })}>
+            <button type="button" onClick={() => onPick({ name: query.trim(), fns: [], member: true, extern: true, info: "Extern" })}>
               <Icon src={a.plusCircle} size={18} />„{query.trim()}“ als externe Person hinzufügen
             </button>
           </li>
         ) : null}
         {hits.map((m) => (
           <li key={m.name}>
-            <button type="button" onClick={() => onPick({ name: m.name, fns: [], ...(group.level === 3 ? { extern: true, info: m.typ ?? m.role } : {}) })}>
+            <button type="button" onClick={() => onPick({ name: m.name, fns: [], member: true, ...(group.level === 3 ? { extern: true, info: m.typ ?? m.role } : {}) })}>
               <PersonAvatar person={{ name: m.name }} />
               <span className="og-person-name">
                 <strong>{m.name}</strong>
                 <small>
-                  {m.role} · {m.abteilung}
+                  {m.role}
+                  {memberOf(m.name) ? ` · Mitglied in ${memberOf(m.name)?.name}` : ""}
                   {includeMembers && inGroup(m.name) ? " · in dieser Gruppe" : ""}
                 </small>
               </span>

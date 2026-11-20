@@ -29229,3 +29229,25 @@ button.pp-val.file {
 .ms-bereich > span:last-child { display: flex; flex-direction: column; line-height: 1.25; }
 .ms-bereich small { margin-left: 0; font-size: 11px; }
 .og-group-menu { flex: none; display: inline-flex; }
+
+/* HRM Listen: comment overlay of an Antrag */
+.hrm-comment-modal { width: 480px; max-width: calc(100vw - 32px); text-align: left; }
+.hrm-comment-modal h2 { text-align: left; }
+.hrm-cm-person { display: flex; align-items: center; gap: 12px; margin: 4px 0 12px; }
+.hrm-cm-person > span:last-child { display: flex; flex-direction: column; }
+.hrm-cm-person strong { font-size: 14px; }
+.hrm-cm-person small { font-size: 12px; color: var(--wino-black-medium); }
+.hrm-cm-avatar { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: #dfe7ec; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.hrm-cm-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.hrm-cm-avatar img.blank { width: 60%; height: 60%; object-fit: contain; }
+.hrm-cm-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 0; border-top: 1px solid #eef2f5; border-bottom: 1px solid #eef2f5; font-size: 13px; }
+.hrm-cm-text { display: flex; gap: 10px; align-items: flex-start; margin: 16px 0 4px; padding: 14px 16px; border-radius: 12px; background: #f3f7fa; font-size: 14px; line-height: 20px; color: #313537; }
+.hrm-cm-text .icon { margin-top: 2px; flex: none; }
+/* Antrag comment button (Figma 22975:205862): 28px light circle with Icon_Comment */
+.hrm-art .hrm-comment-btn { width: 28px; height: 28px; padding: 4px; border-radius: 90px; background: var(--wino-bg-lighter, #ebf1f5); }
+.hrm-art .hrm-comment-btn:hover { background: #dbe6ed; }
+.og-fn { display: inline-flex; align-items: center; height: 32px; border: 1px solid #d5dde3; border-radius: 8px; background: #fff; }
+.og-fn .og-select { border: none; height: 30px; }
+.og-fn-x { width: 26px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; border-left: 1px solid #eef2f5; background: none; border-radius: 0 8px 8px 0; cursor: pointer; }
+.og-fn-x:hover { background: #fdecec; }
+.og-member.no { color: #6b7479; background: #f3f5f7; }
